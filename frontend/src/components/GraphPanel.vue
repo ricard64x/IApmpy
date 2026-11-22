@@ -660,6 +660,17 @@ const renderGraph = () => {
       }
     })
   
+  // Cache static label dimensions once. Previously every D3 tick fetched
+  // the full label DOM list for EACH edge, then forced getBBox() layout.
+  // For ~3,000 edges this caused millions of repeated DOM reads per tick.
+  const labelBounds = linkLabels.nodes().map(label => {
+    const bounds = label.getBBox()
+    return {
+      width: Math.max(bounds.width, (label.textContent || '').length * 4.8),
+      height: Math.max(bounds.height, 10),
+    }
+  })
+
   // 保存引用供外部控制显隐
   linkLabelsRef = linkLabels
   linkLabelBgRef = linkLabelBg
@@ -771,13 +782,12 @@ const renderGraph = () => {
     // 更新边标签背景
     linkLabelBg.each(function(d, i) {
       const mid = getLinkMidpoint(d)
-      const textEl = linkLabels.nodes()[i]
-      const bbox = textEl.getBBox()
+      const bounds = labelBounds[i]
       d3.select(this)
-        .attr('x', mid.x - bbox.width / 2 - 4)
-        .attr('y', mid.y - bbox.height / 2 - 2)
-        .attr('width', bbox.width + 8)
-        .attr('height', bbox.height + 4)
+        .attr('x', mid.x - bounds.width / 2 - 4)
+        .attr('y', mid.y - bounds.height / 2 - 2)
+        .attr('width', bounds.width + 8)
+        .attr('height', bounds.height + 4)
         .attr('transform', '') // 移除旋转
     })
 
