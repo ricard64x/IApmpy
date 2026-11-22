@@ -42,6 +42,7 @@
       :refreshing="progressRefreshing"
       @refresh="pollTaskStatus(projectData?.graph_build_task_id)"
       @go-projects="router.push('/')"
+      @focus-workbench="viewMode = 'workbench'"
     />
 
     <!-- Main Content Area -->
@@ -394,7 +395,7 @@ const startPollingTask = (taskId) => {
 }
 
 const pollTaskStatus = async (taskId) => {
-  if (graphPollBusy || !currentProjectId.value) return
+  if (graphPollBusy || !currentProjectId.value || (typeof document !== 'undefined' && document.hidden)) return
   graphPollBusy = true
   progressRefreshing.value = true
   try {
@@ -514,11 +515,18 @@ const stopGraphPolling = () => {
   }
 }
 
+const onVisibilityChange = () => {
+  if (!document.hidden && currentPhase.value === 1) {
+    pollTaskStatus(projectData.value?.graph_build_task_id)
+  }
+}
 onMounted(() => {
+  document.addEventListener('visibilitychange', onVisibilityChange)
   initProject()
 })
 
 onUnmounted(() => {
+  document.removeEventListener('visibilitychange', onVisibilityChange)
   stopPolling()
   stopGraphPolling()
 })
