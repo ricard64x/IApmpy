@@ -256,7 +256,12 @@
     "preparingRun": "Preparing simulation",
     "preparingRunHelp": "Initializing the agent runtime.",
     "stoppedTitle": "Simulation stopped",
-    "stoppedHelp": "This execution was stopped. If some rounds are missing, the results are partial and should be interpreted cautiously."
+    "stoppedHelp": "This execution was stopped. If some rounds are missing, the results are partial and should be interpreted cautiously.",
+    "roundLabel": "ROUND",
+    "timeLabel": "TIME",
+    "actionsLabel": "ACTIONS",
+    "availableActions": "AVAILABLE ACTIONS",
+    "totalEvents": "TOTAL EVENTS"
   },
   "step4": {
     "generatingSection": "Generating {title}...",
