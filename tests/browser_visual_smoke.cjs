@@ -83,6 +83,18 @@ async function run() {
     await page.reload({waitUntil: 'domcontentloaded'})
     await page.locator('.tracking-banner').getByText('40 de 80 fragmentos procesados').waitFor({timeout: 15000})
     await page.setViewportSize({width: 390, height: 844})
+    await page.reload({waitUntil: 'domcontentloaded'})
+    await page.locator('.tracking-banner').getByText('40 de 80 fragmentos procesados').waitFor({timeout: 15000})
+    const mobileLeft = await page.locator('.panel-wrapper.left').evaluate(e => getComputedStyle(e).display)
+    const mobileRight = await page.locator('.panel-wrapper.right').boundingBox()
+    const mobileHeaderLeft = await page.locator('.app-header .header-left').boundingBox()
+    const mobileHeaderRight = await page.locator('.app-header .header-right').boundingBox()
+    assert.equal(mobileLeft, 'none', 'Mobile graph should not take half the screen')
+    assert(mobileRight && mobileRight.width >= 375 && mobileRight.x >= 0 &&
+      mobileRight.x + mobileRight.width <= 391, 'Mobile workbench must use the available width')
+    assert(mobileHeaderLeft && mobileHeaderRight &&
+      mobileHeaderLeft.x + mobileHeaderLeft.width <= mobileHeaderRight.x + 5,
+      'Mobile top header overlaps language and navigation')
     await page.screenshot({path: path.join(DIR, '02e-progreso-movil.png'), fullPage: true})
     screenshots.push('02e-progreso-movil.png')
     await page.setViewportSize({width: 1440, height: 900})
