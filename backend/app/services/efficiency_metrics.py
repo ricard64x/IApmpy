@@ -94,6 +94,7 @@ def get_simulation_efficiency(simulation_id: str):
         if clean:
             seen_text.add(clean)
     profile_count = None
+    known_profile_ids = None
     profiles = root / "reddit_profiles.json"
     if profiles.is_file():
         try:
@@ -101,14 +102,31 @@ def get_simulation_efficiency(simulation_id: str):
                 profile_list = json.load(f)
             if isinstance(profile_list, list):
                 profile_count = len(profile_list)
+                known_profile_ids = set()
+                for i, profile in enumerate(profile_list):
+                    if isinstance(profile, dict):
+                        try:
+                            known_profile_ids.add(int(profile.get("user_id", i)))
+                        except (TypeError, ValueError):
+                            pass
         except (OSError, ValueError):
             pass
     elif (root / "twitter_profiles.csv").is_file():
         try:
             with (root / "twitter_profiles.csv").open(encoding="utf-8-sig", newline="") as f:
-                profile_count = sum(1 for _ in csv.DictReader(f))
+                raw_profiles = list(csv.DictReader(f))
+            profile_count = len(raw_profiles)
+            known_profile_ids = set()
+            for i, profile in enumerate(raw_profiles):
+                try:
+                    known_profile_ids.add(int(profile.get("user_id") or i))
+                except (TypeError, ValueError):
+                    pass
         except OSError:
             pass
+
+    valid_profiles_with_actions = len(unique_ids & known_profile_ids) if known_profile_ids is not None else len(unique_ids)
+    unexpected_profiles_with_actions = len(unique_ids - known_profile_ids) if known_profile_ids is not None else None
 
     valid_tokens = [x for x in requests if _actual_int(x, "actual_prompt_tokens") is not None
                     and _actual_int(x, "actual_completion_tokens") is not None]
@@ -151,8 +169,9 @@ def get_simulation_efficiency(simulation_id: str):
         },
         "quality_structural": {
             "expected_profiles": profile_count,
-            "unique_profiles_with_actions": len(unique_ids),
-            "profile_coverage_percent": round(100 * len(unique_ids) / profile_count, 2)
+            "unique_profiles_with_actions": valid_profiles_with_actions,
+            "unexpected_profile_ids": unexpected_profiles_with_actions,
+            "profile_coverage_percent": round(100 * valid_profiles_with_actions / profile_count, 2)
             if profile_count else None,
             "synthetic_actions": len(observations),
             "duplicated_text_actions": repeated,
