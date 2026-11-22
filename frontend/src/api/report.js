@@ -49,3 +49,15 @@ export const getReport = (reportId) => {
 export const chatWithReport = (data) => {
   return service.post('/api/report/chat', data)
 }
+
+/** Consulta una respuesta sintética posterior basada en el informe persistente. */
+export const createReportInteraction = (data) =>
+  service.post('/api/report/interactions', data)
+
+/** Recupera conversaciones y encuestas privadas del informe. */
+export const getReportInteractions = (reportId, simulationId) =>
+  service.get('/api/report/interactions', { params: { report_id: reportId, simulation_id: simulationId } })
+
+/** URL relativa de exportación autenticada con cookie de sesión. */
+export const reportExportUrl = (reportId, format = 'md') =>
+  `/api/report/${encodeURIComponent(reportId)}/export?format=${encodeURIComponent(format)}`
