@@ -1,6 +1,7 @@
 """Conservative OASIS capacity admission control for one 2 GiB Fly Machine."""
 import os
 import threading
+from .config import Config
 from pathlib import Path
 from flask import Blueprint, g, jsonify, request
 from .services.simulation_manager import SimulationManager
@@ -38,7 +39,15 @@ def runtime_capacity():
         if run and run.runner_status in (RunnerStatus.RUNNING, RunnerStatus.PAUSED, RunnerStatus.STOPPING):
             busy = True
             break
+    try:
+        disk = os.statvfs(Config.UPLOAD_FOLDER)
+        disk_total_mb = round(disk.f_blocks * disk.f_frsize / 1048576)
+        disk_free_mb = round(disk.f_bavail * disk.f_frsize / 1048576)
+    except OSError:
+        disk_total_mb, disk_free_mb = None, None
     return {
+        "storage_total_mb": disk_total_mb,
+        "storage_free_mb": disk_free_mb,
         "machine_memory_mb": memory_mb,
         "memory_used_mb": used_mb,
         "memory_free_estimate_mb": max(0, memory_mb - used_mb) if used_mb is not None else None,
@@ -60,6 +69,18 @@ def status():
 
 def install_capacity(app):
     app.register_blueprint(capacity_bp, url_prefix="/api/capacity")
+
+    @app.before_request
+    def protect_storage_capacity():
+        if request.path != "/api/graph/ontology/generate" or request.method != "POST":
+            return None
+        info = runtime_capacity()
+        content_mb = round((request.content_length or 0) / 1048576)
+        if info["storage_free_mb"] is not None and info["storage_free_mb"] < 100 + content_mb:
+            return jsonify({
+                "success": False,
+                "error": "El almacenamiento está casi lleno. Liberá espacio antes de cargar documentos.",
+            }), 507
 
     @app.before_request
     def protect_simulation_start():
