@@ -588,7 +588,7 @@ const fetchRunStatus = async () => {
         addLog(t('log.simCompleted'))
         phase.value = 2
         stopPolling()
-        emit('update-status', 'completed')
+        emit('update-status', data.runner_status === 'stopped' ? 'stopped' : 'completed')
       }
     }
   } catch (err) {
@@ -802,7 +802,7 @@ onMounted(async () => {
         addLog(t('step3.failedNoReport'))
       } else if (status === 'completed' || status === 'stopped') {
         phase.value = 2
-        emit('update-status', 'completed')
+        emit('update-status', status === 'stopped' ? 'stopped' : 'completed')
       } else {
         phase.value = 1
         emit('update-status', response.data.phase === 'awaiting_close'
