@@ -299,8 +299,11 @@
       </div>
     </div>
 
-    <!-- Bottom Info / Logs -->
-    <div class="system-logs">
+    <!-- Technical diagnostics are optional; user-facing progress is above. -->
+    <button type="button" class="logs-toggle" @click="showTechnicalLogs = !showTechnicalLogs">
+      {{ showTechnicalLogs ? $t('step4.hideTechnicalDetails') : $t('step4.showTechnicalDetails') }}
+    </button>
+    <div v-if="showTechnicalLogs" class="system-logs">
       <div class="log-header">
         <span class="log-title">{{ $t('main.simulationMonitor') }}</span>
         <span class="log-id">{{ simulationId || $t('main.noSimulation') }}</span>
@@ -351,6 +354,7 @@ const router = useRouter()
 
 // State
 const isGeneratingReport = ref(false)
+const showTechnicalLogs = ref(false)
 const phase = ref(0) // 0: 未开始, 1: 运行中, 2: 已完成
 const isStarting = ref(false)
 const isStopping = ref(false)
@@ -1405,4 +1409,9 @@ onUnmounted(() => {
 .finalize-btn:disabled{opacity:.5}.completion-choice small{color:#775f2b;font-size:11px}
 .completion-error{color:#af3945;font-size:11px}
 @media(max-width:760px){.lifecycle-steps{flex-direction:column}}
+</style>
+
+<style scoped>
+.logs-toggle{flex-shrink:0;text-align:left;border:0;border-top:1px solid #dce9ef;padding:9px 17px;background:#f5fafb;color:#24758c;cursor:pointer;font-size:11px;font-weight:750}
+.api-note{display:none}
 </style>
