@@ -98,6 +98,14 @@ python3 scripts/benchmark_getangiru.py evaluacion_gold.json --output resultados_
 
 El programa exige al menos 12 casos para funcionar, pero **12 no son una base estadística robusta**. Reporta precision@5, recall@5, MRR, latencia p95 y tokens. Si no existen datos, muestra null. **Esto mide recuperación de documentos, no exactitud de predicciones de fraude ni de incidentes.**
 
+**Acertividad de decisiones (distinta de recuperación):** para incidentes o fraude, preparar un conjunto de casos con desenlace comprobado o adjudicación humana independiente, con casos positivos y negativos, decisiones del sistema actual y del candidato para **los mismos casos**. Evaluar precisión, recall, falsos positivos, falsos negativos, exactitud balanceada y calibración Brier si existen probabilidades.
+
+~~~bash
+python3 scripts/evaluate_decision_quality.py casos_adjudicados.json --output calidad_decisiones.json
+~~~
+
+El evaluador exige al menos 20 casos y ambas clases; para decisión ejecutiva usar muestras mayores, estratos por riesgo, intervalos de confianza y seguimiento de deriva. Esta evaluación no se extrae automáticamente de las respuestas de GPT.
+
 **Gates propuestos (objetivos, NO resultados medidos):**
 - 0 filtraciones entre proyectos y 0 secretos expuestos a servidores no autorizados;
 - Recall@5 no inferior al sistema base por más de 3 puntos porcentuales;
