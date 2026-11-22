@@ -39,7 +39,8 @@
     <main class="content-area">
       <!-- Left Panel: Graph -->
       <div class="panel-wrapper left" :style="leftPanelStyle">
-        <GraphPanel 
+        <GraphPanel
+          v-if="viewMode !== 'workbench'"
           :graphData="graphData"
           :loading="graphLoading"
           :currentPhase="3"
@@ -91,7 +92,8 @@ const props = defineProps({
 })
 
 // Layout State
-const viewMode = ref('split')
+// Prefer a small-memory progress view: do not render a giant graph on start.
+const viewMode = ref('workbench')
 
 // Data State
 const currentSimulationId = ref(route.params.simulationId)
@@ -240,7 +242,7 @@ const loadSimulationData = async () => {
           addLog(t('log.projectLoadSuccess', { id: projRes.data.project_id }))
           
           // 获取 graph 数据
-          if (projRes.data.graph_id) {
+          if (projRes.data.graph_id && viewMode.value !== 'workbench') {
             await loadGraph(projRes.data.graph_id)
           }
         }
@@ -287,8 +289,10 @@ let graphRefreshTimer = null
 const startGraphRefresh = () => {
   if (graphRefreshTimer) return
   addLog(t('log.graphRealtimeRefreshStart'))
-  // 立即刷新一次，然后每30秒刷新
-  graphRefreshTimer = setInterval(refreshGraph, 30000)
+  // Only refresh the graph when the user is actually viewing it.
+  graphRefreshTimer = setInterval(() => {
+    if (!document.hidden && viewMode.value !== 'workbench') refreshGraph()
+  }, 60000)
 }
 
 const stopGraphRefresh = () => {
@@ -299,12 +303,12 @@ const stopGraphRefresh = () => {
   }
 }
 
-watch(isSimulating, (newValue) => {
-  if (newValue) {
-    startGraphRefresh()
-  } else {
-    stopGraphRefresh()
+watch([isSimulating, viewMode], async ([running, mode]) => {
+  stopGraphRefresh()
+  if (mode !== 'workbench' && projectData.value?.graph_id && !graphData.value) {
+    await loadGraph(projectData.value.graph_id)
   }
+  if (running && mode !== 'workbench') startGraphRefresh()
 }, { immediate: true })
 
 onMounted(() => {
