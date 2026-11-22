@@ -117,6 +117,8 @@ async function run() {
     await page.locator('.survey-submit-btn').click()
     await page.locator('.result-card').first().waitFor({ timeout: 12000 })
     assert.equal(await page.locator('.result-card').count(), 1)
+    const selectionCard = await page.locator('.agent-checkbox').first().boundingBox()
+    assert(selectionCard && selectionCard.height >= 38, 'Survey options collapse after receiving results')
     await page.screenshot({ path: path.join(DIR, '05-encuesta-funcionando.png'), fullPage: true })
     screenshots.push('05-encuesta-funcionando.png')
 
@@ -138,6 +140,13 @@ async function run() {
     if (!mobileSurvey || mobileSurvey.x < 0 || mobileSurvey.x + mobileSurvey.width > 390) {
       issues.push('Mobile survey button extends outside the viewport')
     }
+    const mobileBrand = await page.locator('.app-header .brand').boundingBox()
+    const mobileHeaderControls = await page.locator('.app-header .header-right').boundingBox()
+    assert(mobileBrand && mobileHeaderControls && mobileBrand.x + mobileBrand.width <= mobileHeaderControls.x + 4,
+      'The mobile header overlaps its brand and account/language controls')
+    await page.locator('.result-card').first().scrollIntoViewIfNeeded()
+    await page.screenshot({ path: path.join(DIR, '07-encuesta-resultados-movil.png'), fullPage: true })
+    screenshots.push('07-encuesta-resultados-movil.png')
 
     const results = { passed: issues.length === 0, login: true, chat: true, survey: true, reportRestore: true, markdownExport: true, screenshots, geometry, issues }
     fs.writeFileSync(path.join(DIR, 'results.json'), JSON.stringify(results, null, 2))
