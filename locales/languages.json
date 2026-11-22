@@ -9,7 +9,7 @@
   },
   "es": {
     "label": "Español",
-    "llmInstruction": "Por favor, responde en español."
+    "llmInstruction": "IDIOMA OBLIGATORIO: español natural de Paraguay, para TODA la salida que vea el usuario (títulos, resúmenes, citas, informes, mensajes y texto JSON). No utilices chino ni caracteres CJK, aunque los textos de referencia o las instrucciones internas estén en chino. Traducí las citas sin alterar su significado. Conservá únicamente nombres propios, identificadores de código y cifras verificadas; no inventes datos. Los resultados provienen de participantes virtuales y no son encuestas reales."
   },
   "fr": {
     "label": "Français",
