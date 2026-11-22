@@ -127,6 +127,7 @@ const statusClass = computed(() => {
 const statusText = computed(() => {
   if (currentStatus.value === 'error') return t('common.error')
   if (currentStatus.value === 'completed') return t('common.completed')
+  if (currentStatus.value === 'stopped') return t('step3.stoppedTitle')
   if (currentStatus.value === 'awaiting_close') return t('step3.roundsFinishedWaiting')
   if (currentStatus.value === 'finalizing') return t('step3.finalizing')
   return t('common.running')
@@ -434,6 +435,7 @@ onUnmounted(() => {
 .status-indicator.processing .dot { background: #FF5722; animation: pulse 1s infinite; }
 .status-indicator.completed .dot { background: #4CAF50; }
 .status-indicator.awaiting_close .dot { background: #e9a91e; }
+.status-indicator.stopped .dot { background: #e9a91e; }
 .status-indicator.finalizing .dot { background: #118cb7; animation: pulse 1s infinite; }
 .status-indicator.error .dot { background: #F44336; }
 
