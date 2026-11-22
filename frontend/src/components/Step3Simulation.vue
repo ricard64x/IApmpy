@@ -91,15 +91,23 @@
       </div>
 
       <div class="action-controls">
-        <button 
+        <button
+          v-if="runStatus.runner_status !== 'failed'"
           class="action-btn primary"
-          :disabled="phase !== 2 || isGeneratingReport"
+          :disabled="phase !== 2 || !['completed', 'stopped'].includes(runStatus.runner_status) || isGeneratingReport"
           @click="handleNextStep"
         >
           <span v-if="isGeneratingReport" class="loading-spinner-small"></span>
           {{ isGeneratingReport ? $t('step3.generatingReportBtn') : $t('step3.startGenerateReportBtn') }}
           <span v-if="!isGeneratingReport" class="arrow-icon">→</span>
         </button>
+        <a
+          v-else
+          class="action-btn primary"
+          :href="`/api/report/diagnostic/${encodeURIComponent(simulationId)}`"
+          :download="`diagnostico_${simulationId}.md`"
+          :title="$t('step3.failedNoReport')"
+        >{{ $t('step3.downloadTechnicalDiagnostic') }}</a>
       </div>
     </div>
 
@@ -398,7 +406,7 @@ const doStartSimulation = async () => {
     const params = {
       simulation_id: props.simulationId,
       platform: 'parallel',
-      force: true,  // 强制重新开始
+      force: false,  // New runs only; never discard existing results on navigation
       enable_graph_memory_update: true  // 开启动态图谱更新
     }
     
@@ -648,6 +656,11 @@ const handleNextStep = async () => {
     return
   }
 
+  if (!['completed', 'stopped'].includes(runStatus.value.runner_status)) {
+    addLog(t('step3.failedNoReport'))
+    return
+  }
+
   if (isGeneratingReport.value) {
     addLog(t('log.reportRequestSent'))
     return
@@ -688,10 +701,41 @@ watch(() => props.systemLogs?.length, () => {
   })
 })
 
-onMounted(() => {
+onMounted(async () => {
   addLog(t('log.step3Init'))
-  if (props.simulationId) {
-    doStartSimulation()
+  if (!props.simulationId) return
+
+  // Visiting or refreshing a simulation must NEVER force-restart it. In
+  // particular, an OOM-failed run must remain failed for diagnostics.
+  try {
+    const response = await getRunStatus(props.simulationId)
+    if (!response.success || !response.data) {
+      throw new Error(response.error || t('common.unknownError'))
+    }
+    const status = response.data.runner_status
+    runStatus.value = response.data
+
+    if (status === 'idle') {
+      await doStartSimulation()
+    } else {
+      if (status === 'failed') {
+        phase.value = 2
+        emit('update-status', 'error')
+        addLog(t('step3.failedNoReport'))
+      } else if (status === 'completed' || status === 'stopped') {
+        phase.value = 2
+        emit('update-status', 'completed')
+      } else {
+        phase.value = 1
+        emit('update-status', 'processing')
+        startStatusPolling()
+        startDetailPolling()
+      }
+      await fetchRunStatusDetail()
+    }
+  } catch (err) {
+    addLog(t('log.checkStatusFailed', { error: err.message }))
+    emit('update-status', 'error')
   }
 })
 
