@@ -338,7 +338,11 @@
     "analysisComplete": "Informe completado",
     "toolConsultation": "Consulta",
     "finalResponse": "Respuesta final",
-    "backgroundStatus": "Procesando información"
+    "backgroundStatus": "Procesando información",
+    "retryTranslation": "Reintentar traducción",
+    "translatingProgress": "Traduciendo informe antiguo al español: {done}/{total} partes",
+    "translationSaved": "✓ Versión en español guardada y lista para exportar",
+    "translationFailed": "No se pudo completar la traducción."
   },
   "step5": {
     "interactiveTools": "Herramientas interactivas",
