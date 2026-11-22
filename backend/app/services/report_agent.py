@@ -21,7 +21,13 @@ from enum import Enum
 from ..config import Config
 from ..utils.llm_client import LLMClient
 from ..utils.logger import get_logger
-from ..utils.locale import get_language_instruction, t
+from ..utils.locale import get_language_instruction, get_locale, t
+from .report_prompts_es import (
+    PLAN_SYSTEM_PROMPT_ES, PLAN_USER_PROMPT_ES,
+    SECTION_SYSTEM_PROMPT_ES, SECTION_USER_PROMPT_ES,
+    REACT_OBSERVATION_ES, REACT_INSUFFICIENT_ES,
+    REACT_TOOL_LIMIT_ES, REACT_FORCE_FINAL_ES,
+)
 from .zep_tools import (
     ZepToolsService, 
     SearchResult, 
@@ -1202,8 +1208,9 @@ class ReportAgent:
         if progress_callback:
             progress_callback("planning", 30, t('progress.generatingOutline'))
         
-        system_prompt = f"{PLAN_SYSTEM_PROMPT}\n\n{get_language_instruction()}"
-        user_prompt = PLAN_USER_PROMPT_TEMPLATE.format(
+        language_es = get_locale() == 'es'
+        system_prompt = f"{PLAN_SYSTEM_PROMPT_ES if language_es else PLAN_SYSTEM_PROMPT}\n\n{get_language_instruction()}"
+        user_prompt = (PLAN_USER_PROMPT_ES if language_es else PLAN_USER_PROMPT_TEMPLATE).format(
             simulation_requirement=self.simulation_requirement,
             total_nodes=context.get('graph_statistics', {}).get('total_nodes', 0),
             total_edges=context.get('graph_statistics', {}).get('total_edges', 0),
@@ -1218,7 +1225,8 @@ class ReportAgent:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.3
+                temperature=0.3,
+                max_tokens=1600 if language_es else 4096,
             )
             
             if progress_callback:
@@ -1246,6 +1254,16 @@ class ReportAgent:
             
         except Exception as e:
             logger.error(t('report.outlinePlanFailed', error=str(e)))
+            if get_locale() == 'es':
+                return ReportOutline(
+                    title="Informe de escenarios simulados",
+                    summary="Hipótesis y posibles tendencias entre participantes virtuales.",
+                    sections=[
+                        ReportSection(title="Escenario y hallazgos principales"),
+                        ReportSection(title="Reacciones de los participantes simulados"),
+                        ReportSection(title="Riesgos, oportunidades y límites del análisis"),
+                    ],
+                )
             # 返回默认大纲（3个章节，作为fallback）
             return ReportOutline(
                 title="未来预测报告",
@@ -1291,7 +1309,9 @@ class ReportAgent:
         if self.report_logger:
             self.report_logger.log_section_start(section.title, section_index)
         
-        system_prompt = SECTION_SYSTEM_PROMPT_TEMPLATE.format(
+        language_es = get_locale() == 'es'
+        tool_budget = 2 if language_es else self.MAX_TOOL_CALLS_PER_SECTION
+        system_prompt = (SECTION_SYSTEM_PROMPT_ES if language_es else SECTION_SYSTEM_PROMPT_TEMPLATE).format(
             report_title=outline.title,
             report_summary=outline.summary,
             simulation_requirement=self.simulation_requirement,
@@ -1311,7 +1331,7 @@ class ReportAgent:
         else:
             previous_content = "（这是第一个章节）"
         
-        user_prompt = SECTION_USER_PROMPT_TEMPLATE.format(
+        user_prompt = (SECTION_USER_PROMPT_ES if language_es else SECTION_USER_PROMPT_TEMPLATE).format(
             previous_content=previous_content,
             section_title=section.title,
         )
@@ -1323,8 +1343,8 @@ class ReportAgent:
         
         # ReACT循环
         tool_calls_count = 0
-        max_iterations = 5  # 最大迭代轮数
-        min_tool_calls = 3  # 最少工具调用次数
+        max_iterations = 3 if language_es else 5
+        min_tool_calls = 1 if language_es else 3  # 最少工具调用次数
         conflict_retries = 0  # 工具调用与Final Answer同时出现的连续冲突次数
         used_tools = set()  # 记录已调用过的工具名
         all_tools = {"insight_forge", "panorama_search", "quick_search", "interview_agents"}
@@ -1337,14 +1357,14 @@ class ReportAgent:
                 progress_callback(
                     "generating", 
                     int((iteration / max_iterations) * 100),
-                    t('progress.deepSearchAndWrite', current=tool_calls_count, max=self.MAX_TOOL_CALLS_PER_SECTION)
+                    t('progress.deepSearchAndWrite', current=tool_calls_count, max=tool_budget)
                 )
             
             # 调用LLM
             response = self.llm.chat(
                 messages=messages,
                 temperature=0.5,
-                max_tokens=4096
+                max_tokens=2600 if language_es else 4096
             )
 
             # 检查 LLM 返回是否为 None（API 异常或内容为空）
@@ -1421,7 +1441,7 @@ class ReportAgent:
                     unused_hint = f"（这些工具还未使用，推荐用一下他们: {', '.join(unused_tools)}）" if unused_tools else ""
                     messages.append({
                         "role": "user",
-                        "content": REACT_INSUFFICIENT_TOOLS_MSG.format(
+                        "content": (REACT_INSUFFICIENT_ES if language_es else REACT_INSUFFICIENT_TOOLS_MSG).format(
                             tool_calls_count=tool_calls_count,
                             min_tool_calls=min_tool_calls,
                             unused_hint=unused_hint,
@@ -1445,14 +1465,14 @@ class ReportAgent:
             # ── 情况2：LLM 尝试调用工具 ──
             if has_tool_calls:
                 # 工具额度已耗尽 → 明确告知，要求输出 Final Answer
-                if tool_calls_count >= self.MAX_TOOL_CALLS_PER_SECTION:
+                if tool_calls_count >= tool_budget:
                     cleaned_response = ReportAgent._strip_fake_tool_results(response)
                     messages.append({"role": "assistant", "content": cleaned_response})
                     messages.append({
                         "role": "user",
-                        "content": REACT_TOOL_LIMIT_MSG.format(
+                        "content": (REACT_TOOL_LIMIT_ES if language_es else REACT_TOOL_LIMIT_MSG).format(
                             tool_calls_count=tool_calls_count,
-                            max_tool_calls=self.MAX_TOOL_CALLS_PER_SECTION,
+                            max_tool_calls=tool_budget,
                         ),
                     })
                     continue
@@ -1492,18 +1512,18 @@ class ReportAgent:
                 # 构建未使用工具提示
                 unused_tools = all_tools - used_tools
                 unused_hint = ""
-                if unused_tools and tool_calls_count < self.MAX_TOOL_CALLS_PER_SECTION:
-                    unused_hint = REACT_UNUSED_TOOLS_HINT.format(unused_list="、".join(unused_tools))
+                if unused_tools and tool_calls_count < tool_budget:
+                    unused_hint = ("Otras búsquedas: " + ", ".join(unused_tools) if language_es else REACT_UNUSED_TOOLS_HINT.format(unused_list="、".join(unused_tools)))
 
                 cleaned_response = ReportAgent._strip_fake_tool_results(response)
                 messages.append({"role": "assistant", "content": cleaned_response})
                 messages.append({
                     "role": "user",
-                    "content": REACT_OBSERVATION_TEMPLATE.format(
+                    "content": (REACT_OBSERVATION_ES if language_es else REACT_OBSERVATION_TEMPLATE).format(
                         tool_name=call["name"],
                         result=result,
                         tool_calls_count=tool_calls_count,
-                        max_tool_calls=self.MAX_TOOL_CALLS_PER_SECTION,
+                        max_tool_calls=tool_budget,
                         used_tools_str=", ".join(used_tools),
                         unused_hint=unused_hint,
                     ),
@@ -1521,7 +1541,7 @@ class ReportAgent:
 
                 messages.append({
                     "role": "user",
-                    "content": REACT_INSUFFICIENT_TOOLS_MSG_ALT.format(
+                    "content": (REACT_INSUFFICIENT_ES if language_es else REACT_INSUFFICIENT_TOOLS_MSG_ALT).format(
                         tool_calls_count=tool_calls_count,
                         min_tool_calls=min_tool_calls,
                         unused_hint=unused_hint,
@@ -1545,7 +1565,7 @@ class ReportAgent:
         
         # 达到最大迭代次数，强制生成内容
         logger.warning(t('report.sectionMaxIter', title=section.title))
-        messages.append({"role": "user", "content": REACT_FORCE_FINAL_MSG})
+        messages.append({"role": "user", "content": (REACT_FORCE_FINAL_ES if language_es else REACT_FORCE_FINAL_MSG)})
         
         response = self.llm.chat(
             messages=messages,

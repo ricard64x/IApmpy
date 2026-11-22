@@ -7,8 +7,17 @@
         <div v-if="reportOutline" class="report-content-wrapper">
           <!-- Report Header -->
           <div class="report-header-block">
+            <p v-if="translationStatus" class="translation-status" role="status">{{ translationStatus }}</p>
+            <p v-if="translationError" class="translation-error" role="alert">{{ translationError }}</p>
+            <button v-if="translationError" class="translation-retry" type="button" @click="refreshSpanishCopy">{{ $t('step4.retryTranslation') }}</button>
+            <div class="report-export-toolbar">
+              <span>✓ {{ $t('step5.savedAutomatically') }}</span>
+              <button type="button" :disabled="translationBusy" @click="downloadSavedReport('md')">{{ $t('step5.exportMarkdown') }}</button>
+              <button type="button" :disabled="translationBusy" @click="downloadSavedReport('html')">{{ $t('step5.exportHtml') }}</button>
+              <button type="button" :disabled="translationBusy" @click="printSavedReport">{{ $t('step5.exportPdf') }}</button>
+            </div>
             <div class="report-meta">
-              <span class="report-tag">Prediction Report</span>
+              <span class="report-tag">{{ $t('step5.savedReportLabel') }}</span>
               <span class="report-id">ID: {{ reportId || 'REF-2024-X92' }}</span>
             </div>
             <h1 class="main-title">{{ reportOutline.title }}</h1>
@@ -72,7 +81,7 @@
             <div class="waiting-ring"></div>
             <div class="waiting-ring"></div>
           </div>
-          <span class="waiting-text">Waiting for Report Agent...</span>
+          <span class="waiting-text">{{ $t('step5.loadingSavedReport') }}</span>
         </div>
       </div>
 
@@ -100,6 +109,19 @@
               </svg>
               <span>{{ $t('step5.chatWithReportAgent') }}</span>
             </button>
+                        <div class="tab-divider"></div>
+            <button
+              class="tab-pill survey-pill"
+              :class="{ active: activeTab === 'survey' }"
+              @click="selectSurveyTab"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 11l3 3L22 4"></path>
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+              </svg>
+              <span>{{ $t('step5.sendSurvey') }}</span>
+            </button>
+
             <div class="agent-dropdown" v-if="profiles.length > 0">
               <button 
                 class="tab-pill agent-pill"
@@ -131,87 +153,18 @@
                 </div>
               </div>
             </div>
-            <div class="tab-divider"></div>
-            <button
-              class="tab-pill survey-pill"
-              :class="{ active: activeTab === 'survey' }"
-              @click="selectSurveyTab"
-            >
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 11l3 3L22 4"></path>
-                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-              </svg>
-              <span>{{ $t('step5.sendSurvey') }}</span>
-            </button>
           </div>
         </div>
 
         <!-- Chat Mode -->
         <div v-if="activeTab === 'chat'" class="chat-container">
 
-          <!-- Report Agent Tools Card -->
           <div v-if="chatTarget === 'report_agent'" class="report-agent-tools-card">
             <div class="tools-card-header">
-              <div class="tools-card-avatar">R</div>
+              <div class="tools-card-avatar">T</div>
               <div class="tools-card-info">
-                <div class="tools-card-name">{{ $t('step5.reportAgentChat') }}</div>
+                <div class="tools-card-name">{{ $t('step5.reportAdvisor') }}</div>
                 <div class="tools-card-subtitle">{{ $t('step5.reportAgentDesc') }}</div>
-              </div>
-              <button class="tools-card-toggle" @click="showToolsDetail = !showToolsDetail">
-                <svg :class="{ 'is-expanded': showToolsDetail }" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
-              </button>
-            </div>
-            <div v-if="showToolsDetail" class="tools-card-body">
-              <div class="tools-grid">
-                <div class="tool-item tool-purple">
-                  <div class="tool-icon-wrapper">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.5V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.5A7 7 0 0 0 12 2z"></path>
-                    </svg>
-                  </div>
-                  <div class="tool-content">
-                    <div class="tool-name">{{ $t('step5.toolInsightForge') }}</div>
-                    <div class="tool-desc">{{ $t('step5.toolInsightForgeDesc') }}</div>
-                  </div>
-                </div>
-                <div class="tool-item tool-blue">
-                  <div class="tool-icon-wrapper">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
-                    </svg>
-                  </div>
-                  <div class="tool-content">
-                    <div class="tool-name">{{ $t('step5.toolPanoramaSearch') }}</div>
-                    <div class="tool-desc">{{ $t('step5.toolPanoramaSearchDesc') }}</div>
-                  </div>
-                </div>
-                <div class="tool-item tool-orange">
-                  <div class="tool-icon-wrapper">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-                    </svg>
-                  </div>
-                  <div class="tool-content">
-                    <div class="tool-name">{{ $t('step5.toolQuickSearch') }}</div>
-                    <div class="tool-desc">{{ $t('step5.toolQuickSearchDesc') }}</div>
-                  </div>
-                </div>
-                <div class="tool-item tool-green">
-                  <div class="tool-icon-wrapper">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                      <circle cx="9" cy="7" r="4"></circle>
-                      <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"></path>
-                    </svg>
-                  </div>
-                  <div class="tool-content">
-                    <div class="tool-name">{{ $t('step5.toolInterviewSubAgent') }}</div>
-                    <div class="tool-desc">{{ $t('step5.toolInterviewSubAgentDesc') }}</div>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
@@ -241,6 +194,7 @@
             </div>
           </div>
 
+          <p class="synthesis-note">{{ $t('step5.syntheticNote') }}</p>
           <!-- Chat Messages -->
           <div class="chat-messages" ref="chatMessages">
             <div v-if="chatHistory.length === 0" class="chat-empty">
@@ -266,7 +220,7 @@
               <div class="message-content">
                 <div class="message-header">
                   <span class="sender-name">
-                    {{ msg.role === 'user' ? 'You' : (chatTarget === 'report_agent' ? 'Report Agent' : (selectedAgent?.username || 'Agent')) }}
+                    {{ msg.role === 'user' ? $t('step5.youLabel') : (chatTarget === 'report_agent' ? $t('step5.reportAdvisor') : (selectedAgent?.username || $t('step5.syntheticParticipant'))) }}
                   </span>
                   <span class="message-time">{{ formatTime(msg.timestamp) }}</span>
                 </div>
@@ -287,6 +241,7 @@
             </div>
           </div>
 
+          <p v-if="chatError" class="interaction-error" role="alert">{{ chatError }}</p>
           <!-- Chat Input -->
           <div class="chat-input-area">
             <textarea 
@@ -294,14 +249,14 @@
               class="chat-input"
               :placeholder="$t('step5.chatInputPlaceholder')"
               @keydown.enter.exact.prevent="sendMessage"
-              :disabled="isSending || (!selectedAgent && chatTarget === 'agent')"
+              :disabled="isSending || !simulationId || !reportId || (!selectedAgent && chatTarget === 'agent')"
               rows="1"
               ref="chatInputRef"
             ></textarea>
             <button 
               class="send-btn"
               @click="sendMessage"
-              :disabled="!chatInput.trim() || isSending || (!selectedAgent && chatTarget === 'agent')"
+              :disabled="!chatInput.trim() || isSending || !simulationId || !reportId || (!selectedAgent && chatTarget === 'agent')"
             >
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -317,7 +272,7 @@
           <div class="survey-setup">
             <div class="setup-section">
               <div class="section-header">
-                <span class="section-title">{{ $t('step5.selectSurveyTarget') }}</span>
+                <span class="section-title">{{ $t('step5.selectSurveyTarget') }} · {{ $t('step5.surveyLimitShort') }}</span>
                 <span class="selection-count">{{ $t('step5.selectedCount', { selected: selectedAgents.size, total: profiles.length }) }}</span>
               </div>
               <div class="agents-grid">
@@ -365,7 +320,7 @@
 
             <button 
               class="survey-submit-btn"
-              :disabled="selectedAgents.size === 0 || !surveyQuestion.trim() || isSurveying"
+              :disabled="selectedAgents.size === 0 || selectedAgents.size > 8 || !surveyQuestion.trim() || isSurveying || !simulationId || !reportId"
               @click="submitSurvey"
             >
               <span v-if="isSurveying" class="loading-spinner"></span>
@@ -373,6 +328,8 @@
             </button>
           </div>
 
+          <p class="synthesis-note">{{ $t('step5.syntheticNote') }}</p>
+          <p v-if="surveyError" class="interaction-error" role="alert">{{ surveyError }}</p>
           <!-- Survey Results -->
           <div v-if="surveyResults.length > 0" class="survey-results">
             <div class="results-header">
@@ -413,8 +370,9 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { chatWithReport, getReport, getAgentLog } from '../api/report'
-import { interviewAgents, getSimulationProfilesRealtime } from '../api/simulation'
+import { getReport, getAgentLog, getSavedReportSections, createReportInteraction, getReportInteractions, reportExportUrl } from '../api/report'
+import { getSimulationProfilesRealtime } from '../api/simulation'
+import { ensureSpanishReport, containsChinese } from '../utils/reportSpanish'
 
 const { t } = useI18n()
 
@@ -432,13 +390,14 @@ const showAgentDropdown = ref(false)
 const selectedAgent = ref(null)
 const selectedAgentIndex = ref(null)
 const showFullProfile = ref(true)
-const showToolsDetail = ref(true)
+const showToolsDetail = ref(false)
 
 // Chat State
 const chatInput = ref('')
 const chatHistory = ref([])
 const chatHistoryCache = ref({}) // 缓存所有对话记录: { 'report_agent': [], 'agent_0': [], 'agent_1': [], ... }
 const isSending = ref(false)
+const chatError = ref('')
 const chatMessages = ref(null)
 const chatInputRef = ref(null)
 
@@ -447,6 +406,10 @@ const selectedAgents = ref(new Set())
 const surveyQuestion = ref('')
 const surveyResults = ref([])
 const isSurveying = ref(false)
+const surveyError = ref('')
+const translationBusy = ref(false)
+const translationStatus = ref('')
+const translationError = ref('')
 
 // Report Data
 const reportOutline = ref(null)
@@ -514,6 +477,7 @@ const selectReportAgentChat = () => {
 
 const selectSurveyTab = () => {
   activeTab.value = 'survey'
+  surveyError.value = ''
   selectedAgent.value = null
   selectedAgentIndex.value = null
   showAgentDropdown.value = false
@@ -557,14 +521,16 @@ const formatTime = (timestamp) => {
 const renderMarkdown = (content) => {
   if (!content) return ''
   
+  // Untrusted model/document content must never become executable HTML.
   let processedContent = content.replace(/^##\s+.+\n+/, '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')
   let html = processedContent.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre class="code-block"><code>$2</code></pre>')
   html = html.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>')
   html = html.replace(/^#### (.+)$/gm, '<h5 class="md-h5">$1</h5>')
   html = html.replace(/^### (.+)$/gm, '<h4 class="md-h4">$1</h4>')
   html = html.replace(/^## (.+)$/gm, '<h3 class="md-h3">$1</h3>')
   html = html.replace(/^# (.+)$/gm, '<h2 class="md-h2">$1</h2>')
-  html = html.replace(/^> (.+)$/gm, '<blockquote class="md-quote">$1</blockquote>')
+  html = html.replace(/^&gt; (.+)$/gm, '<blockquote class="md-quote">$1</blockquote>')
   
   // 处理列表 - 支持子列表
   html = html.replace(/^(\s*)- (.+)$/gm, (match, indent, text) => {
@@ -643,7 +609,8 @@ const renderMarkdown = (content) => {
 
 // Chat Methods
 const sendMessage = async () => {
-  if (!chatInput.value.trim() || isSending.value) return
+  if (!chatInput.value.trim() || isSending.value || !props.reportId || !props.simulationId) return
+  chatError.value = ''
   
   const message = chatInput.value.trim()
   chatInput.value = ''
@@ -665,6 +632,7 @@ const sendMessage = async () => {
       await sendToAgent(message)
     }
   } catch (err) {
+    chatError.value = err.message || t('step5.requestFailed')
     addLog(t('log.sendFailed', { error: err.message }))
     chatHistory.value.push({
       role: 'assistant',
@@ -674,103 +642,42 @@ const sendMessage = async () => {
   } finally {
     isSending.value = false
     scrollToBottom()
+    // Historial de chats guardado en el volumen persistente por el backend.
     // 自动保存对话记录到缓存
     saveChatHistory()
   }
 }
 
 const sendToReportAgent = async (message) => {
-  addLog(t('log.sendToReportAgent', { message: message.substring(0, 50) }))
-  
-  // Build chat history for API
-  const historyForApi = chatHistory.value
-    .slice(0, -1)
-    .slice(-10) // Keep last 10 messages
-    .map(msg => ({
-      role: msg.role,
-      content: msg.content
-    }))
-  
-  const res = await chatWithReport({
+  const res = await createReportInteraction({
+    report_id: props.reportId,
     simulation_id: props.simulationId,
-    message: message,
-    chat_history: historyForApi
+    kind: 'chat',
+    target: 'report',
+    message,
+    chat_history: chatHistory.value.slice(0, -1).slice(-6).map(({role,content}) => ({role,content}))
   })
-  
-  if (res.success && res.data) {
-    chatHistory.value.push({
-      role: 'assistant',
-      content: res.data.response || res.data.answer || t('step5.noResponse'),
-      timestamp: new Date().toISOString()
-    })
-    addLog(t('log.reportAgentReplied'))
-  } else {
-    throw new Error(res.error || t('step5.requestFailed'))
-  }
+  const answer = res?.data?.response
+  if (!answer) throw new Error(t('step5.noResponse'))
+  chatHistory.value.push({ role: 'assistant', content: answer, timestamp: new Date().toISOString() })
 }
 
 const sendToAgent = async (message) => {
   if (!selectedAgent.value || selectedAgentIndex.value === null) {
     throw new Error(t('step5.selectAgentFirst'))
   }
-  
-  addLog(t('log.sendToAgent', { name: selectedAgent.value.username, message: message.substring(0, 50) }))
-  
-  // Build prompt with chat history
-  let prompt = message
-  if (chatHistory.value.length > 1) {
-    const historyContext = chatHistory.value
-      .slice(0, -1)
-      .slice(-6)
-      .map(msg => `${msg.role === 'user' ? '提问者' : '你'}：${msg.content}`)
-      .join('\n')
-    prompt = `以下是我们之前的对话：\n${historyContext}\n\n现在我的新问题是：${message}`
-  }
-  
-  const res = await interviewAgents({
+  const res = await createReportInteraction({
+    report_id: props.reportId,
     simulation_id: props.simulationId,
-    interviews: [{
-      agent_id: selectedAgentIndex.value,
-      prompt: prompt
-    }]
+    kind: 'chat',
+    target: 'participant',
+    agent_id: selectedAgentIndex.value,
+    message,
+    chat_history: chatHistory.value.slice(0, -1).slice(-6).map(({role,content}) => ({role,content}))
   })
-  
-  if (res.success && res.data) {
-    // 正确的数据路径: res.data.result.results 是一个对象字典
-    // 格式: {"twitter_0": {...}, "reddit_0": {...}} 或单平台 {"reddit_0": {...}}
-    const resultData = res.data.result || res.data
-    const resultsDict = resultData.results || resultData
-    
-    // 将对象字典转换为数组，优先获取 reddit 平台的回复
-    let responseContent = null
-    const agentId = selectedAgentIndex.value
-    
-    if (typeof resultsDict === 'object' && !Array.isArray(resultsDict)) {
-      // 优先使用 reddit 平台回复，其次 twitter
-      const redditKey = `reddit_${agentId}`
-      const twitterKey = `twitter_${agentId}`
-      const agentResult = resultsDict[redditKey] || resultsDict[twitterKey] || Object.values(resultsDict)[0]
-      if (agentResult) {
-        responseContent = agentResult.response || agentResult.answer
-      }
-    } else if (Array.isArray(resultsDict) && resultsDict.length > 0) {
-      // 兼容数组格式
-      responseContent = resultsDict[0].response || resultsDict[0].answer
-    }
-    
-    if (responseContent) {
-      chatHistory.value.push({
-        role: 'assistant',
-        content: responseContent,
-        timestamp: new Date().toISOString()
-      })
-      addLog(t('log.agentReplied', { name: selectedAgent.value.username }))
-    } else {
-      throw new Error(t('step5.noResponse'))
-    }
-  } else {
-    throw new Error(res.error || t('step5.requestFailed'))
-  }
+  const answer = res?.data?.response
+  if (!answer) throw new Error(t('step5.noResponse'))
+  chatHistory.value.push({ role: 'assistant', content: answer, timestamp: new Date().toISOString() })
 }
 
 const scrollToBottom = () => {
@@ -783,19 +690,22 @@ const scrollToBottom = () => {
 
 // Survey Methods
 const toggleAgentSelection = (idx) => {
-  const newSet = new Set(selectedAgents.value)
-  if (newSet.has(idx)) {
-    newSet.delete(idx)
-  } else {
-    newSet.add(idx)
+  const selected = new Set(selectedAgents.value)
+  if (selected.has(idx)) selected.delete(idx)
+  else {
+    if (selected.size >= 8) {
+      surveyError.value = t('step5.surveyLimit')
+      return
+    }
+    selected.add(idx)
   }
-  selectedAgents.value = newSet
+  surveyError.value = ''
+  selectedAgents.value = selected
 }
 
 const selectAllAgents = () => {
-  const newSet = new Set()
-  profiles.value.forEach((_, idx) => newSet.add(idx))
-  selectedAgents.value = newSet
+  selectedAgents.value = new Set(profiles.value.slice(0, 8).map((_, idx) => idx))
+  surveyError.value = profiles.value.length > 8 ? t('step5.surveyLimit') : ''
 }
 
 const clearAgentSelection = () => {
@@ -803,71 +713,82 @@ const clearAgentSelection = () => {
 }
 
 const submitSurvey = async () => {
-  if (selectedAgents.value.size === 0 || !surveyQuestion.value.trim()) return
-  
+  if (selectedAgents.value.size === 0 || !surveyQuestion.value.trim() || isSurveying.value) return
+  surveyError.value = ''
+  if (selectedAgents.value.size > 8) {
+    surveyError.value = t('step5.surveyLimit')
+    return
+  }
   isSurveying.value = true
-  addLog(t('log.sendSurvey', { count: selectedAgents.value.size }))
-  
   try {
-    const interviews = Array.from(selectedAgents.value).map(idx => ({
-      agent_id: idx,
-      prompt: surveyQuestion.value.trim()
-    }))
-    
-    const res = await interviewAgents({
+    const res = await createReportInteraction({
+      report_id: props.reportId,
       simulation_id: props.simulationId,
-      interviews: interviews
+      kind: 'survey',
+      message: surveyQuestion.value.trim(),
+      agent_ids: Array.from(selectedAgents.value).sort((a,b) => a-b)
     })
-    
-    if (res.success && res.data) {
-      // 正确的数据路径: res.data.result.results 是一个对象字典
-      // 格式: {"twitter_0": {...}, "reddit_0": {...}, "twitter_1": {...}, ...}
-      const resultData = res.data.result || res.data
-      const resultsDict = resultData.results || resultData
-      
-      // 将对象字典转换为数组格式
-      const surveyResultsList = []
-      
-      for (const interview of interviews) {
-        const agentIdx = interview.agent_id
-        const agent = profiles.value[agentIdx]
-        
-        // 优先使用 reddit 平台回复，其次 twitter
-        let responseContent = t('step5.noResponse')
-
-        if (typeof resultsDict === 'object' && !Array.isArray(resultsDict)) {
-          const redditKey = `reddit_${agentIdx}`
-          const twitterKey = `twitter_${agentIdx}`
-          const agentResult = resultsDict[redditKey] || resultsDict[twitterKey]
-          if (agentResult) {
-            responseContent = agentResult.response || agentResult.answer || t('step5.noResponse')
-          }
-        } else if (Array.isArray(resultsDict)) {
-          // 兼容数组格式
-          const matchedResult = resultsDict.find(r => r.agent_id === agentIdx)
-          if (matchedResult) {
-            responseContent = matchedResult.response || matchedResult.answer || t('step5.noResponse')
-          }
-        }
-        
-        surveyResultsList.push({
-          agent_id: agentIdx,
-          agent_name: agent?.username || `Agent ${agentIdx}`,
-          profession: agent?.profession,
-          question: surveyQuestion.value.trim(),
-          answer: responseContent
-        })
-      }
-      
-      surveyResults.value = surveyResultsList
-      addLog(t('log.receivedReplies', { count: surveyResults.value.length }))
-    } else {
+    if (!res.success || !res.data || !Array.isArray(res.data.results)) {
       throw new Error(res.error || t('step5.requestFailed'))
     }
-  } catch (err) {
-    addLog(t('log.surveySendFailed', { error: err.message }))
+    surveyResults.value = res.data.results
+    addLog(t('log.receivedReplies', {count: surveyResults.value.length}))
+  } catch (error) {
+    surveyError.value = error.message || t('step5.requestFailed')
+    addLog(t('log.surveySendFailed', {error: surveyError.value}))
   } finally {
     isSurveying.value = false
+  }
+}
+
+const loadStoredInteractions = async () => {
+  if (!props.reportId || !props.simulationId) return
+  try {
+    const res = await getReportInteractions(props.reportId, props.simulationId)
+    const records = res.data?.records || []
+    const caches = {}
+    for (const item of records) {
+      if (item.kind === 'chat') {
+        const key = item.target === 'participant' ? `agent_${item.agent_id}` : 'report_agent'
+        if (!caches[key]) caches[key] = []
+        caches[key].push({role:'user',content:item.question,timestamp:item.created_at})
+        caches[key].push({role:'assistant',content:item.response,timestamp:item.created_at})
+      } else if (item.kind === 'survey' && Array.isArray(item.results)) {
+        surveyResults.value = item.results
+        surveyQuestion.value = item.question || ''
+      }
+    }
+    chatHistoryCache.value = caches
+    const key = chatTarget.value === 'agent' ? `agent_${selectedAgentIndex.value}` : 'report_agent'
+    chatHistory.value = caches[key] || []
+  } catch (error) {
+    addLog(t('log.loadReportFailed', {error:error.message}))
+  }
+}
+
+const downloadSavedReport = (format) => {
+  if (props.reportId) window.location.assign(reportExportUrl(props.reportId, format))
+}
+const printSavedReport = () => window.print()
+
+const refreshSpanishCopy = async () => {
+  if (!props.reportId || !reportOutline.value || translationBusy.value) return
+  if (!containsChinese(reportOutline.value) && !Object.values(generatedSections.value).some(containsChinese)) return
+  translationBusy.value = true
+  translationError.value = ''
+  try {
+    const result = await ensureSpanishReport(props.reportId, reportOutline.value, generatedSections.value,
+      (done,total) => {
+        translationStatus.value = t('step4.translatingProgress', { done, total })
+      })
+    reportOutline.value = result.outline
+    generatedSections.value = result.sections
+    translationStatus.value = t('step4.translationSaved')
+  } catch (error) {
+    translationError.value = error.message || t('step4.translationFailed')
+    translationStatus.value = ''
+  } finally {
+    translationBusy.value = false
   }
 }
 
@@ -881,8 +802,19 @@ const loadReportData = async () => {
     // Get report info
     const reportRes = await getReport(props.reportId)
     if (reportRes.success && reportRes.data) {
-      // Load agent logs to get report outline and sections
-      await loadAgentLogs()
+      // Durable report metadata and chapter files are authoritative after
+      // refresh; generation logs are optional diagnostics.
+      if (reportRes.data.outline) reportOutline.value = reportRes.data.outline
+      const chapters = await getSavedReportSections(props.reportId)
+      for (const chapter of chapters.data?.sections || []) {
+        if (chapter.section_index && chapter.content) {
+          generatedSections.value[chapter.section_index] = chapter.content
+        }
+      }
+      if (!reportOutline.value || !Object.keys(generatedSections.value).length) {
+        await loadAgentLogs()
+      }
+      await refreshSpanishCopy()
     }
   } catch (err) {
     addLog(t('log.loadReportFailed', { error: err.message }))
@@ -941,6 +873,7 @@ onMounted(() => {
   addLog(t('log.step5Init'))
   loadReportData()
   loadProfiles()
+  loadStoredInteractions()
   document.addEventListener('click', handleClickOutside)
 })
 
@@ -958,6 +891,9 @@ watch(() => props.simulationId, (newId) => {
   if (newId) {
     loadProfiles()
   }
+}, { immediate: true })
+watch(() => [props.reportId, props.simulationId], ([reportId, simulationId]) => {
+  if (reportId && simulationId) loadStoredInteractions()
 }, { immediate: true })
 </script>
 
@@ -2581,4 +2517,29 @@ watch(() => props.simulationId, (newId) => {
 html[lang="en"] .report-header-block .main-title {
   font-size: 28px;
 }
+</style>
+
+<style scoped>
+/* Keep chat and polls visibly adjacent, even on narrower screens. */
+.action-bar{flex-wrap:wrap;justify-content:flex-start}
+.action-bar-tabs{flex:0 1 auto;justify-content:flex-start;flex-wrap:wrap;gap:8px}
+.survey-pill{order:0}
+.agent-pill{width:auto;min-width:160px;max-width:260px}
+.interaction-error{padding:9px 16px;color:#ad3246;background:#fff2f3;font-size:12px}
+.synthesis-note{padding:8px 16px;margin:0;color:#426882;font-size:11px;background:#eff8fd;line-height:1.45}
+.report-export-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:15px}
+.report-export-toolbar span{color:#067a76;font-size:11px;font-weight:700}
+.report-export-toolbar button{border:1px solid #d3e7ed;background:#f4fafc;border-radius:9px;color:#145f80;padding:7px 9px;font-size:11px;font-weight:700;cursor:pointer}
+.survey-setup{overflow-y:auto;min-height:0;padding:16px 20px}
+.survey-setup .setup-section:first-child{flex:0 1 auto;overflow:visible}
+.survey-setup .agents-grid{max-height:230px;overflow-y:auto}
+.survey-submit-btn{position:sticky;bottom:0;z-index:2;box-shadow:0 -4px 10px #16365813}
+@media print{.right-panel,.action-bar,.chat-container,.survey-container,.report-export-toolbar{display:none!important}.left-panel.report-style{width:100%!important;max-width:100%!important;min-width:0!important;overflow:visible!important}.main-split-layout{display:block!important}}
+</style>
+
+<style scoped>
+.translation-status{color:#0a7795;background:#eafafb;padding:9px 12px;font-size:12px;border-radius:9px}
+.translation-error{color:#a23b4a;background:#fff3f3;padding:9px 12px;font-size:12px;border-radius:9px}
+.translation-retry{background:#096d92;color:#fff;border:0;border-radius:8px;padding:9px;font-size:12px;cursor:pointer}
+.report-export-toolbar button:disabled{opacity:.45;cursor:not-allowed}
 </style>

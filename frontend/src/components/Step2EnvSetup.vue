@@ -22,19 +22,19 @@
 
           <div v-if="simulationId" class="info-card">
             <div class="info-row">
-              <span class="info-label">Project ID</span>
+              <span class="info-label">{{ $t('step2.projectLabel') }}</span>
               <span class="info-value mono">{{ projectData?.project_id }}</span>
             </div>
             <div class="info-row">
-              <span class="info-label">Graph ID</span>
+              <span class="info-label">{{ $t('step2.networkLabel') }}</span>
               <span class="info-value mono">{{ projectData?.graph_id }}</span>
             </div>
             <div class="info-row">
-              <span class="info-label">Simulation ID</span>
+              <span class="info-label">{{ $t('step2.simLabel') }}</span>
               <span class="info-value mono">{{ simulationId }}</span>
             </div>
             <div class="info-row">
-              <span class="info-label">Task ID</span>
+              <span class="info-label">{{ $t('step2.taskLabel') }}</span>
               <span class="info-value mono">{{ taskId || $t('step2.asyncTaskDone') }}</span>
             </div>
           </div>
@@ -577,10 +577,13 @@
       </div>
     </Transition>
 
-    <!-- Bottom Info / Logs -->
-    <div class="system-logs">
+    <!-- Technical diagnostics are optional; user-facing progress is above. -->
+    <button type="button" class="logs-toggle" @click="showTechnicalLogs = !showTechnicalLogs">
+      {{ showTechnicalLogs ? $t('step4.hideTechnicalDetails') : $t('step4.showTechnicalDetails') }}
+    </button>
+    <div v-if="showTechnicalLogs" class="system-logs">
       <div class="log-header">
-        <span class="log-title">SYSTEM DASHBOARD</span>
+        <span class="log-title">{{ $t('step2.preparationMonitorLabel') }}</span>
         <span class="log-id">{{ simulationId || 'NO_SIMULATION' }}</span>
       </div>
       <div class="log-content" ref="logContent">
@@ -618,6 +621,7 @@ const props = defineProps({
 const emit = defineEmits(['go-back', 'next-step', 'add-log', 'update-status'])
 
 // State
+const showTechnicalLogs = ref(false)
 const phase = ref(0) // 0: 初始化, 1: 生成人设, 2: 生成配置, 3: 完成
 const taskId = ref(null)
 const prepareProgress = ref(0)
@@ -2631,4 +2635,9 @@ onUnmounted(() => {
 .manual-close-tip { font-size:11px; margin-top:10px; color:#825b1c; background:#fff6e4; padding:11px; border-radius:9px; }
 .preference-error { color:#b33340; font-size:12px; }
 @media(max-width:650px){.interaction-options{grid-template-columns:1fr}}
+</style>
+
+<style scoped>
+.logs-toggle{flex-shrink:0;text-align:left;border:0;border-top:1px solid #dce9ef;padding:9px 17px;background:#f5fafb;color:#24758c;cursor:pointer;font-size:11px;font-weight:750}
+.api-note{display:none}
 </style>

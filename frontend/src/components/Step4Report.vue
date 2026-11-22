@@ -7,8 +7,17 @@
         <div v-if="reportOutline" class="report-content-wrapper">
           <!-- Report Header -->
           <div class="report-header-block">
+            <p v-if="translationStatus" class="translation-status" role="status">{{ translationStatus }}</p>
+            <p v-if="translationError" class="translation-error" role="alert">{{ translationError }}</p>
+            <button v-if="translationError" class="translation-retry" @click="refreshSpanishCopy">{{ $t('step4.retryTranslation') }}</button>
+            <div class="report-export-toolbar" v-if="isComplete">
+              <span>✓ {{ $t('step5.savedAutomatically') }}</span>
+              <button :disabled="translationBusy" @click="downloadSavedReport('md')">{{ $t('step5.exportMarkdown') }}</button>
+              <button :disabled="translationBusy" @click="downloadSavedReport('html')">{{ $t('step5.exportHtml') }}</button>
+              <button :disabled="translationBusy" @click="printSavedReport">{{ $t('step5.exportPdf') }}</button>
+            </div>
             <div class="report-meta">
-              <span class="report-tag">Prediction Report</span>
+              <span class="report-tag">{{ $t('step5.savedReportLabel') }}</span>
               <span class="report-id">ID: {{ reportId || 'REF-2024-X92' }}</span>
             </div>
             <h1 class="main-title">{{ reportOutline.title }}</h1>
@@ -72,7 +81,7 @@
             <div class="waiting-ring"></div>
             <div class="waiting-ring"></div>
           </div>
-          <span class="waiting-text">Waiting for Report Agent...</span>
+          <span class="waiting-text">{{ $t('step5.loadingSavedReport') }}</span>
         </div>
       </div>
 
@@ -89,15 +98,15 @@
         <div class="workflow-overview" v-if="agentLogs.length > 0 || reportOutline">
           <div class="workflow-metrics">
             <div class="metric">
-              <span class="metric-label">Sections</span>
+              <span class="metric-label">{{ $t('step4.sectionsLabel') }}</span>
               <span class="metric-value mono">{{ completedSections }}/{{ totalSections }}</span>
             </div>
             <div class="metric">
-              <span class="metric-label">Elapsed</span>
+              <span class="metric-label">{{ $t('step4.elapsedLabel') }}</span>
               <span class="metric-value mono">{{ formatElapsedTime }}</span>
             </div>
             <div class="metric">
-              <span class="metric-label">Tools</span>
+              <span class="metric-label">{{ $t('step4.toolsLabel') }}</span>
               <span class="metric-value mono">{{ totalToolCalls }}</span>
             </div>
             <div class="metric metric-right">
@@ -166,11 +175,11 @@
                   <!-- Report Start -->
                   <template v-if="log.action === 'report_start'">
                     <div class="info-row">
-                      <span class="info-key">Simulation</span>
+                      <span class="info-key">{{ $t('step4.simulationLabel') }}</span>
                       <span class="info-val mono">{{ log.details?.simulation_id }}</span>
                     </div>
                     <div class="info-row" v-if="log.details?.simulation_requirement">
-                      <span class="info-key">Requirement</span>
+                      <span class="info-key">{{ $t('step4.requirementLabel') }}</span>
                       <span class="info-val">{{ log.details.simulation_requirement }}</span>
                     </div>
                   </template>
@@ -309,10 +318,10 @@
                     <div class="llm-meta">
                       <span class="meta-tag">Iteration {{ log.details?.iteration }}</span>
                       <span class="meta-tag" :class="{ active: log.details?.has_tool_calls }">
-                        Tools: {{ log.details?.has_tool_calls ? 'Yes' : 'No' }}
+                        {{ $t('step4.toolConsultation') }}: {{ log.details?.has_tool_calls ? $t('step4.yes') : $t('step4.no') }}
                       </span>
                       <span class="meta-tag" :class="{ active: log.details?.has_final_answer, 'final-answer': log.details?.has_final_answer }">
-                        Final: {{ log.details?.has_final_answer ? 'Yes' : 'No' }}
+                        {{ $t('step4.finalResponse') }}: {{ log.details?.has_final_answer ? $t('step4.yes') : $t('step4.no') }}
                       </span>
                     </div>
                     <!-- 当是最终答案时，显示特殊提示 -->
@@ -320,7 +329,7 @@
                       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="20 6 9 17 4 12"></polyline>
                       </svg>
-                      <span>Section "{{ log.section_title }}" content generated</span>
+                      <span>{{ $t('step4.sectionReady',{title:log.section_title}) }}</span>
                     </div>
                     <div v-if="expandedLogs.has(log.timestamp) && log.details?.response" class="llm-content">
                       <pre>{{ log.details.response }}</pre>
@@ -334,7 +343,7 @@
                         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
                         <polyline points="22 4 12 14.01 9 11.01"></polyline>
                       </svg>
-                      <span>Report Generation Complete</span>
+                      <span>{{ $t('step4.generationCompleteLabel') }}</span>
                     </div>
                   </template>
                 </div>
@@ -347,17 +356,17 @@
                   <div class="footer-actions">
                     <!-- Tool Call: Show/Hide Params -->
                     <button v-if="log.action === 'tool_call' && log.details?.parameters" class="action-btn" @click.stop="toggleLogExpand(log)">
-                      {{ expandedLogs.has(log.timestamp) ? 'Hide Params' : 'Show Params' }}
+                      {{ expandedLogs.has(log.timestamp) ? $t('step4.hideParameters') : $t('step4.showParameters') }}
                     </button>
                     
                     <!-- Tool Result: Raw/Structured View -->
                     <button v-if="log.action === 'tool_result'" class="action-btn" @click.stop="toggleRawResult(log.timestamp, $event)">
-                      {{ showRawResult[log.timestamp] ? 'Structured View' : 'Raw Output' }}
+                      {{ showRawResult[log.timestamp] ? $t('step4.structuredOutput') : $t('step4.rawOutput') }}
                     </button>
                     
                     <!-- LLM Response: Show/Hide Response -->
                     <button v-if="log.action === 'llm_response' && log.details?.response" class="action-btn" @click.stop="toggleLogExpand(log)">
-                      {{ expandedLogs.has(log.timestamp) ? 'Hide Response' : 'Show Response' }}
+                      {{ expandedLogs.has(log.timestamp) ? $t('step4.hideResponse') : $t('step4.showResponse') }}
                     </button>
                   </div>
                 </div>
@@ -368,16 +377,19 @@
           <!-- Empty State -->
           <div v-if="agentLogs.length === 0 && !isComplete" class="workflow-empty">
             <div class="empty-pulse"></div>
-            <span>Waiting for agent activity...</span>
+            <span>{{ $t('step4.waitingForActivity') }}</span>
           </div>
         </div>
       </div>
     </div>
 
+    <button class="technical-toggle" type="button" @click="showTechnicalLogs = !showTechnicalLogs">
+      {{ showTechnicalLogs ? $t('step4.hideTechnicalDetails') : $t('step4.showTechnicalDetails') }}
+    </button>
     <!-- Bottom Console Logs -->
-    <div class="console-logs">
+    <div v-if="showTechnicalLogs" class="console-logs">
       <div class="log-header">
-        <span class="log-title">CONSOLE OUTPUT</span>
+        <span class="log-title">{{ $t('step4.technicalLogLabel') }}</span>
         <span class="log-id">{{ reportId || 'NO_REPORT' }}</span>
       </div>
       <div class="log-content" ref="logContent">
@@ -393,7 +405,8 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, h, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { getAgentLog, getConsoleLog } from '../api/report'
+import { getAgentLog, getConsoleLog, getReport, getSavedReportSections, reportExportUrl } from '../api/report'
+import { ensureSpanishReport, containsChinese } from '../utils/reportSpanish'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -405,6 +418,61 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['add-log', 'update-status'])
+
+const translationBusy = ref(false)
+const translationStatus = ref('')
+const translationError = ref('')
+
+const refreshSpanishCopy = async () => {
+  if (!props.reportId || translationBusy.value || !isComplete.value) return
+  if (!containsChinese(reportOutline.value) && !Object.values(generatedSections.value).some(containsChinese)) return
+  translationBusy.value = true
+  translationError.value = ''
+  try {
+    const result = await ensureSpanishReport(props.reportId, reportOutline.value, generatedSections.value,
+      (done,total) => {
+        translationStatus.value = t('step4.translatingProgress', { done, total })
+      })
+    reportOutline.value = result.outline
+    generatedSections.value = result.sections
+    translationStatus.value = t('step4.translationSaved')
+  } catch (error) {
+    translationError.value = error.message || t('step4.translationFailed')
+    translationStatus.value = ''
+  } finally {
+    translationBusy.value = false
+  }
+}
+
+// Persistent report exports use the existing authenticated session.
+const downloadSavedReport = (format) => {
+  if (props.reportId) window.location.assign(reportExportUrl(props.reportId,format))
+}
+const printSavedReport = () => window.print()
+
+const restoreSavedReport = async () => {
+  if (!props.reportId) return
+  try {
+    const reportResult = await getReport(props.reportId)
+    if (!reportResult.success || !reportResult.data) return
+    const report = reportResult.data
+    if (report.outline) reportOutline.value = report.outline
+    const chapters = await getSavedReportSections(props.reportId)
+    for (const section of chapters.data?.sections || []) {
+      if (section.section_index && section.content) generatedSections.value[section.section_index] = section.content
+    }
+    if (report.status === 'completed') {
+      isComplete.value = true
+      currentSectionIndex.value = null
+      emit('update-status', 'completed')
+      stopPolling()
+      await refreshSpanishCopy()
+    }
+  } catch (error) {
+    // A report can still be generating; polling then remains authoritative.
+    console.debug('Report not finalized yet',error?.message)
+  }
+}
 
 // Navigation
 const goToInteraction = () => {
@@ -425,6 +493,7 @@ const expandedContent = ref(new Set())
 const expandedLogs = ref(new Set())
 const collapsedSections = ref(new Set())
 const isComplete = ref(false)
+const showTechnicalLogs = ref(false)
 const startTime = ref(null)
 const leftPanel = ref(null)
 const rightPanel = ref(null)
@@ -1713,9 +1782,9 @@ const statusClass = computed(() => {
 })
 
 const statusText = computed(() => {
-  if (isComplete.value) return 'Completed'
-  if (agentLogs.value.length > 0) return 'Generating...'
-  return 'Waiting'
+  if (isComplete.value) return t('common.completed')
+  if (agentLogs.value.length > 0) return t('common.processing')
+  return t('common.waiting')
 })
 
 const totalSections = computed(() => {
@@ -1792,9 +1861,9 @@ const workflowSteps = computed(() => {
   steps.push({
     key: 'planning',
     noLabel: 'PL',
-    title: 'Planning / Outline',
+    title: t('step4.planningTitle'),
     status: planningStatus,
-    meta: planningStatus === 'active' ? 'IN PROGRESS' : ''
+    meta: planningStatus === 'active' ? t('common.processing') : ''
   })
 
   // Sections (if outline exists)
@@ -1810,7 +1879,7 @@ const workflowSteps = computed(() => {
       noLabel: String(idx).padStart(2, '0'),
       title: section.title,
       status,
-      meta: status === 'active' ? 'IN PROGRESS' : ''
+      meta: status === 'active' ? t('common.processing') : ''
     })
   })
 
@@ -1819,9 +1888,9 @@ const workflowSteps = computed(() => {
   steps.push({
     key: 'complete',
     noLabel: 'OK',
-    title: 'Complete',
+    title: t('common.completed'),
     status: completeStatus,
-    meta: completeStatus === 'active' ? 'FINALIZING' : ''
+    meta: completeStatus === 'active' ? t('step3.finalizing') : ''
   })
 
   return steps
@@ -1875,7 +1944,9 @@ const renderMarkdown = (content) => {
   if (!content) return ''
   
   // 去掉开头的二级标题（## xxx），因为章节标题已在外层显示
+  // Untrusted model/document content must never become executable HTML.
   let processedContent = content.replace(/^##\s+.+\n+/, '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')
   
   // 处理代码块
   let html = processedContent.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre class="code-block"><code>$2</code></pre>')
@@ -1890,7 +1961,7 @@ const renderMarkdown = (content) => {
   html = html.replace(/^# (.+)$/gm, '<h2 class="md-h2">$1</h2>')
   
   // 处理引用块
-  html = html.replace(/^> (.+)$/gm, '<blockquote class="md-quote">$1</blockquote>')
+  html = html.replace(/^&gt; (.+)$/gm, '<blockquote class="md-quote">$1</blockquote>')
   
   // 处理列表 - 支持子列表
   html = html.replace(/^(\s*)- (.+)$/gm, (match, indent, text) => {
@@ -2033,6 +2104,8 @@ const fetchAgentLog = async () => {
       if (newLogs.length > 0) {
         newLogs.forEach(log => {
           agentLogs.value.push(log)
+          // Keep the browser bounded; historical logs remain saved on the server.
+          if (agentLogs.value.length > 300) agentLogs.value.splice(0, agentLogs.value.length - 300)
           
           if (log.action === 'planning_complete' && log.details?.outline) {
             reportOutline.value = log.details.outline
@@ -2140,6 +2213,7 @@ const fetchConsoleLog = async () => {
       
       if (newLogs.length > 0) {
         consoleLogs.value.push(...newLogs)
+        if (consoleLogs.value.length > 180) consoleLogs.value.splice(0, consoleLogs.value.length - 180)
         consoleLogLine.value = res.data.from_line + newLogs.length
         
         nextTick(() => {
@@ -2160,8 +2234,8 @@ const startPolling = () => {
   fetchAgentLog()
   fetchConsoleLog()
   
-  agentLogTimer = setInterval(fetchAgentLog, 2000)
-  consoleLogTimer = setInterval(fetchConsoleLog, 1500)
+  agentLogTimer = setInterval(fetchAgentLog, 3500)
+  consoleLogTimer = setInterval(fetchConsoleLog, 6000)
 }
 
 const stopPolling = () => {
@@ -2178,8 +2252,9 @@ const stopPolling = () => {
 // Lifecycle
 onMounted(() => {
   if (props.reportId) {
-    addLog(`Report Agent initialized: ${props.reportId}`)
+    addLog(`Informe cargado: ${props.reportId}`)
     startPolling()
+    restoreSavedReport()
   }
 })
 
@@ -2203,6 +2278,7 @@ watch(() => props.reportId, (newId) => {
     startTime.value = null
     
     startPolling()
+    restoreSavedReport()
   }
 }, { immediate: true })
 </script>
@@ -5159,4 +5235,18 @@ watch(() => props.reportId, (newId) => {
 html[lang="en"] .report-header-block .main-title {
   font-size: 28px;
 }
+</style>
+
+<style scoped>
+.report-export-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:0 0 15px}
+.report-export-toolbar span{font-size:11px;font-weight:700;color:#178270}
+.report-export-toolbar button{padding:7px 10px;border:1px solid #d5e9ed;background:#effaff;border-radius:7px;color:#146b87;font-size:11px;font-weight:700;cursor:pointer}
+@media print{.right-panel,.console-logs,.report-export-toolbar{display:none!important}.left-panel.report-style{width:100%!important;min-width:0!important;max-width:100%!important;overflow:visible!important}.main-split-layout{display:block!important}.report-panel{height:auto!important;overflow:visible!important}}
+</style>
+
+<style scoped>
+.translation-status{color:#0a7795;background:#eafafb;padding:9px 12px;font-size:12px;border-radius:9px}
+.translation-error{color:#a23b4a;background:#fff3f3;padding:9px 12px;font-size:12px;border-radius:9px}
+.translation-retry{background:#096d92;color:#fff;border:0;border-radius:8px;padding:9px;font-size:12px;cursor:pointer}
+.report-export-toolbar button:disabled{opacity:.45;cursor:not-allowed}
 </style>
