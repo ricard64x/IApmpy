@@ -13,15 +13,18 @@
     <!-- 标题区域 -->
     <div class="section-header">
       <div class="section-line"></div>
-      <span class="section-title">{{ $t('history.title') }}</span>
+      <span class="section-title">Proyectos y simulaciones guardados</span>
       <div class="section-line"></div>
     </div>
+
+    <p v-if="historyError" class="history-error" role="alert">{{ historyError }}</p>
+    <div class="history-refresh"><button type="button" @click="loadHistory">↻ Actualizar</button></div>
 
     <!-- 卡片容器（只在有项目时显示） -->
     <div v-if="projects.length > 0" class="cards-container" :class="{ expanded: isExpanded }" :style="containerStyle">
       <div 
         v-for="(project, index) in projects" 
-        :key="project.simulation_id"
+        :key="project.simulation_id || project.project_id"
         class="project-card"
         :class="{ expanded: isExpanded, hovering: hoveringCard === index }"
         :style="getCardStyle(index)"
@@ -31,7 +34,7 @@
       >
         <!-- 卡片头部：simulation_id 和 功能可用状态 -->
         <div class="card-header">
-          <span class="card-id">{{ formatSimulationId(project.simulation_id) }}</span>
+          <span class="card-id">{{ formatEntryId(project) }}</span>
           <div class="card-status-icons">
             <span 
               class="status-icon" 
@@ -78,7 +81,7 @@
         </div>
 
         <!-- 卡片标题（使用模拟需求的前20字作为标题） -->
-        <h3 class="card-title">{{ getSimulationTitle(project.simulation_requirement) }}</h3>
+        <h3 class="card-title">{{ project.project_name || getSimulationTitle(project.simulation_requirement) }}</h3>
 
         <!-- 卡片描述（模拟需求完整展示） -->
         <p class="card-desc">{{ truncateText(project.simulation_requirement, 55) }}</p>
@@ -113,7 +116,7 @@
             <!-- 弹窗头部 -->
             <div class="modal-header">
               <div class="modal-title-section">
-                <span class="modal-id">{{ formatSimulationId(selectedProject.simulation_id) }}</span>
+                <span class="modal-id">{{ formatEntryId(selectedProject) }}</span>
                 <span class="modal-progress" :class="getProgressClass(selectedProject)">
                   <span class="status-dot">●</span> {{ formatRounds(selectedProject) }}
                 </span>
@@ -164,6 +167,7 @@
               <button 
                 class="modal-btn btn-simulation" 
                 @click="goToSimulation"
+                :disabled="!selectedProject.simulation_id"
               >
                 <span class="btn-step">Step2</span>
                 <span class="btn-icon">◈</span>
@@ -195,6 +199,8 @@ import { ref, computed, onMounted, onUnmounted, onActivated, watch, nextTick } f
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getSimulationHistory } from '../api/simulation'
+import service from '../api'
+import {mergeProjectHistory,projectEntryStatus} from '../utils/projectHistory'
 
 const router = useRouter()
 const route = useRoute()
@@ -207,6 +213,7 @@ const isExpanded = ref(false)
 const hoveringCard = ref(null)
 const historyContainer = ref(null)
 const selectedProject = ref(null)  // 当前选中的项目（用于弹窗）
+const historyError = ref('')
 let observer = null
 let isAnimating = false  // 动画锁，防止闪烁
 let expandDebounceTimer = null  // 防抖定时器
@@ -292,6 +299,9 @@ const getCardStyle = (index) => {
 
 // 根据轮数进度获取样式类
 const getProgressClass = (simulation) => {
+  if (!simulation.simulation_id) return projectEntryStatus(simulation).style === 'completed'
+    ? 'completed' : projectEntryStatus(simulation).style === 'failed'
+      ? 'not-started' : 'in-progress'
   const current = simulation.current_round || 0
   const total = simulation.total_rounds || 0
   
@@ -351,6 +361,11 @@ const getSimulationTitle = (requirement) => {
 }
 
 // 格式化 simulation_id 显示（截取前6位）
+const formatEntryId = entry => {
+  if (!entry.simulation_id) return entry.project_id || 'Proyecto guardado'
+  return formatSimulationId(entry.simulation_id)
+}
+
 const formatSimulationId = (simulationId) => {
   if (!simulationId) return 'SIM_UNKNOWN'
   const prefix = simulationId.replace('sim_', '').slice(0, 6)
@@ -359,6 +374,7 @@ const formatSimulationId = (simulationId) => {
 
 // 格式化轮数显示（当前轮/总轮数）
 const formatRounds = (simulation) => {
+  if (!simulation.simulation_id) return projectEntryStatus(simulation).label
   const current = simulation.current_round || 0
   const total = simulation.total_rounds || 0
   if (total === 0) return t('history.notStarted')
@@ -444,14 +460,24 @@ const goToReport = () => {
 
 // 加载历史项目
 const loadHistory = async () => {
+  loading.value = true
+  historyError.value = ''
   try {
-    loading.value = true
-    const response = await getSimulationHistory(20)
-    if (response.success) {
-      projects.value = response.data || []
+    const [simulations, saved] = await Promise.allSettled([
+      getSimulationHistory(100),
+      service.get('/api/graph/project/list', {params: {limit: 200}})
+    ])
+    const simRows = simulations.status === 'fulfilled'
+      ? simulations.value.data || [] : []
+    const projectRows = saved.status === 'fulfilled'
+      ? saved.value.data || [] : []
+    projects.value = mergeProjectHistory(projectRows, simRows)
+    if (simulations.status === 'rejected' || saved.status === 'rejected') {
+      historyError.value = 'No se pudo cargar todo el historial. Volvé a actualizar.'
     }
   } catch (error) {
-    console.error('加载历史项目失败:', error)
+    console.error('No se pudo cargar el historial de proyectos:', error)
+    historyError.value = 'No se pudo cargar el historial de proyectos.'
     projects.value = []
   } finally {
     loading.value = false
@@ -541,7 +567,7 @@ const initObserver = () => {
 
 // 监听路由变化，当返回首页时重新加载数据
 watch(() => route.path, (newPath) => {
-  if (newPath === '/') {
+  if (newPath === '/' || newPath === '/workspace') {
     loadHistory()
   }
 })
@@ -1345,4 +1371,7 @@ onUnmounted(() => {
   text-align: center;
   line-height: 1.5;
 }
+.history-error{margin:14px 0;color:#ab3e44;font-size:12px;text-align:center}
+.history-refresh{display:flex;justify-content:flex-end;margin:8px 6px}
+.history-refresh button{border:1px solid #cfe3ec;color:#087e96;border-radius:10px;background:#fff;padding:7px 13px;cursor:pointer;font-size:12px;font-weight:700}
 </style>

@@ -39,6 +39,38 @@ async function run() {
     await page.screenshot({ path: path.join(DIR, '02-dashboard-desktop.png'), fullPage: true })
     screenshots.push('02-dashboard-desktop.png')
 
+    // An existing project has no simulation until its graph has been built.
+    // The history must still show it, and allow returning to its own process.
+    const savedProject = {
+      project_id: 'proj_visualqa', name: 'Caso guardado sin simulación',
+      status: 'failed', zep_batch_id: 'batch_visualqa',
+      created_at: '2026-11-22T14:00:00', owner_id: 'ci-admin',
+      files: [{filename: 'expediente-ejemplo.md'}],
+      simulation_requirement: 'Simulación ficticia para verificar proyectos guardados.'
+    }
+    await page.route('**/api/graph/project/list**', route => json(route, success([savedProject])))
+    await page.route('**/api/simulation/history**', route => json(route, success([])))
+    await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' })
+    const projectRow = page.locator('.simulation-item').filter({hasText: 'Caso guardado sin simulación'})
+    await projectRow.waitFor({timeout: 20000})
+    assert((await projectRow.innerText()).includes('Revisar avance remoto'))
+    await page.screenshot({path: path.join(DIR, '02b-proyectos-guardados.png'), fullPage: true})
+    screenshots.push('02b-proyectos-guardados.png')
+    await projectRow.locator('.link-open').click()
+    await page.waitForURL(url => url.pathname === '/process/proj_visualqa', {timeout: 12000})
+
+    await page.goto(BASE + '/workspace', {waitUntil: 'domcontentloaded'})
+    const historyCard = page.locator('.project-card').filter({hasText: 'Caso guardado sin simulación'})
+    await historyCard.waitFor({timeout: 20000})
+    await historyCard.click()
+    assert(await page.locator('.modal-btn.btn-simulation').isDisabled(),
+      'An unstarted project must not offer a nonexistent simulation')
+    assert(await page.locator('.modal-btn.btn-project').isEnabled())
+    await page.screenshot({path: path.join(DIR, '02c-historial-proyecto-pendiente.png'), fullPage: true})
+    screenshots.push('02c-historial-proyecto-pendiente.png')
+    await page.locator('.modal-btn.btn-project').click()
+    await page.waitForURL(url => url.pathname === '/process/proj_visualqa', {timeout: 12000})
+
     await page.route('**/api/report/report_visualqa/sections', route => json(route, success({
       sections: [{ section_index: 1, content: '## Hallazgos\nEl escenario es **sintético** y se desarrolla en español.' }]
     })))
