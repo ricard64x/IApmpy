@@ -228,6 +228,14 @@ def install_auth(app):
         user = get_user(session.get("tenondera_uid"))
         if not user or not user["active"]:
             return jsonify({"success": False, "error": "Iniciá sesión para continuar."}), 401
+        # Password resets invalidate every previously issued session cookie.
+        import hashlib
+        with connect() as con:
+            record = con.execute("SELECT password_hash FROM users WHERE id=?", (user["id"],)).fetchone()
+        credential_tag = hashlib.sha256(record["password_hash"].encode()).hexdigest() if record else ""
+        if not hmac.compare_digest(session.get("tenondera_credential_tag", ""), credential_tag):
+            session.clear()
+            return jsonify({"success": False, "error": "Tu sesión fue revocada. Iniciá sesión nuevamente."}), 401
         g.tenondera_user = user
         if user["must_change_password"] and request.path not in (
             "/api/auth/me", "/api/auth/password", "/api/auth/logout"
@@ -363,6 +371,7 @@ def login():
     session.clear()
     session.permanent = True
     session["tenondera_uid"] = row["id"]
+    session["tenondera_credential_tag"] = hashlib.sha256(row["password_hash"].encode()).hexdigest()
     session["tenondera_csrf"] = secrets.token_urlsafe(32)
     user = get_user(row["id"])
     return jsonify({"success": True, "data": {"user": public_user(user), "csrf": session["tenondera_csrf"]}})
