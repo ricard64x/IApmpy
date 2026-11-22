@@ -221,6 +221,10 @@ def install_auth(app):
         if not user or not user["active"]:
             return jsonify({"success": False, "error": "Iniciá sesión para continuar."}), 401
         g.tenondera_user = user
+        if user["must_change_password"] and request.path not in (
+            "/api/auth/me", "/api/auth/password", "/api/auth/logout"
+        ):
+            return jsonify({"success": False, "error": "Actualizá tu contraseña antes de continuar."}), 403
         if request.method not in ("GET", "HEAD", "OPTIONS"):
             token = request.headers.get("X-CSRF-Token", "")
             if not token or not hmac.compare_digest(token, session.get("tenondera_csrf", "")):
