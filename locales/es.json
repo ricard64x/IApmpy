@@ -254,7 +254,9 @@
     "runningRounds": "Ejecutando rondas",
     "runningRoundsHelp": "Los agentes están interactuando en las plataformas seleccionadas.",
     "preparingRun": "Preparando ejecución",
-    "preparingRunHelp": "Inicializando el motor y el entorno de agentes."
+    "preparingRunHelp": "Inicializando el motor y el entorno de agentes.",
+    "stoppedTitle": "Simulación detenida",
+    "stoppedHelp": "La ejecución fue detenida. Si no se completaron todas las rondas, los resultados son parciales y deben interpretarse con cautela."
   },
   "step4": {
     "generatingSection": "Generando {title}...",
