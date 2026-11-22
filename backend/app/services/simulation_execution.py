@@ -15,7 +15,7 @@ from ..config import Config
 
 _VALID_ID = re.compile(r"^sim_[A-Za-z0-9_-]{1,90}$")
 _PLATFORMS = ("twitter", "reddit", "parallel")
-_DEFAULTS = {"platform": "parallel", "auto_finalize": True, "max_rounds": 10}
+_DEFAULTS = {"platform": "parallel", "auto_finalize": True, "max_rounds": 10, "engine_mode": "oasis"}
 
 
 def settings_path(simulation_id: str) -> Path:
@@ -45,7 +45,13 @@ def validate_execution_settings(body: dict) -> dict:
     rounds = body.get("max_rounds", 10)
     if isinstance(rounds, bool) or not isinstance(rounds, int) or not 1 <= rounds <= 10:
         raise ValueError("Seleccioná entre 1 y 10 rondas.")
-    return {"platform": platform, "auto_finalize": auto_finalize, "max_rounds": rounds}
+    engine_mode = body.get("engine_mode", "oasis")
+    if engine_mode not in ("oasis", "lightweight"):
+        raise ValueError("Elegí entre ejecución estándar o modo GPT liviano.")
+    if engine_mode == "lightweight" and not auto_finalize:
+        raise ValueError("El modo GPT liviano necesita cierre automático.")
+    return {"platform": platform, "auto_finalize": auto_finalize,
+            "max_rounds": rounds, "engine_mode": engine_mode}
 
 
 def save_execution_settings(simulation_id: str, body: dict) -> dict:
