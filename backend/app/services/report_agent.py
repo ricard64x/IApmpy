@@ -1225,7 +1225,8 @@ class ReportAgent:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.3
+                temperature=0.3,
+                max_tokens=1600 if language_es else 4096,
             )
             
             if progress_callback:
@@ -1253,6 +1254,16 @@ class ReportAgent:
             
         except Exception as e:
             logger.error(t('report.outlinePlanFailed', error=str(e)))
+            if get_locale() == 'es':
+                return ReportOutline(
+                    title="Informe de escenarios simulados",
+                    summary="Hipótesis y posibles tendencias entre participantes virtuales.",
+                    sections=[
+                        ReportSection(title="Escenario y hallazgos principales"),
+                        ReportSection(title="Reacciones de los participantes simulados"),
+                        ReportSection(title="Riesgos, oportunidades y límites del análisis"),
+                    ],
+                )
             # 返回默认大纲（3个章节，作为fallback）
             return ReportOutline(
                 title="未来预测报告",
