@@ -17,6 +17,7 @@ import sqlite3
 import time
 import uuid
 from pathlib import Path
+from contextlib import contextmanager
 
 from flask import Blueprint, jsonify, request
 
@@ -34,6 +35,7 @@ def _db_path() -> Path:
     return path
 
 
+@contextmanager
 def _db():
     connection = sqlite3.connect(str(_db_path()), timeout=10)
     connection.row_factory = sqlite3.Row
@@ -49,7 +51,10 @@ def _db():
       nonce TEXT PRIMARY KEY, timestamp INTEGER NOT NULL
     )""")
     connection.execute("CREATE INDEX IF NOT EXISTS ix_received_project ON received(project_id,inserted_at)")
-    return connection
+    try:
+        yield connection
+    finally:
+        connection.close()
 
 
 def _enabled() -> bool:
@@ -162,7 +167,7 @@ def local_search(project_id):
     limit = request.args.get("limit", "8")
     if not limit.isdigit() or not 1 <= int(limit) <= 25:
         return jsonify({"success": False, "error": "Límite inválido"}), 422
-    term = "%" + query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+    term = "%" + query.replace("~", "~~").replace("%", "~%").replace("_", "~_") + "%"
     with _db() as conn:
         rows = conn.execute(
             """SELECT episode_id,source_id,substr(content,1,2000) AS content,status
