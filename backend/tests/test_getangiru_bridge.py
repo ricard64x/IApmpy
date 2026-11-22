@@ -90,7 +90,7 @@ class TestGetangiruBridge(unittest.TestCase):
             self.assertEqual(200, got.status_code)
             self.assertEqual(1, len(got.json["items"]))
             self.assertEqual(0, got.json["provider_calls"])
-            broad = self.client.get(f"/api/getangiru/project/{self.project}/search?q=%25")
+            broad = self.client.get(f"/api/getangiru/project/{self.project}/search?q=ev%25")
             self.assertEqual([], broad.json["items"])  # Escaped LIKE wildcard
         with patch("app.auth.can_access_project", return_value=False):
             got = self.client.get(f"/api/getangiru/project/{self.project}/search?q=evidencia")
