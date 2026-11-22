@@ -599,7 +599,7 @@ def _build_graph_impl():
             }), 400
         
         resume_existing_batch = False
-        if project.status == ProjectStatus.GRAPH_BUILDING:
+        if project.status in {ProjectStatus.GRAPH_BUILDING, ProjectStatus.FAILED}:
             if _project_has_active_build(project):
                 return jsonify({
                     "success": True,
@@ -612,26 +612,24 @@ def _build_graph_impl():
                     }
                 })
 
-            if (
-                not force
-                and project.graph_id
-                and project.zep_batch_id
-                and project.zep_batch_operation_id
-            ):
+            # A local timeout from the old 600s deadline can mark the project
+            # FAILED while the *same batch* is still ingesting in Zep.
+            # Consult Cloud FIRST, even for failed projects. Never delete or
+            # re-upload a running/succeeded batch, including on force=True.
+            if (project.graph_id and project.zep_batch_id
+                    and project.zep_batch_operation_id):
                 builder = GraphBuilderService(api_key=Config.ZEP_API_KEY)
                 batch_summary = builder.get_batch_summary(project.zep_batch_id)
-                if getattr(batch_summary, "status", None) in {
-                    "queued",
-                    "processing",
-                    "succeeded",
-                }:
-                    resume_existing_batch = True
+                resume_existing_batch = (
+                    getattr(batch_summary, "status", None)
+                    in {"queued", "processing", "succeeded"}
+                )
 
             if not resume_existing_batch:
                 project.status = ProjectStatus.FAILED
                 project.error = (
-                    "Graph build task is no longer present; the persisted Zep "
-                    "batch cannot be resumed automatically"
+                    "El lote remoto no está activo o no puede recuperarse. "
+                    "Revisá su estado antes de reconstruir el proyecto."
                 )
                 ProjectManager.save_project(project)
                 if not force:
@@ -639,7 +637,7 @@ def _build_graph_impl():
                         "success": False,
                         "error": project.error,
                         "task_id": project.graph_build_task_id,
-                        "recoverable": True,
+                        "recoverable": False,
                     }), 409
 
         if project.status == ProjectStatus.GRAPH_COMPLETED and not force:
@@ -691,8 +689,9 @@ def _build_graph_impl():
             }), 400
 
         # Only mutate Cloud state after the complete rebuild request validates.
-        if project.status == ProjectStatus.FAILED or (
-            force and project.status == ProjectStatus.GRAPH_COMPLETED
+        if (not resume_existing_batch) and (
+            project.status == ProjectStatus.FAILED or
+            (force and project.status == ProjectStatus.GRAPH_COMPLETED)
         ):
             graph_id_to_delete = project.graph_id
             graph_guard = (
@@ -713,6 +712,7 @@ def _build_graph_impl():
         
         # 更新项目状态
         project.status = ProjectStatus.GRAPH_BUILDING
+        project.error = None
         project.graph_build_task_id = task_id
         ProjectManager.save_project(project)
         
