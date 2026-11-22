@@ -23,7 +23,8 @@
     "minutes": "minutes",
     "rounds": "rounds",
     "items": "items",
-    "files": "files"
+    "files": "files",
+    "waiting": "Waiting"
   },
   "meta": {
     "title": "Tenonderã - Predict Everything",
@@ -110,7 +111,12 @@
     "creating": "Creating...",
     "enterEnvSetup": "Enter Environment Setup",
     "createSimulationFailed": "Failed to create simulation: {error}",
-    "createSimulationException": "Simulation creation error: {error}"
+    "createSimulationException": "Simulation creation error: {error}",
+    "attributesLabel": "ATTRIBUTES",
+    "examplesLabel": "EXAMPLES",
+    "connectionsLabel": "CONNECTIONS",
+    "generatedElementTypesLabel": "IDENTIFIED ELEMENT TYPES",
+    "generatedRelationTypesLabel": "IDENTIFIED RELATION TYPES"
   },
   "step2": {
     "simInstanceInit": "Simulation Instance Initialization",
@@ -203,7 +209,12 @@
     "autoFinalizeLabel": "Automatically close after the last round",
     "autoFinalizeDesc": "Recommended. Frees resources and enables the report after a successful finish.",
     "manualFinalizeDesc": "The environment will remain open for interviews. Close it explicitly afterward.",
-    "roundsValidation": "Enter a whole number from 1 to 10."
+    "roundsValidation": "Enter a whole number from 1 to 10.",
+    "preparationMonitorLabel": "PREPARATION STATUS",
+    "projectLabel": "Project identifier",
+    "networkLabel": "Knowledge-network identifier",
+    "simLabel": "Simulation identifier",
+    "taskLabel": "Task identifier"
   },
   "step3": {
     "startGenerateReport": "Generate Report",
@@ -303,7 +314,31 @@
     "panelRelatedEdges": "Related Edges",
     "panelRelatedNodes": "Related Nodes",
     "world1": "World 1",
-    "world2": "World 2"
+    "world2": "World 2",
+    "sectionsLabel": "Sections",
+    "elapsedLabel": "Elapsed time",
+    "toolsLabel": "Queries",
+    "simulationLabel": "Simulation",
+    "requirementLabel": "Objective",
+    "generationCompleteLabel": "Report generated and saved",
+    "waitingForActivity": "Preparing report analysis...",
+    "technicalLogLabel": "Technical log",
+    "planningTitle": "Report planning",
+    "showTechnicalDetails": "Show technical details",
+    "hideTechnicalDetails": "Hide technical details",
+    "sectionReady": "Section “{title}” complete",
+    "yes": "Yes",
+    "no": "No",
+    "showParameters": "Show parameters",
+    "hideParameters": "Hide parameters",
+    "showResponse": "Show response",
+    "hideResponse": "Hide response",
+    "rawOutput": "Raw content",
+    "structuredOutput": "Structured view",
+    "analysisComplete": "Report complete",
+    "toolConsultation": "Query",
+    "finalResponse": "Final response",
+    "backgroundStatus": "Processing information"
   },
   "step5": {
     "interactiveTools": "Interactive Tools",
@@ -338,7 +373,20 @@
     "errorOccurred": "Sorry, an error occurred: {error}",
     "noResponse": "No response",
     "requestFailed": "Request failed",
-    "selectAgentFirst": "Please select a simulated individual first"
+    "selectAgentFirst": "Please select a simulated individual first",
+    "savedReportLabel": "SAVED REPORT",
+    "loadingSavedReport": "Loading saved report...",
+    "savedAutomatically": "Report automatically saved",
+    "exportMarkdown": "Download report (.md)",
+    "exportHtml": "Export (.html)",
+    "exportPdf": "Save as PDF",
+    "exportJson": "Export data (.json)",
+    "youLabel": "You",
+    "reportAdvisor": "Analysis assistant",
+    "syntheticParticipant": "Virtual participant",
+    "syntheticNote": "These are interpretations from virtual participants, not real survey responses or measured public opinion.",
+    "surveyLimit": "Select at most 8 participants per request to protect the server.",
+    "surveyLimitShort": "up to 8 participants"
   },
   "graph": {
     "panelTitle": "Graph Relationship Visualization",
@@ -351,7 +399,22 @@
     "graphDataLoading": "Loading graph data...",
     "waitingOntology": "Waiting for ontology generation...",
     "toggleMaximize": "Maximize/Restore",
-    "closeHint": "Close hint"
+    "closeHint": "Close hint",
+    "refreshLabel": "Refresh",
+    "detailsName": "Name",
+    "detailsId": "Identifier",
+    "detailsCreated": "Created",
+    "detailsProperties": "Properties",
+    "detailsSummary": "Summary",
+    "detailsLabels": "Labels",
+    "detailsFact": "Description",
+    "detailsType": "Type",
+    "detailsEpisodes": "Evidence",
+    "detailsValidFrom": "Valid from",
+    "entityTypesLabel": "Element types",
+    "edgeLabelsLabel": "Show connections",
+    "selfRelations": "Self relations",
+    "elementsCountLabel": "elements"
   },
   "history": {
     "title": "Simulation History",
