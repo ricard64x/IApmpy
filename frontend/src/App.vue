@@ -15,11 +15,11 @@
 }
 
 #app {
-  font-family: 'JetBrains Mono', 'Space Grotesk', 'Noto Sans SC', monospace;
+  font-family: Inter, 'Segoe UI', 'Space Grotesk', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color: #000000;
-  background-color: #ffffff;
+  color: #0b294d;
+  background-color: #f5f8fd;
 }
 
 /* 滚动条样式 */
@@ -33,7 +33,7 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #000000;
+  background: #1b94a8;
 }
 
 ::-webkit-scrollbar-thumb:hover {
