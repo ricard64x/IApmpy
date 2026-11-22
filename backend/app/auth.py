@@ -163,7 +163,15 @@ def project_for_report(report_id: str):
         return None
     from .services.report_agent import ReportManager
     report = ReportManager.get_report(report_id)
-    return project_for_simulation(report.simulation_id) if report else None
+    if report:
+        return project_for_simulation(report.simulation_id)
+    # Progress and logs may exist before the report's meta.json is written.
+    from .models.task import TaskManager
+    for task in TaskManager().list_tasks():
+        metadata = getattr(task, "metadata", None) or {}
+        if metadata.get("report_id") == report_id:
+            return project_for_simulation(metadata.get("simulation_id"))
+    return None
 
 
 def project_for_task(task_id: str):
@@ -278,7 +286,7 @@ def install_auth(app):
             return jsonify({"success": False, "error": "Recurso no disponible para tu usuario."}), 404
         allowed_without_object = {
             "graph/ontology/generate","graph/project/list","simulation/list",
-            "simulation/history","report/list",
+            "simulation/history","report/list","capacity/status",
         }
         if not refs and path not in allowed_without_object:
             # Tasks overview and script internals are administrator-only.
