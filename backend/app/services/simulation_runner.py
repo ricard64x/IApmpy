@@ -133,7 +133,12 @@ class SimulationRunState:
     # 平台完成状态（通过检测 actions.jsonl 中的 simulation_end 事件）
     twitter_completed: bool = False
     reddit_completed: bool = False
-    
+
+    # Selected social environments and finalization preference (persisted).
+    platform_mode: str = "parallel"
+    auto_finalize: bool = False  # legacy runs originally stayed open
+    finalizing_requested: bool = False
+
     # 每轮摘要
     rounds: List[RoundSummary] = field(default_factory=list)
     
@@ -183,6 +188,9 @@ class SimulationRunState:
             "reddit_running": self.reddit_running,
             "twitter_completed": self.twitter_completed,
             "reddit_completed": self.reddit_completed,
+            "platform_mode": self.platform_mode,
+            "auto_finalize": self.auto_finalize,
+            "finalizing_requested": self.finalizing_requested,
             "twitter_actions_count": self.twitter_actions_count,
             "reddit_actions_count": self.reddit_actions_count,
             "total_actions_count": self.twitter_actions_count + self.reddit_actions_count,
@@ -191,8 +199,23 @@ class SimulationRunState:
             "completed_at": self.completed_at,
             "error": self.error,
             "process_pid": self.process_pid,
+            **self._lifecycle_fields(),
         }
-    
+
+    def _lifecycle_fields(self) -> Dict[str, Any]:
+        from .simulation_execution import execution_progress
+        return execution_progress({
+            "runner_status": self.runner_status.value,
+            "total_rounds": self.total_rounds,
+            "twitter_current_round": self.twitter_current_round,
+            "reddit_current_round": self.reddit_current_round,
+            "twitter_completed": self.twitter_completed,
+            "reddit_completed": self.reddit_completed,
+            "platform_mode": self.platform_mode,
+            "auto_finalize": self.auto_finalize,
+            "finalizing_requested": self.finalizing_requested,
+        })
+
     def to_detail_dict(self) -> Dict[str, Any]:
         """包含最近动作的详细信息"""
         result = self.to_dict()
@@ -324,6 +347,9 @@ class SimulationRunner:
                 reddit_running=data.get("reddit_running", False),
                 twitter_completed=data.get("twitter_completed", False),
                 reddit_completed=data.get("reddit_completed", False),
+                platform_mode=data.get("platform_mode", "parallel"),
+                auto_finalize=data.get("auto_finalize", False),
+                finalizing_requested=data.get("finalizing_requested", False),
                 twitter_actions_count=data.get("twitter_actions_count", 0),
                 reddit_actions_count=data.get("reddit_actions_count", 0),
                 started_at=data.get("started_at"),
@@ -374,7 +400,8 @@ class SimulationRunner:
         platform: str = "parallel",  # twitter / reddit / parallel
         max_rounds: int = None,  # 最大模拟轮数（可选，用于截断过长的模拟）
         enable_graph_memory_update: bool = False,  # 是否将活动更新到Zep图谱
-        graph_id: str = None  # Zep图谱ID（启用图谱更新时必需）
+        graph_id: str = None,  # Zep图谱ID（启用图谱更新时必需）
+        auto_finalize: bool = True,
     ) -> SimulationRunState:
         """
         启动模拟
@@ -417,6 +444,8 @@ class SimulationRunner:
             runner_status=RunnerStatus.STARTING,
             total_rounds=total_rounds,
             total_simulation_hours=total_hours,
+            platform_mode=platform,
+            auto_finalize=auto_finalize,
             started_at=datetime.now().isoformat(),
         )
         
@@ -462,17 +491,11 @@ class SimulationRunner:
         else:
             cls._graph_memory_enabled[simulation_id] = False
         
-        # 确定运行哪个脚本（脚本位于 backend/scripts/ 目录）
-        if platform == "twitter":
-            script_name = "run_twitter_simulation.py"
-            state.twitter_running = True
-        elif platform == "reddit":
-            script_name = "run_reddit_simulation.py"
-            state.reddit_running = True
-        else:
-            script_name = "run_parallel_simulation.py"
-            state.twitter_running = True
-            state.reddit_running = True
+        # A single common OASIS runner provides the same IPC graceful-close
+        # support regardless of whether one or both platforms were selected.
+        script_name = "run_parallel_simulation.py"
+        state.twitter_running = platform in ("twitter", "parallel")
+        state.reddit_running = platform in ("reddit", "parallel")
         
         script_path = os.path.join(cls.SCRIPTS_DIR, script_name)
         
@@ -520,7 +543,16 @@ class SimulationRunner:
                 "--config", config_path,  # 使用完整配置文件路径
             ]
             
-            # 如果指定了最大轮数，添加到命令行参数
+            # Pass platform selection to the common runner.
+            if platform == "twitter":
+                cmd.append("--twitter-only")
+            elif platform == "reddit":
+                cmd.append("--reddit-only")
+            if auto_finalize:
+                # Finish cleanly after the final round. Keep IPC only for
+                # users who explicitly choose live agent interviews.
+                cmd.append("--no-wait")
+
             if max_rounds is not None and max_rounds > 0:
                 cmd.extend(["--max-rounds", str(max_rounds)])
             
