@@ -668,13 +668,21 @@ def _build_graph_impl():
                     message=t('progress.textChunking'),
                     progress=5
                 )
-                chunks = TextProcessor.split_text(
-                    text, 
-                    chunk_size=chunk_size, 
-                    overlap=chunk_overlap
+                # Preserve legacy chunk identity for projects already sent to
+                # Zep. New projects collapse exact repeated excerpts only.
+                dedupe = getattr(project, 'ingestion_mode', 'legacy_v0') == 'optimized_v1'
+                chunks, recurrence_counts, original_chunk_count = (
+                    TextProcessor.prepare_graph_chunks(
+                        text, chunk_size=chunk_size, overlap=chunk_overlap,
+                        deduplicate=dedupe,
+                    )
                 )
                 builder.validate_batch_chunks(chunks, batch_size=350)
                 total_chunks = len(chunks)
+                build_logger.info(
+                    "Prepared graph episodes: %s unique from %s original chunks",
+                    total_chunks, original_chunk_count,
+                )
                 
                 if resume_existing_batch:
                     graph_id = project.graph_id
@@ -745,6 +753,8 @@ def _build_graph_impl():
                         batch_size=350,
                         progress_callback=add_progress_callback,
                         batch_created_callback=remember_batch,
+                        occurrence_counts=recurrence_counts,
+                        original_chunk_count=original_chunk_count,
                     )
                 
                 # 等待Zep处理完成（查询每个episode的processed状态）
@@ -762,7 +772,13 @@ def _build_graph_impl():
                         progress=progress
                     )
                 
-                builder._wait_for_batch(submission, wait_progress_callback)
+                # Cloud extraction is substantially slower than the HTTP
+                # request itself. Ten minutes is not a sensible timeout for
+                # 1,000+ submitted episodes; keep the resumable batch intact.
+                ingestion_timeout = max(1800, min(21600, total_chunks * 15))
+                builder._wait_for_batch(
+                    submission, wait_progress_callback, timeout=ingestion_timeout
+                )
                 
                 # 获取图谱数据
                 task_manager.update_task(
@@ -798,6 +814,29 @@ def _build_graph_impl():
                         }
                     )
                 
+            except TimeoutError as e:
+                # An ingestion poll timeout does NOT mean the Cloud batch
+                # failed. Preserve its identity for authenticated recovery.
+                if project.zep_batch_id and project.zep_batch_operation_id:
+                    with _project_build_lock(project_id):
+                        project.status = ProjectStatus.GRAPH_BUILDING
+                        ProjectManager.save_project(project)
+                        task_manager.update_task(
+                            task_id, status=TaskStatus.FAILED,
+                            message="El procesamiento remoto continúa; se puede recuperar el seguimiento.",
+                            error=type(e).__name__,
+                        )
+                    build_logger.warning("Monitoring deadline elapsed for batch %s", project.zep_batch_id)
+                else:
+                    with _project_build_lock(project_id):
+                        project.status = ProjectStatus.FAILED
+                        project.error = "La construcción falló antes de registrar un lote recuperable."
+                        ProjectManager.save_project(project)
+                        task_manager.update_task(
+                            task_id, status=TaskStatus.FAILED,
+                            message=project.error, error=type(e).__name__,
+                        )
+
             except Exception as e:
                 # 更新项目状态为失败
                 build_logger.error(f"[{task_id}] 图谱构建失败: {str(e)}")
