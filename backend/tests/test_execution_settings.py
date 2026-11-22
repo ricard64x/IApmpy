@@ -74,6 +74,18 @@ class ExecutionSettingsTests(unittest.TestCase):
         one_missing.reddit_completed = False
         self.assertFalse(one_missing.to_dict()["can_close_env"])
 
+    def test_close_ipc_timeout_does_not_claim_success(self):
+        from unittest.mock import patch
+        from app.services.simulation_runner import SimulationRunner
+        with tempfile.TemporaryDirectory() as tmp, patch.object(SimulationRunner, "RUN_STATE_DIR", tmp):
+            (Path(tmp) / "sim_timeout").mkdir()
+            with patch("app.services.simulation_runner.SimulationIPCClient") as client:
+                client.return_value.check_env_alive.return_value = True
+                client.return_value.send_close_env.side_effect = TimeoutError("IPC timed out")
+                result = SimulationRunner.close_simulation_env("sim_timeout", timeout=2)
+                self.assertFalse(result["success"])
+                self.assertTrue(result["pending"])
+
     def test_failed_or_early_rounds_cannot_be_finalized(self):
         failed = run_state(status=RunnerStatus.FAILED).to_dict()
         self.assertEqual(failed["phase"], "failed")
