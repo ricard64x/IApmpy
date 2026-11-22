@@ -261,6 +261,8 @@ def install_auth(app):
             refs.append(("task", sections[2]))
         elif path.startswith("graph/data/") or path.startswith("graph/delete/"):
             refs.append(("graph", sections[2]))
+        elif path.startswith("getangiru/project/") and len(sections) > 2:
+            refs.append(("project", sections[2]))
         elif path.startswith("simulation/entities/") and len(sections) > 2:
             refs.append(("graph", sections[2]))
         elif path.startswith("simulation/sim_"):
