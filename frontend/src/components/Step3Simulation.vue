@@ -133,6 +133,12 @@
       <p v-if="closeError" class="completion-error" role="alert">{{ closeError }}</p>
     </section>
 
+    <section v-if="engineMode==='lightweight' || runStatus.engine_mode==='lightweight'" class="lite-mode-notice">
+      <strong>Modo eficiente GPT · interacciones sintéticas</strong>
+      <span>Los participantes permanecen guardados. Se procesan por pequeños lotes
+      mediante el servicio de IA configurado, sin cargar OASIS en memoria.
+      Esta modalidad no reproduce la simulación social completa ni representa opiniones reales.</span>
+    </section>
     <section v-if="startError" class="execution-start-error" role="alert">
       <strong>La simulación todavía no comenzó</strong>
       <p>{{startError}}</p>
@@ -477,7 +483,7 @@ const doStartSimulation = async () => {
       force: false,  // New runs only; never discard existing results on navigation
       // The existing graph is read-only by default. External graph ingestion
       // is optional and can cause large waits after the final GPT batch.
-      enable_graph_memory_update: false
+      enable_graph_memory_update: engineMode.value === 'oasis'
     }
     
     params.max_rounds = selectedMaxRounds.value
@@ -1435,4 +1441,7 @@ onUnmounted(() => {
 .execution-start-error strong{display:block;font-size:15px}
 .execution-start-error p{margin-top:7px;line-height:1.4}
 .execution-start-error button{margin-top:12px;border:0;border-radius:9px;padding:9px 13px;color:#fff;background:#166d92;cursor:pointer;font-weight:700}
+
+.lite-mode-notice{display:grid;gap:5px;flex-shrink:0;background:#effafb;color:#17546b;padding:11px 18px;border-bottom:1px solid #bbe4ee;font-size:11px;line-height:1.45}
+.lite-mode-notice strong{font-size:12px}
 </style>
