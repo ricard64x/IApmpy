@@ -21,7 +21,13 @@ from enum import Enum
 from ..config import Config
 from ..utils.llm_client import LLMClient
 from ..utils.logger import get_logger
-from ..utils.locale import get_language_instruction, t
+from ..utils.locale import get_language_instruction, get_locale, t
+from .report_prompts_es import (
+    PLAN_SYSTEM_PROMPT_ES, PLAN_USER_PROMPT_ES,
+    SECTION_SYSTEM_PROMPT_ES, SECTION_USER_PROMPT_ES,
+    REACT_OBSERVATION_ES, REACT_INSUFFICIENT_ES,
+    REACT_TOOL_LIMIT_ES, REACT_FORCE_FINAL_ES,
+)
 from .zep_tools import (
     ZepToolsService, 
     SearchResult, 
@@ -879,7 +885,7 @@ class ReportAgent:
     """
     
     # 最大工具调用次数（每个章节）
-    MAX_TOOL_CALLS_PER_SECTION = 5
+    MAX_TOOL_CALLS_PER_SECTION = 2
     
     # 最大反思轮数
     MAX_REFLECTION_ROUNDS = 3
@@ -1202,8 +1208,9 @@ class ReportAgent:
         if progress_callback:
             progress_callback("planning", 30, t('progress.generatingOutline'))
         
-        system_prompt = f"{PLAN_SYSTEM_PROMPT}\n\n{get_language_instruction()}"
-        user_prompt = PLAN_USER_PROMPT_TEMPLATE.format(
+        language_es = get_locale() == 'es'
+        system_prompt = f"{PLAN_SYSTEM_PROMPT_ES if language_es else PLAN_SYSTEM_PROMPT}\n\n{get_language_instruction()}"
+        user_prompt = (PLAN_USER_PROMPT_ES if language_es else PLAN_USER_PROMPT_TEMPLATE).format(
             simulation_requirement=self.simulation_requirement,
             total_nodes=context.get('graph_statistics', {}).get('total_nodes', 0),
             total_edges=context.get('graph_statistics', {}).get('total_edges', 0),
@@ -1291,7 +1298,8 @@ class ReportAgent:
         if self.report_logger:
             self.report_logger.log_section_start(section.title, section_index)
         
-        system_prompt = SECTION_SYSTEM_PROMPT_TEMPLATE.format(
+        language_es = get_locale() == 'es'
+        system_prompt = (SECTION_SYSTEM_PROMPT_ES if language_es else SECTION_SYSTEM_PROMPT_TEMPLATE).format(
             report_title=outline.title,
             report_summary=outline.summary,
             simulation_requirement=self.simulation_requirement,
@@ -1311,7 +1319,7 @@ class ReportAgent:
         else:
             previous_content = "（这是第一个章节）"
         
-        user_prompt = SECTION_USER_PROMPT_TEMPLATE.format(
+        user_prompt = (SECTION_USER_PROMPT_ES if language_es else SECTION_USER_PROMPT_TEMPLATE).format(
             previous_content=previous_content,
             section_title=section.title,
         )
@@ -1323,8 +1331,8 @@ class ReportAgent:
         
         # ReACT循环
         tool_calls_count = 0
-        max_iterations = 5  # 最大迭代轮数
-        min_tool_calls = 3  # 最少工具调用次数
+        max_iterations = 3 if language_es else 5
+        min_tool_calls = 1 if language_es else 3  # 最少工具调用次数
         conflict_retries = 0  # 工具调用与Final Answer同时出现的连续冲突次数
         used_tools = set()  # 记录已调用过的工具名
         all_tools = {"insight_forge", "panorama_search", "quick_search", "interview_agents"}
