@@ -2875,7 +2875,9 @@ def close_simulation_env():
         
         simulation_id = data.get('simulation_id')
         timeout = data.get('timeout', 30)
-        
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not 1 <= timeout <= 30:
+            return jsonify({"success": False, "error": "El tiempo de cierre debe estar entre 1 y 30 segundos."}), 400
+
         if not simulation_id:
             return jsonify({
                 "success": False,
@@ -2907,7 +2909,8 @@ def close_simulation_env():
 
         return jsonify({
             "success": result.get("success", False),
-            "data": result
+            "data": result,
+            "error": result.get("message") if not result.get("success") else None,
         })
         
     except ValueError as e:
