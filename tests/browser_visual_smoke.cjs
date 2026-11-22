@@ -66,7 +66,7 @@ async function run() {
     await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' })
     const projectRow = page.locator('.simulation-item').filter({hasText: 'Caso guardado sin simulación'})
     await projectRow.waitFor({timeout: 20000})
-    await projectRow.getByText('Procesando 20 de 80').waitFor({timeout: 15000})
+    await projectRow.locator('.project-live-inline > span').getByText('Procesando 20 de 80').waitFor({timeout: 15000})
     assert((await projectRow.innerText()).includes('25.0 %'), 'Dashboard has no live remote progress')
     await page.screenshot({path: path.join(DIR, '02b-proyectos-guardados.png'), fullPage: true})
     screenshots.push('02b-proyectos-guardados.png')
@@ -90,7 +90,7 @@ async function run() {
     await page.goto(BASE + '/workspace', {waitUntil: 'domcontentloaded'})
     const historyCard = page.locator('.project-card').filter({hasText: 'Caso guardado sin simulación'})
     await historyCard.waitFor({timeout: 20000})
-    await historyCard.getByText('Procesando 40 de 80').waitFor({timeout: 15000})
+    await historyCard.locator('.history-live strong').getByText('Procesando 40 de 80').waitFor({timeout: 15000})
     await historyCard.click()
     assert(await page.locator('.modal-btn.btn-simulation').isDisabled(),
       'An unstarted project must not offer a nonexistent simulation')
