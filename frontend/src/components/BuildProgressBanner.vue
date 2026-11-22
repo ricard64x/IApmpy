@@ -22,8 +22,11 @@
       <span>{{ refreshedAt ? 'Consultado ' + formattedTime : 'Consultando el avance…' }}</span>
       <span v-if="refreshedAt">Actualización automática cada 12 segundos</span>
       <span v-else>El trabajo continúa en el servidor</span>
-      <button type="button" @click="$emit('refresh')" :disabled="refreshing" class="tracking-refresh"
-              aria-label="Consultar avance actualizado">↻ Actualizar</button>
+      <div class="tracking-actions">
+        <button type="button" @click="$emit('refresh')" :disabled="refreshing" class="tracking-refresh"
+                aria-label="Consultar avance actualizado">↻ Actualizar</button>
+        <button type="button" @click="$emit('go-projects')" class="tracking-refresh">Mis proyectos</button>
+      </div>
     </div>
   </section>
 </template>
@@ -35,7 +38,7 @@ const props = defineProps({
   refreshing: { type: Boolean, default: false },
   stale: { type: Boolean, default: false },
 })
-defineEmits(['refresh'])
+defineEmits(['refresh', 'go-projects'])
 const processed = computed(() => Math.max(0, Number(props.progress?.processed) || 0))
 const total = computed(() => Math.max(0, Number(props.progress?.total) || 0))
 const knownTotal = computed(() => total.value > 0)
@@ -74,7 +77,7 @@ const formattedTime = computed(() => props.refreshedAt
 .tracking-bar div{height:100%;border-radius:20px;background:linear-gradient(90deg,#0877b3,#14aa96);transition:width .6s ease}
 .tracking-result small{font-size:10px;color:#526b82}
 .tracking-last{display:flex;align-items:flex-start;flex-direction:column;gap:3px;color:#537189;font-size:10px;min-width:140px}
-.tracking-refresh{margin-top:3px;border:1px solid #94d0e1;background:white;border-radius:8px;padding:5px 10px;color:#146a84;font-weight:750;cursor:pointer}
+.tracking-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.tracking-refresh{margin-top:3px;border:1px solid #94d0e1;background:white;border-radius:8px;padding:5px 10px;color:#146a84;font-weight:750;cursor:pointer}
 .tracking-refresh:disabled{opacity:.5;cursor:wait}
 .is-complete{background:#ecfbf2;border-bottom-color:#bce5cb}
 .is-stale{background:#fff8e9;border-bottom-color:#f0dbb4}
