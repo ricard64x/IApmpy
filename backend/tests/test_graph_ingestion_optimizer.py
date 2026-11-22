@@ -92,6 +92,48 @@ class GraphOptimizationTests(unittest.TestCase):
                     occurrence_counts=counts, original_chunk_count=original,
                 )
 
+    def test_legacy_timeout_failure_resumes_same_batch_without_deleting(self):
+        """A false local failure must never delete an actively processing graph."""
+        from app.api import graph as routes
+        existing = SimpleNamespace(
+            project_id="proj_existing", name="Caso existente",
+            status=ProjectStatus.FAILED, graph_id="same_graph",
+            graph_build_task_id="old-task", zep_batch_id="existing-batch",
+            zep_batch_operation_id="saved-operation",
+            chunk_size=500, chunk_overlap=50, ingestion_mode="legacy_v0",
+            ontology={"entity_types":[],"edge_types":[]},
+            error="Local wait expired",
+        )
+        service = SimpleNamespace(
+            get_batch_summary=lambda batch_id: SimpleNamespace(status="processing")
+        )
+        class SafeThread:
+            def __init__(self, **_kwargs):
+                pass
+            def start(self):
+                pass
+        fake_task = SimpleNamespace(
+            create_task=lambda name: "new-safe-task",
+        )
+        app = Flask(__name__)
+        app.register_blueprint(graph_bp, url_prefix="/api/graph")
+        with patch.object(routes.ProjectManager, "get_project", return_value=existing), \
+             patch.object(routes.ProjectManager, "get_extracted_text", return_value="Texto original"), \
+             patch.object(routes.ProjectManager, "save_project"), \
+             patch.object(routes, "GraphBuilderService", return_value=service), \
+             patch.object(routes, "TaskManager", return_value=fake_task), \
+             patch.object(routes, "_delete_cloud_graph_if_present", side_effect=AssertionError("Never delete active batch")), \
+             patch.object(routes.threading, "Thread", SafeThread):
+            response = app.test_client().post("/api/graph/build", json={
+                "project_id": "proj_existing", "force": True,
+            })
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertTrue(response.get_json()["data"]["resumed"])
+        self.assertEqual(existing.graph_id, "same_graph")
+        self.assertEqual(existing.zep_batch_id, "existing-batch")
+        self.assertEqual(existing.status, ProjectStatus.GRAPH_BUILDING)
+        self.assertIsNone(existing.error)
+
     def test_durable_status_reads_cloud_without_resubmitting(self):
         from app.api import graph as graph_routes
         p = SimpleNamespace(
