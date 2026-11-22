@@ -3,13 +3,14 @@ MiroFish Backend - Flask应用工厂
 """
 
 import os
+import hmac
 import warnings
 
 # 抑制 multiprocessing resource_tracker 的警告（来自第三方库如 transformers）
 # 需要在所有其他导入之前设置
 warnings.filterwarnings("ignore", message=".*resource_tracker.*")
 
-from flask import Flask, request, send_from_directory, abort
+from flask import Flask, request, send_from_directory, abort, Response
 from flask_cors import CORS
 
 from .config import Config
@@ -44,6 +45,25 @@ def create_app(config_class=Config):
     if cors_origins:
         CORS(app, resources={r"/api/*": {"origins": cors_origins}})
     
+    # Optional HTTP Basic authentication protects public LLM-consuming endpoints.
+    # Fly enables it with APP_REQUIRE_AUTH and supplies the password via secrets.
+    auth_user = os.environ.get('APP_BASIC_AUTH_USER', 'admin')
+    auth_password = os.environ.get('APP_BASIC_AUTH_PASSWORD', '')
+    if auth_password:
+        @app.before_request
+        def require_auth():
+            # Fly probes this route without user credentials.
+            if request.path == '/health':
+                return None
+            credentials = request.authorization
+            if (not credentials
+                or not hmac.compare_digest(credentials.username or '', auth_user)
+                or not hmac.compare_digest(credentials.password or '', auth_password)):
+                return Response(
+                    'Authentication required', status=401,
+                    headers={'WWW-Authenticate': 'Basic realm="IApmpy", charset="UTF-8"'}
+                )
+
     # 注册模拟进程清理函数（确保服务器关闭时终止所有模拟进程）
     from .services.simulation_runner import SimulationRunner
     SimulationRunner.register_cleanup()
