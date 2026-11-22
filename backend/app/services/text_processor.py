@@ -34,6 +34,38 @@ class TextProcessor:
         return split_text_into_chunks(text, chunk_size, overlap)
     
     @staticmethod
+    def prepare_graph_chunks(
+        text: str,
+        chunk_size: int,
+        overlap: int,
+        *,
+        deduplicate: bool = False,
+    ) -> tuple[List[str], List[int], int]:
+        """Prepare deterministic graph episodes without altering source documents.
+
+        Exact repeated chunks are collapsed only for optimized new projects.
+        Repetition counts are retained as episode metadata, so analysts know
+        which observations recurred. Legacy builds must never deduplicate:
+        their persisted batch identity depends on the exact original sequence.
+        """
+        original = TextProcessor.split_text(text, chunk_size, overlap)
+        if not deduplicate:
+            return original, [1] * len(original), len(original)
+
+        positions: dict[str, int] = {}
+        unique: List[str] = []
+        occurrences: List[int] = []
+        for chunk in original:
+            index = positions.get(chunk)
+            if index is None:
+                positions[chunk] = len(unique)
+                unique.append(chunk)
+                occurrences.append(1)
+            else:
+                occurrences[index] += 1
+        return unique, occurrences, len(original)
+
+    @staticmethod
     def preprocess_text(text: str) -> str:
         """
         预处理文本
