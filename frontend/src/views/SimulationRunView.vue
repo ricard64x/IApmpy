@@ -433,6 +433,8 @@ onUnmounted(() => {
 
 .status-indicator.processing .dot { background: #FF5722; animation: pulse 1s infinite; }
 .status-indicator.completed .dot { background: #4CAF50; }
+.status-indicator.awaiting_close .dot { background: #e9a91e; }
+.status-indicator.finalizing .dot { background: #118cb7; animation: pulse 1s infinite; }
 .status-indicator.error .dot { background: #F44336; }
 
 @keyframes pulse { 50% { opacity: 0.5; } }
