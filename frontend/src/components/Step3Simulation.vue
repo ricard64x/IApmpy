@@ -139,6 +139,10 @@
       mediante el servicio de IA configurado, sin cargar OASIS en memoria.
       Esta modalidad no reproduce la simulación social completa ni representa opiniones reales.</span>
     </section>
+    <EfficiencyMetricsPanel
+      v-if="engineMode === 'lightweight' || runStatus.engine_mode === 'lightweight'"
+      :simulation-id="simulationId"
+    />
     <section v-if="startError" class="execution-start-error" role="alert">
       <strong>La simulación todavía no comenzó</strong>
       <p>{{startError}}</p>
@@ -346,6 +350,7 @@ import {
   closeSimulationEnv
 } from '../api/simulation'
 import { generateReport } from '../api/report'
+import EfficiencyMetricsPanel from './EfficiencyMetricsPanel.vue'
 
 const { t } = useI18n()
 
