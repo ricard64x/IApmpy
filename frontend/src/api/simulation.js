@@ -78,6 +78,13 @@ export const listSimulations = (projectId) => {
   return service.get('/api/simulation/list', { params })
 }
 
+/** Persist the selected OASIS environment and close mode before the run. */
+export const getExecutionSettings = (simulationId) =>
+  service.get(`/api/simulation/${simulationId}/execution-settings`)
+
+export const saveExecutionSettings = (simulationId, settings) =>
+  service.post(`/api/simulation/${simulationId}/execution-settings`, settings)
+
 /**
  * 启动模拟
  * @param {Object} data - { simulation_id, platform?, max_rounds?, enable_graph_memory_update? }

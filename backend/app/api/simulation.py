@@ -1496,6 +1496,33 @@ def generate_profiles():
         }), 500
 
 
+
+@simulation_bp.route('/<simulation_id>/execution-settings', methods=['GET', 'POST'])
+def execution_settings(simulation_id: str):
+    """Choose where agents interact, rounds and automatic finalization."""
+    from ..services.simulation_execution import get_execution_settings, save_execution_settings
+    if SimulationManager().get_simulation(simulation_id) is None:
+        return jsonify({"success": False, "error": "Simulación no encontrada."}), 404
+    if request.method == 'GET':
+        return jsonify({"success": True, "data": get_execution_settings(simulation_id)})
+    run = SimulationRunner.get_run_state(simulation_id)
+    if run is not None and run.runner_status != RunnerStatus.IDLE:
+        return jsonify({
+            "success": False,
+            "error": "La configuración no puede cambiarse después de iniciar la simulación.",
+        }), 409
+    try:
+        settings = save_execution_settings(simulation_id, request.get_json(silent=True) or {})
+        state = SimulationManager().get_simulation(simulation_id)
+        if state is not None:
+            state.enable_twitter = settings["platform"] in ("twitter", "parallel")
+            state.enable_reddit = settings["platform"] in ("reddit", "parallel")
+            SimulationManager()._save_simulation_state(state)
+    except (ValueError, TypeError) as error:
+        return jsonify({"success": False, "error": str(error)}), 400
+    return jsonify({"success": True, "data": settings})
+
+
 # ============== 模拟运行控制接口 ==============
 
 @simulation_bp.route('/start', methods=['POST'])
@@ -1549,8 +1576,13 @@ def start_simulation():
                 "error": t('api.requireSimulationId')
             }), 400
 
-        platform = data.get('platform', 'parallel')
-        max_rounds = data.get('max_rounds', 10)  # Límite validado de Fly: 10 rondas
+        from ..services.simulation_execution import get_execution_settings
+        saved_settings = get_execution_settings(simulation_id)
+        platform = data.get('platform', saved_settings['platform'])
+        auto_finalize = data.get('auto_finalize', saved_settings['auto_finalize'])
+        if type(auto_finalize) is not bool:
+            return jsonify({"success": False, "error": "auto_finalize debe ser booleano."}), 400
+        max_rounds = data.get('max_rounds', saved_settings['max_rounds'])  # Límite validado de Fly: 10 rondas
         if max_rounds is None:
             max_rounds = 10
         enable_graph_memory_update = data.get('enable_graph_memory_update', False)  # 可选：是否启用图谱记忆更新
@@ -1756,7 +1788,8 @@ def start_simulation():
                 platform=platform,
                 max_rounds=max_rounds,
                 enable_graph_memory_update=enable_graph_memory_update,
-                graph_id=graph_id
+                graph_id=graph_id,
+                auto_finalize=auto_finalize
             )
         
         response_data = run_state.to_dict()
@@ -1894,20 +1927,21 @@ def get_run_status(simulation_id: str):
         run_state = SimulationRunner.get_run_state(simulation_id)
         
         if not run_state:
-            return jsonify({
-                "success": True,
-                "data": {
-                    "simulation_id": simulation_id,
-                    "runner_status": "idle",
-                    "current_round": 0,
-                    "total_rounds": 0,
-                    "progress_percent": 0,
-                    "twitter_actions_count": 0,
-                    "reddit_actions_count": 0,
-                    "total_actions_count": 0,
-                }
-            })
-        
+            from ..services.simulation_execution import (
+                get_execution_settings, execution_progress,
+            )
+            opts = get_execution_settings(simulation_id)
+            empty = {
+                "simulation_id": simulation_id,
+                "runner_status": "idle", "current_round": 0,
+                "total_rounds": 0, "progress_percent": 0,
+                "twitter_actions_count": 0, "reddit_actions_count": 0,
+                "total_actions_count": 0,
+            }
+            empty.update(execution_progress(empty, opts))
+            empty["auto_finalize"] = opts["auto_finalize"]
+            return jsonify({"success": True, "data": empty})
+
         return jsonify({
             "success": True,
             "data": run_state.to_dict()
@@ -2841,28 +2875,42 @@ def close_simulation_env():
         
         simulation_id = data.get('simulation_id')
         timeout = data.get('timeout', 30)
-        
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not 1 <= timeout <= 30:
+            return jsonify({"success": False, "error": "El tiempo de cierre debe estar entre 1 y 30 segundos."}), 400
+
         if not simulation_id:
             return jsonify({
                 "success": False,
                 "error": t('api.requireSimulationId')
             }), 400
         
+        run = SimulationRunner.get_run_state(simulation_id)
+        if run is None:
+            return jsonify({"success": False, "error": "Simulación no encontrada."}), 404
+        phase = run.to_dict().get("phase")
+        if phase in ("completed", "finalizing"):
+            return jsonify({
+                "success": True,
+                "data": {"success": True, "message": "Cierre ya iniciado o completado.", "phase": phase},
+            })
+        if phase != "awaiting_close":
+            return jsonify({
+                "success": False,
+                "error": "Primero deben terminar todas las rondas para cerrar el entorno.",
+            }), 409
+        # IPC acknowledgement is not final process exit or Zep ingestion.
         result = SimulationRunner.close_simulation_env(
             simulation_id=simulation_id,
-            timeout=timeout
+            timeout=timeout,
         )
-        
-        # 更新模拟状态
-        manager = SimulationManager()
-        state = manager.get_simulation(simulation_id)
-        if state:
-            state.status = SimulationStatus.COMPLETED
-            manager._save_simulation_state(state)
-        
+        if result.get("success"):
+            run.finalizing_requested = True
+            SimulationRunner._save_run_state(run)
+
         return jsonify({
             "success": result.get("success", False),
-            "data": result
+            "data": result,
+            "error": result.get("message") if not result.get("success") else None,
         })
         
     except ValueError as e:

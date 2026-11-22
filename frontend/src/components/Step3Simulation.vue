@@ -4,7 +4,7 @@
     <div class="control-bar">
       <div class="status-group">
         <!-- Twitter 平台进度 -->
-        <div class="platform-status twitter" :class="{ active: runStatus.twitter_running, completed: runStatus.twitter_completed }">
+        <div v-if="activePlatform !== 'reddit'" class="platform-status twitter" :class="{ active: runStatus.twitter_running, completed: runStatus.twitter_completed }">
           <div class="platform-header">
             <svg class="platform-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
@@ -18,21 +18,21 @@
           </div>
           <div class="platform-stats">
             <span class="stat">
-              <span class="stat-label">ROUND</span>
+              <span class="stat-label">{{ $t('step3.roundLabel') }}</span>
               <span class="stat-value mono">{{ runStatus.twitter_current_round || 0 }}<span class="stat-total">/{{ runStatus.total_rounds || maxRounds || '-' }}</span></span>
             </span>
             <span class="stat">
-              <span class="stat-label">TIME</span>
+              <span class="stat-label">{{ $t('step3.timeLabel') }}</span>
               <span class="stat-value mono">{{ twitterElapsedTime }}</span>
             </span>
             <span class="stat">
-              <span class="stat-label">ACTS</span>
+              <span class="stat-label">{{ $t('step3.actionsLabel') }}</span>
               <span class="stat-value mono">{{ runStatus.twitter_actions_count || 0 }}</span>
             </span>
           </div>
           <!-- 可用动作提示 -->
           <div class="actions-tooltip">
-            <div class="tooltip-title">Available Actions</div>
+            <div class="tooltip-title">{{ $t('step3.availableActions') }}</div>
             <div class="tooltip-actions">
               <span class="tooltip-action">POST</span>
               <span class="tooltip-action">LIKE</span>
@@ -45,7 +45,7 @@
         </div>
         
         <!-- Reddit 平台进度 -->
-        <div class="platform-status reddit" :class="{ active: runStatus.reddit_running, completed: runStatus.reddit_completed }">
+        <div v-if="activePlatform !== 'twitter'" class="platform-status reddit" :class="{ active: runStatus.reddit_running, completed: runStatus.reddit_completed }">
           <div class="platform-header">
             <svg class="platform-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
@@ -59,21 +59,21 @@
           </div>
           <div class="platform-stats">
             <span class="stat">
-              <span class="stat-label">ROUND</span>
+              <span class="stat-label">{{ $t('step3.roundLabel') }}</span>
               <span class="stat-value mono">{{ runStatus.reddit_current_round || 0 }}<span class="stat-total">/{{ runStatus.total_rounds || maxRounds || '-' }}</span></span>
             </span>
             <span class="stat">
-              <span class="stat-label">TIME</span>
+              <span class="stat-label">{{ $t('step3.timeLabel') }}</span>
               <span class="stat-value mono">{{ redditElapsedTime }}</span>
             </span>
             <span class="stat">
-              <span class="stat-label">ACTS</span>
+              <span class="stat-label">{{ $t('step3.actionsLabel') }}</span>
               <span class="stat-value mono">{{ runStatus.reddit_actions_count || 0 }}</span>
             </span>
           </div>
           <!-- 可用动作提示 -->
           <div class="actions-tooltip">
-            <div class="tooltip-title">Available Actions</div>
+            <div class="tooltip-title">{{ $t('step3.availableActions') }}</div>
             <div class="tooltip-actions">
               <span class="tooltip-action">POST</span>
               <span class="tooltip-action">COMMENT</span>
@@ -111,12 +111,34 @@
       </div>
     </div>
 
+
+    <section class="lifecycle-banner" :class="lifecyclePhase" aria-live="polite">
+      <div class="lifecycle-heading">
+        <div><strong>{{ lifecycleTitle }}</strong><p>{{ lifecycleHelp }}</p>
+          <small>{{ $t('step3.platformSelected') }}: {{ platformLabel }}</small></div>
+        <span>{{ Math.round(runStatus.lifecycle_progress_percent || 0) }}%</span>
+      </div>
+      <div class="lifecycle-meter" role="progressbar" :aria-valuenow="Math.round(runStatus.lifecycle_progress_percent || 0)" aria-valuemin="0" aria-valuemax="100" :aria-label="$t('step3.overallProgress')">
+        <div :style="{width: (runStatus.lifecycle_progress_percent || 0) + '%'}"></div>
+      </div>
+      <div class="lifecycle-steps">
+        <span :class="{done:runStatus.all_rounds_completed}">① {{ $t('step3.stepRounds') }} {{ shownRounds }}/{{ runStatus.total_rounds || selectedMaxRounds }}</span>
+        <span :class="{done: runStatus.can_generate_report, active:['awaiting_close','finalizing'].includes(lifecyclePhase)}">② {{ $t('step3.stepClosure') }}</span>
+        <span :class="{done:runStatus.can_generate_report}">③ {{ $t('step3.stepReport') }}</span>
+      </div>
+      <div v-if="lifecyclePhase === 'awaiting_close'" class="completion-choice">
+        <button type="button" class="finalize-btn" :disabled="isClosing" @click="finalizeSimulation">{{ isClosing ? $t('step3.finalizing') : $t('step3.finalizeButton') }}</button>
+        <small>{{ $t('step3.stayOpenHelp') }}</small>
+      </div>
+      <p v-if="closeError" class="completion-error" role="alert">{{ closeError }}</p>
+    </section>
+
     <!-- Main Content: Dual Timeline -->
     <div class="main-content-area" ref="scrollContainer">
       <!-- Timeline Header -->
       <div class="timeline-header" v-if="allActions.length > 0">
         <div class="timeline-stats">
-          <span class="total-count">TOTAL EVENTS: <span class="mono">{{ allActions.length }}</span></span>
+          <span class="total-count">{{ $t('step3.totalEvents') }}: <span class="mono">{{ allActions.length }}</span></span>
           <span class="platform-breakdown">
             <span class="breakdown-item twitter">
               <svg class="mini-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
@@ -301,7 +323,9 @@ import {
   startSimulation,
   stopSimulation,
   getRunStatus,
-  getRunStatusDetail
+  getRunStatusDetail,
+  getExecutionSettings,
+  closeSimulationEnv
 } from '../api/simulation'
 import { generateReport } from '../api/report'
 
@@ -309,7 +333,9 @@ const { t } = useI18n()
 
 const props = defineProps({
   simulationId: String,
-  maxRounds: Number, // 从Step2传入的最大轮数
+  maxRounds: Number,
+  selectedPlatform: {type:String,default:'parallel'},
+  autoFinalize: {type:Boolean,default:true},
   minutesPerRound: {
     type: Number,
     default: 30 // 默认每轮30分钟
@@ -330,6 +356,32 @@ const isStarting = ref(false)
 const isStopping = ref(false)
 const startError = ref(null)
 const runStatus = ref({})
+const activePlatform = ref(props.selectedPlatform)
+const autoFinalizeEnabled = ref(props.autoFinalize)
+const selectedMaxRounds = ref(props.maxRounds || 10)
+const isClosing = ref(false)
+const closeError = ref('')
+const lifecyclePhase = computed(() => runStatus.value.phase || 'idle')
+const platformLabel = computed(() => activePlatform.value === 'twitter'
+  ? t('step2.interactionPlaza') : activePlatform.value === 'reddit'
+    ? t('step2.interactionCommunity') : t('step2.interactionBoth'))
+const lifecycleTitle = computed(() => ({
+  awaiting_close:t('step3.roundsFinishedWaiting'), finalizing:t('step3.finalizing'),
+  completed:t('step3.finalized'), stopped:t('step3.stoppedTitle'),
+  failed:t('step3.failed'), running_rounds:t('step3.runningRounds'),
+  idle:t('step3.preparingRun')
+}[lifecyclePhase.value] || t('step3.preparingRun')))
+const lifecycleHelp = computed(() => ({
+  awaiting_close:t('step3.waitingCloseHelp'), finalizing:t('step3.finalizingHelp'),
+  completed:t('step3.finalizedHelp'), stopped:t('step3.stoppedHelp'),
+  failed:t('step3.failedNoReport'), running_rounds:t('step3.runningRoundsHelp'),
+  idle:t('step3.preparingRunHelp')
+}[lifecyclePhase.value] || ''))
+const shownRounds = computed(() => {
+  if (activePlatform.value==='twitter') return runStatus.value.twitter_current_round || 0
+  if (activePlatform.value==='reddit') return runStatus.value.reddit_current_round || 0
+  return Math.min(runStatus.value.twitter_current_round||0,runStatus.value.reddit_current_round||0)
+})
 const allActions = ref([]) // 所有动作（增量累积）
 const actionIds = ref(new Set()) // 用于去重的动作ID集合
 const scrollContainer = ref(null)
@@ -405,15 +457,14 @@ const doStartSimulation = async () => {
   try {
     const params = {
       simulation_id: props.simulationId,
-      platform: 'parallel',
+      platform: activePlatform.value,
+      auto_finalize: autoFinalizeEnabled.value,
       force: false,  // New runs only; never discard existing results on navigation
       enable_graph_memory_update: true  // 开启动态图谱更新
     }
     
-    if (props.maxRounds) {
-      params.max_rounds = props.maxRounds
-      addLog(t('log.setMaxRounds', { rounds: props.maxRounds }))
-    }
+    params.max_rounds = selectedMaxRounds.value
+    addLog(t('log.setMaxRounds', { rounds: selectedMaxRounds.value }))
     
     addLog(t('log.graphMemoryUpdateEnabled'))
     
@@ -507,7 +558,10 @@ const fetchRunStatus = async () => {
       const data = res.data
       
       runStatus.value = data
-      
+      if (data.platform_mode) activePlatform.value = data.platform_mode
+      if (data.phase === 'awaiting_close') emit('update-status','awaiting_close')
+      if (data.phase === 'finalizing') emit('update-status','finalizing')
+
       // 分别检测各平台的轮次变化并输出日志
       if (data.twitter_current_round > prevTwitterRound.value) {
         addLog(`[Plaza] R${data.twitter_current_round}/${data.total_rounds} | T:${data.twitter_simulated_hours || 0}h | A:${data.twitter_actions_count}`)
@@ -534,7 +588,7 @@ const fetchRunStatus = async () => {
         addLog(t('log.simCompleted'))
         phase.value = 2
         stopPolling()
-        emit('update-status', 'completed')
+        emit('update-status', data.runner_status === 'stopped' ? 'stopped' : 'completed')
       }
     }
   } catch (err) {
@@ -650,6 +704,23 @@ const formatActionTime = (timestamp) => {
   }
 }
 
+const finalizeSimulation = async () => {
+  if (!props.simulationId || isClosing.value || lifecyclePhase.value !== 'awaiting_close') return
+  isClosing.value = true
+  closeError.value = ''
+  addLog(t('step3.finalizingHelp'))
+  try {
+    const response = await closeSimulationEnv({simulation_id:props.simulationId,timeout:15})
+    if (!response.success || response.data?.success === false) {
+      throw new Error(response.error || response.data?.message || t('common.unknownError'))
+    }
+    runStatus.value = {...runStatus.value,phase:'finalizing',can_close_env:false,finalizing_requested:true}
+    emit('update-status','finalizing')
+    await fetchRunStatus()
+  } catch(error) { closeError.value = error.message || t('common.unknownError') }
+  finally { isClosing.value = false }
+}
+
 const handleNextStep = async () => {
   if (!props.simulationId) {
     addLog(t('log.errorMissingSimId'))
@@ -714,8 +785,15 @@ onMounted(async () => {
     }
     const status = response.data.runner_status
     runStatus.value = response.data
+    if (response.data.platform_mode) activePlatform.value = response.data.platform_mode
 
     if (status === 'idle') {
+      const prefs = await getExecutionSettings(props.simulationId)
+      if (prefs.success && prefs.data) {
+        activePlatform.value = prefs.data.platform
+        autoFinalizeEnabled.value = prefs.data.auto_finalize
+        selectedMaxRounds.value = prefs.data.max_rounds
+      }
       await doStartSimulation()
     } else {
       if (status === 'failed') {
@@ -724,10 +802,11 @@ onMounted(async () => {
         addLog(t('step3.failedNoReport'))
       } else if (status === 'completed' || status === 'stopped') {
         phase.value = 2
-        emit('update-status', 'completed')
+        emit('update-status', status === 'stopped' ? 'stopped' : 'completed')
       } else {
         phase.value = 1
-        emit('update-status', 'processing')
+        emit('update-status', response.data.phase === 'awaiting_close'
+          ? 'awaiting_close' : response.data.phase === 'finalizing' ? 'finalizing' : 'processing')
         startStatusPolling()
         startDetailPolling()
       }
@@ -1309,4 +1388,21 @@ onUnmounted(() => {
   animation: spin 0.8s linear infinite;
   margin-right: 6px;
 }
+</style>
+
+<style scoped>
+.lifecycle-banner{flex-shrink:0;background:#f6fbfe;color:#163955;padding:13px 20px;border-bottom:1px solid #d8e8ef;font-family:Inter,'Segoe UI',sans-serif}
+.lifecycle-banner.awaiting_close{background:#fff9ea}.lifecycle-banner.completed,.lifecycle-banner.stopped{background:#e9fbf2}
+.lifecycle-heading{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}.lifecycle-heading strong{font-size:14px}
+.lifecycle-heading p{font-size:11px;margin:5px 0;color:#587287;line-height:1.4}.lifecycle-heading small{font-size:10px;color:#497e89}
+.lifecycle-heading>span{color:#167aaf;font-weight:800;font-size:17px}
+.lifecycle-meter{height:6px;border-radius:10px;background:#dceaf0;overflow:hidden;margin-top:9px}
+.lifecycle-meter>div{background:linear-gradient(90deg,#126fbb,#0ab9aa);height:100%;transition:width .3s}
+.lifecycle-steps{display:flex;justify-content:space-between;flex-wrap:wrap;gap:5px;margin-top:10px}
+.lifecycle-steps span{font-size:10px;color:#889ca9}.lifecycle-steps span.done{color:#0b9b78;font-weight:800}.lifecycle-steps span.active{color:#ae780b;font-weight:800}
+.completion-choice{display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap}
+.finalize-btn{background:#0a789c;color:white;border:0;border-radius:9px;padding:11px 15px;font-size:12px;font-weight:800;cursor:pointer}
+.finalize-btn:disabled{opacity:.5}.completion-choice small{color:#775f2b;font-size:11px}
+.completion-error{color:#af3945;font-size:11px}
+@media(max-width:760px){.lifecycle-steps{flex-direction:column}}
 </style>
