@@ -413,8 +413,8 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { chatWithReport, getReport, getAgentLog } from '../api/report'
-import { interviewAgents, getSimulationProfilesRealtime } from '../api/simulation'
+import { getReport, getAgentLog, createReportInteraction, getReportInteractions, reportExportUrl } from '../api/report'
+import { getSimulationProfilesRealtime } from '../api/simulation'
 
 const { t } = useI18n()
 
@@ -432,13 +432,14 @@ const showAgentDropdown = ref(false)
 const selectedAgent = ref(null)
 const selectedAgentIndex = ref(null)
 const showFullProfile = ref(true)
-const showToolsDetail = ref(true)
+const showToolsDetail = ref(false)
 
 // Chat State
 const chatInput = ref('')
 const chatHistory = ref([])
 const chatHistoryCache = ref({}) // 缓存所有对话记录: { 'report_agent': [], 'agent_0': [], 'agent_1': [], ... }
 const isSending = ref(false)
+const chatError = ref('')
 const chatMessages = ref(null)
 const chatInputRef = ref(null)
 
@@ -447,6 +448,7 @@ const selectedAgents = ref(new Set())
 const surveyQuestion = ref('')
 const surveyResults = ref([])
 const isSurveying = ref(false)
+const surveyError = ref('')
 
 // Report Data
 const reportOutline = ref(null)
@@ -514,6 +516,7 @@ const selectReportAgentChat = () => {
 
 const selectSurveyTab = () => {
   activeTab.value = 'survey'
+  surveyError.value = ''
   selectedAgent.value = null
   selectedAgentIndex.value = null
   showAgentDropdown.value = false
@@ -643,7 +646,8 @@ const renderMarkdown = (content) => {
 
 // Chat Methods
 const sendMessage = async () => {
-  if (!chatInput.value.trim() || isSending.value) return
+  if (!chatInput.value.trim() || isSending.value || !props.reportId || !props.simulationId) return
+  chatError.value = ''
   
   const message = chatInput.value.trim()
   chatInput.value = ''
@@ -665,6 +669,7 @@ const sendMessage = async () => {
       await sendToAgent(message)
     }
   } catch (err) {
+    chatError.value = err.message || t('step5.requestFailed')
     addLog(t('log.sendFailed', { error: err.message }))
     chatHistory.value.push({
       role: 'assistant',
@@ -674,103 +679,42 @@ const sendMessage = async () => {
   } finally {
     isSending.value = false
     scrollToBottom()
+    // Historial de chats guardado en el volumen persistente por el backend.
     // 自动保存对话记录到缓存
     saveChatHistory()
   }
 }
 
 const sendToReportAgent = async (message) => {
-  addLog(t('log.sendToReportAgent', { message: message.substring(0, 50) }))
-  
-  // Build chat history for API
-  const historyForApi = chatHistory.value
-    .slice(0, -1)
-    .slice(-10) // Keep last 10 messages
-    .map(msg => ({
-      role: msg.role,
-      content: msg.content
-    }))
-  
-  const res = await chatWithReport({
+  const res = await createReportInteraction({
+    report_id: props.reportId,
     simulation_id: props.simulationId,
-    message: message,
-    chat_history: historyForApi
+    kind: 'chat',
+    target: 'report',
+    message,
+    chat_history: chatHistory.value.slice(0, -1).slice(-6).map(({role,content}) => ({role,content}))
   })
-  
-  if (res.success && res.data) {
-    chatHistory.value.push({
-      role: 'assistant',
-      content: res.data.response || res.data.answer || t('step5.noResponse'),
-      timestamp: new Date().toISOString()
-    })
-    addLog(t('log.reportAgentReplied'))
-  } else {
-    throw new Error(res.error || t('step5.requestFailed'))
-  }
+  const answer = res?.data?.response
+  if (!answer) throw new Error(t('step5.noResponse'))
+  chatHistory.value.push({ role: 'assistant', content: answer, timestamp: new Date().toISOString() })
 }
 
 const sendToAgent = async (message) => {
   if (!selectedAgent.value || selectedAgentIndex.value === null) {
     throw new Error(t('step5.selectAgentFirst'))
   }
-  
-  addLog(t('log.sendToAgent', { name: selectedAgent.value.username, message: message.substring(0, 50) }))
-  
-  // Build prompt with chat history
-  let prompt = message
-  if (chatHistory.value.length > 1) {
-    const historyContext = chatHistory.value
-      .slice(0, -1)
-      .slice(-6)
-      .map(msg => `${msg.role === 'user' ? '提问者' : '你'}：${msg.content}`)
-      .join('\n')
-    prompt = `以下是我们之前的对话：\n${historyContext}\n\n现在我的新问题是：${message}`
-  }
-  
-  const res = await interviewAgents({
+  const res = await createReportInteraction({
+    report_id: props.reportId,
     simulation_id: props.simulationId,
-    interviews: [{
-      agent_id: selectedAgentIndex.value,
-      prompt: prompt
-    }]
+    kind: 'chat',
+    target: 'participant',
+    agent_id: selectedAgentIndex.value,
+    message,
+    chat_history: chatHistory.value.slice(0, -1).slice(-6).map(({role,content}) => ({role,content}))
   })
-  
-  if (res.success && res.data) {
-    // 正确的数据路径: res.data.result.results 是一个对象字典
-    // 格式: {"twitter_0": {...}, "reddit_0": {...}} 或单平台 {"reddit_0": {...}}
-    const resultData = res.data.result || res.data
-    const resultsDict = resultData.results || resultData
-    
-    // 将对象字典转换为数组，优先获取 reddit 平台的回复
-    let responseContent = null
-    const agentId = selectedAgentIndex.value
-    
-    if (typeof resultsDict === 'object' && !Array.isArray(resultsDict)) {
-      // 优先使用 reddit 平台回复，其次 twitter
-      const redditKey = `reddit_${agentId}`
-      const twitterKey = `twitter_${agentId}`
-      const agentResult = resultsDict[redditKey] || resultsDict[twitterKey] || Object.values(resultsDict)[0]
-      if (agentResult) {
-        responseContent = agentResult.response || agentResult.answer
-      }
-    } else if (Array.isArray(resultsDict) && resultsDict.length > 0) {
-      // 兼容数组格式
-      responseContent = resultsDict[0].response || resultsDict[0].answer
-    }
-    
-    if (responseContent) {
-      chatHistory.value.push({
-        role: 'assistant',
-        content: responseContent,
-        timestamp: new Date().toISOString()
-      })
-      addLog(t('log.agentReplied', { name: selectedAgent.value.username }))
-    } else {
-      throw new Error(t('step5.noResponse'))
-    }
-  } else {
-    throw new Error(res.error || t('step5.requestFailed'))
-  }
+  const answer = res?.data?.response
+  if (!answer) throw new Error(t('step5.noResponse'))
+  chatHistory.value.push({ role: 'assistant', content: answer, timestamp: new Date().toISOString() })
 }
 
 const scrollToBottom = () => {
@@ -803,73 +747,63 @@ const clearAgentSelection = () => {
 }
 
 const submitSurvey = async () => {
-  if (selectedAgents.value.size === 0 || !surveyQuestion.value.trim()) return
-  
+  if (selectedAgents.value.size === 0 || !surveyQuestion.value.trim() || isSurveying.value) return
+  surveyError.value = ''
+  if (selectedAgents.value.size > 8) {
+    surveyError.value = t('step5.surveyLimit')
+    return
+  }
   isSurveying.value = true
-  addLog(t('log.sendSurvey', { count: selectedAgents.value.size }))
-  
   try {
-    const interviews = Array.from(selectedAgents.value).map(idx => ({
-      agent_id: idx,
-      prompt: surveyQuestion.value.trim()
-    }))
-    
-    const res = await interviewAgents({
+    const res = await createReportInteraction({
+      report_id: props.reportId,
       simulation_id: props.simulationId,
-      interviews: interviews
+      kind: 'survey',
+      message: surveyQuestion.value.trim(),
+      agent_ids: Array.from(selectedAgents.value).sort((a,b) => a-b)
     })
-    
-    if (res.success && res.data) {
-      // 正确的数据路径: res.data.result.results 是一个对象字典
-      // 格式: {"twitter_0": {...}, "reddit_0": {...}, "twitter_1": {...}, ...}
-      const resultData = res.data.result || res.data
-      const resultsDict = resultData.results || resultData
-      
-      // 将对象字典转换为数组格式
-      const surveyResultsList = []
-      
-      for (const interview of interviews) {
-        const agentIdx = interview.agent_id
-        const agent = profiles.value[agentIdx]
-        
-        // 优先使用 reddit 平台回复，其次 twitter
-        let responseContent = t('step5.noResponse')
-
-        if (typeof resultsDict === 'object' && !Array.isArray(resultsDict)) {
-          const redditKey = `reddit_${agentIdx}`
-          const twitterKey = `twitter_${agentIdx}`
-          const agentResult = resultsDict[redditKey] || resultsDict[twitterKey]
-          if (agentResult) {
-            responseContent = agentResult.response || agentResult.answer || t('step5.noResponse')
-          }
-        } else if (Array.isArray(resultsDict)) {
-          // 兼容数组格式
-          const matchedResult = resultsDict.find(r => r.agent_id === agentIdx)
-          if (matchedResult) {
-            responseContent = matchedResult.response || matchedResult.answer || t('step5.noResponse')
-          }
-        }
-        
-        surveyResultsList.push({
-          agent_id: agentIdx,
-          agent_name: agent?.username || `Agent ${agentIdx}`,
-          profession: agent?.profession,
-          question: surveyQuestion.value.trim(),
-          answer: responseContent
-        })
-      }
-      
-      surveyResults.value = surveyResultsList
-      addLog(t('log.receivedReplies', { count: surveyResults.value.length }))
-    } else {
+    if (!res.success || !res.data || !Array.isArray(res.data.results)) {
       throw new Error(res.error || t('step5.requestFailed'))
     }
-  } catch (err) {
-    addLog(t('log.surveySendFailed', { error: err.message }))
+    surveyResults.value = res.data.results
+    addLog(t('log.receivedReplies', {count: surveyResults.value.length}))
+  } catch (error) {
+    surveyError.value = error.message || t('step5.requestFailed')
+    addLog(t('log.surveySendFailed', {error: surveyError.value}))
   } finally {
     isSurveying.value = false
   }
 }
+
+const loadStoredInteractions = async () => {
+  if (!props.reportId || !props.simulationId) return
+  try {
+    const res = await getReportInteractions(props.reportId, props.simulationId)
+    const records = res.data?.records || []
+    const caches = {}
+    for (const item of records) {
+      if (item.kind === 'chat') {
+        const key = item.target === 'participant' ? `agent_${item.agent_id}` : 'report_agent'
+        if (!caches[key]) caches[key] = []
+        caches[key].push({role:'user',content:item.question,timestamp:item.created_at})
+        caches[key].push({role:'assistant',content:item.response,timestamp:item.created_at})
+      } else if (item.kind === 'survey' && Array.isArray(item.results)) {
+        surveyResults.value = item.results
+        surveyQuestion.value = item.question || ''
+      }
+    }
+    chatHistoryCache.value = caches
+    const key = chatTarget.value === 'participant' ? `agent_${selectedAgentIndex.value}` : 'report_agent'
+    chatHistory.value = caches[key] || []
+  } catch (error) {
+    addLog(t('log.loadReportFailed', {error:error.message}))
+  }
+}
+
+const downloadSavedReport = (format) => {
+  if (props.reportId) window.location.assign(reportExportUrl(props.reportId, format))
+}
+const printSavedReport = () => window.print()
 
 // Load Report Data
 const loadReportData = async () => {
@@ -941,6 +875,7 @@ onMounted(() => {
   addLog(t('log.step5Init'))
   loadReportData()
   loadProfiles()
+  loadStoredInteractions()
   document.addEventListener('click', handleClickOutside)
 })
 
@@ -958,6 +893,9 @@ watch(() => props.simulationId, (newId) => {
   if (newId) {
     loadProfiles()
   }
+}, { immediate: true })
+watch(() => [props.reportId, props.simulationId], ([reportId, simulationId]) => {
+  if (reportId && simulationId) loadStoredInteractions()
 }, { immediate: true })
 </script>
 
