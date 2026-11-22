@@ -188,10 +188,8 @@ def generate_report():
         ):
             return jsonify({
                 "success": False,
-                "error": (
-                    "A successfully completed or stopped simulation is required "
-                    "before generating a report"
-                ),
+                "error": t('api.reportRequiresCompletedSimulation'),
+                "diagnostic_available": bool(run_state and run_state.runner_status == RunnerStatus.FAILED),
             }), 409
 
         # 获取项目信息
@@ -280,10 +278,8 @@ def generate_report():
             ):
                 return jsonify({
                     "success": False,
-                    "error": (
-                        "A successfully completed or stopped simulation is "
-                        "required before generating a report"
-                    ),
+                    "error": t('api.reportRequiresCompletedSimulation'),
+                    "diagnostic_available": bool(refreshed_run_state and refreshed_run_state.runner_status == RunnerStatus.FAILED),
                 }), 409
 
             # Cached-report reuse is now part of the same atomic barrier, so a
