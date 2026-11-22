@@ -593,7 +593,7 @@ class TwitterSimulationRunner:
             agent_graph=self.agent_graph,
             platform=oasis.DefaultPlatformType.TWITTER,
             database_path=db_path,
-            semaphore=30,  # 限制最大并发 LLM 请求数，防止 API 过载
+            semaphore=max(1, min(int(os.environ.get("OASIS_MAX_CONCURRENT_LLM_ACTIONS", "3")), 30)),  # Bound concurrent LLM actions for smaller Fly VMs
         )
         
         await self.env.reset()
