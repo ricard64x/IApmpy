@@ -27,6 +27,84 @@ from ..utils.zep_lifecycle import (
 logger = get_logger('mirofish.api.report')
 
 
+
+@report_bp.route('/diagnostic/<simulation_id>', methods=['GET'])
+def download_failed_simulation_diagnostic(simulation_id: str):
+    """Download a factual technical summary, not a simulated opinion report."""
+    import io
+    import re
+    from datetime import datetime, timezone
+
+    # Validate before passing the ID to managers that construct filesystem paths.
+    if not re.fullmatch(r'sim_[a-zA-Z0-9_-]{1,64}', simulation_id):
+        return jsonify({"success": False, "error": "Invalid simulation ID"}), 400
+
+    simulation = SimulationManager().get_simulation(simulation_id)
+    if simulation is None:
+        return jsonify({"success": False, "error": t('api.simulationNotFound', id=simulation_id)}), 404
+
+    run = SimulationRunner.get_run_state(simulation_id)
+    if run is None or run.runner_status != RunnerStatus.FAILED:
+        return jsonify({
+            "success": False,
+            "error": "A failed simulation is required to download a diagnostic report."
+        }), 409
+
+    # Only expose structured, non-sensitive metrics. Never copy logs, generated
+    # personas, prompt bodies, or raw exception messages into this download.
+    reason = str(run.error or "")
+    sigkill = "-9" in reason or "sigkill" in reason.lower()
+    error_label = (
+        "Proceso terminado por SIGKILL (-9). Revisar contadores OOM y memoria."
+        if sigkill else
+        "Error de ejecución. Revisar los registros protegidos del servidor."
+    )
+    def field(value):
+        return str(value) if value is not None else "No disponible"
+
+    md = chr(10).join([
+        "# Informe técnico de ejecución fallida",
+        "",
+        "**Advertencia:** Este archivo NO es un informe de resultados ni una"
+        " predicción de opinión pública. La simulación no finalizó correctamente.",
+        "",
+        f"- Simulación: `{simulation_id}`",
+        f"- Proyecto: `{simulation.project_id}`",
+        "- Estado: FALLIDA",
+        f"- Inicio: {field(run.started_at)}",
+        f"- Finalización: {field(run.completed_at)}",
+        f"- Rondas registradas: {field(run.current_round)} de {field(run.total_rounds)}",
+        f"- Rondas Twitter: {field(run.twitter_current_round)}",
+        f"- Rondas Reddit: {field(run.reddit_current_round)}",
+        f"- Acciones Twitter registradas: {field(run.twitter_actions_count)}",
+        f"- Acciones Reddit registradas: {field(run.reddit_actions_count)}",
+        f"- Total de acciones registradas: {field(run.total_actions_count)}",
+        f"- Tipo de incidente: {error_label}",
+        "",
+        "## Interpretación",
+        "No se deben inferir tendencias, porcentajes de opinión ni conclusiones"
+        " demográficas de una ejecución fallida.",
+        "Las acciones iniciales, si existen, no constituyen resultados de"
+        " interacción ni evidencia de opinión pública.",
+        "",
+        "## Próximos pasos",
+        "1. Conservar la evidencia y los respaldos existentes.",
+        "2. Revisar uso de memoria, límites de recursos y registros del motor OASIS.",
+        "3. Corregir la causa de la falla y ejecutar una nueva simulación controlada.",
+        "4. Generar el informe de opinión pública únicamente cuando una ejecución"
+        " haya terminado correctamente o se haya detenido de forma válida.",
+        "",
+        f"_Generado: {datetime.now(timezone.utc).isoformat()}_",
+        "",
+    ])
+    return send_file(
+        io.BytesIO(md.encode("utf-8")),
+        mimetype="text/markdown; charset=utf-8",
+        as_attachment=True,
+        download_name=f"diagnostico_{simulation_id}.md",
+    )
+
+
 # ============== 报告生成接口 ==============
 
 @report_bp.route('/generate', methods=['POST'])
@@ -110,10 +188,8 @@ def generate_report():
         ):
             return jsonify({
                 "success": False,
-                "error": (
-                    "A successfully completed or stopped simulation is required "
-                    "before generating a report"
-                ),
+                "error": t('api.reportRequiresCompletedSimulation'),
+                "diagnostic_available": bool(run_state and run_state.runner_status == RunnerStatus.FAILED),
             }), 409
 
         # 获取项目信息
@@ -202,10 +278,8 @@ def generate_report():
             ):
                 return jsonify({
                     "success": False,
-                    "error": (
-                        "A successfully completed or stopped simulation is "
-                        "required before generating a report"
-                    ),
+                    "error": t('api.reportRequiresCompletedSimulation'),
+                    "diagnostic_available": bool(refreshed_run_state and refreshed_run_state.runner_status == RunnerStatus.FAILED),
                 }), 409
 
             # Cached-report reuse is now part of the same atomic barrier, so a
