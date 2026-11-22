@@ -169,5 +169,11 @@ def localized_markdown(report_id: str) -> str | None:
         if not section or "content" not in section:
             return None
         title = titles[number - 1]["title"] if number <= len(titles) else f"Sección {number}"
-        chunks.extend((f"## {title}", "", section["content"], ""))
+        body = section["content"].strip()
+        # Original section files already contain a '## title' heading.
+        # Do not duplicate the heading when assembling the translated export.
+        if body.startswith("## "):
+            chunks.extend((body, ""))
+        else:
+            chunks.extend((f"## {title}", "", body, ""))
     return "\n".join(chunks)
