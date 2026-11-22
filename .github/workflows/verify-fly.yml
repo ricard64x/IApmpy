@@ -51,7 +51,7 @@ jobs:
           CSRF=$(python3 -c 'import json;print(json.load(open("/tmp/tenondera-session.json"))["data"]["csrf"])')
           test -n "$CSRF"
           echo "Authenticated API status: $(curl -s -b /tmp/tenondera-test-cookies -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/auth/me)"
-          curl -fsS -b /tmp/tenondera-test-cookies http://127.0.0.1:3000/api/auth/me | grep -q '"success":true'
+          curl -fsS -b /tmp/tenondera-test-cookies http://127.0.0.1:3000/api/auth/me | python3 -c 'import json,sys; assert json.load(sys.stdin)["success"] is True'
           test "$(curl -s -b /tmp/tenondera-test-cookies -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/graph/project/list)" = 403
           curl -fsS -b /tmp/tenondera-test-cookies -c /tmp/tenondera-test-cookies -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d '{"current_password":"dummy-ci-password","new_password":"dummy-ci-password-rotated"}' http://127.0.0.1:3000/api/auth/password >/dev/null
           curl -fsS -c /tmp/tenondera-test-cookies -H 'Content-Type: application/json' -d '{"username":"admin","password":"dummy-ci-password-rotated"}' http://127.0.0.1:3000/api/auth/login >/dev/null
