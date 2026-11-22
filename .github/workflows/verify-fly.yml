@@ -41,11 +41,16 @@ jobs:
             sleep 3
           done
           curl --fail http://127.0.0.1:3000/health
-          curl --fail --silent http://127.0.0.1:3000/ | grep -iq '<html'
+          echo "SPA root status: $(curl -s -o /tmp/tenondera-root.html -w '%{http_code}' http://127.0.0.1:3000/)"
+          echo "SPA root bytes: $(wc -c < /tmp/tenondera-root.html)"
+          grep -iq '<html' /tmp/tenondera-root.html
+          echo "Unauthenticated API status: $(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/auth/me)"
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/auth/me)" = 401
+          echo "Login/API verification follows"
           curl -fsS -c /tmp/tenondera-test-cookies -H 'Content-Type: application/json' -d '{"username":"admin","password":"dummy-ci-password"}' http://127.0.0.1:3000/api/auth/login > /tmp/tenondera-session.json
           CSRF=$(python3 -c 'import json;print(json.load(open("/tmp/tenondera-session.json"))["data"]["csrf"])')
           test -n "$CSRF"
+          echo "Authenticated API status: $(curl -s -b /tmp/tenondera-test-cookies -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/auth/me)"
           curl -fsS -b /tmp/tenondera-test-cookies http://127.0.0.1:3000/api/auth/me | grep -q '"success":true'
           test "$(curl -s -b /tmp/tenondera-test-cookies -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/graph/project/list)" = 403
           curl -fsS -b /tmp/tenondera-test-cookies -c /tmp/tenondera-test-cookies -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d '{"current_password":"dummy-ci-password","new_password":"dummy-ci-password-rotated"}' http://127.0.0.1:3000/api/auth/password >/dev/null
