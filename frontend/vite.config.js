@@ -13,6 +13,8 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    strictPort: true,
+    allowedHosts: ['iapmpy.fly.dev'],
     open: true,
     proxy: {
       '/api': {
