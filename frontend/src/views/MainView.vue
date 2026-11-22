@@ -88,7 +88,7 @@
 
 <script setup>
 import TenonderaBrand from '../components/TenonderaBrand.vue'
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import GraphPanel from '../components/GraphPanel.vue'
@@ -105,6 +105,13 @@ const { t, tm } = useI18n()
 
 // Layout State
 const viewMode = ref('split') // graph | split | workbench
+
+// Recalculate the D3 canvas after the user switches from the compact workbench
+// to the full-width graph. A hidden SVG may otherwise retain a zero-size viewBox.
+watch(viewMode, async () => {
+  await nextTick()
+  window.dispatchEvent(new Event('resize'))
+})
 
 // Step State
 const currentStep = ref(1) // 1: 图谱构建, 2: 环境搭建, 3: 开始模拟, 4: 报告生成, 5: 深度互动
