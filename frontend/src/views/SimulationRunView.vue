@@ -54,6 +54,8 @@
         <Step3Simulation
           :simulationId="currentSimulationId"
           :maxRounds="maxRounds"
+          :selectedPlatform="selectedPlatform"
+          :autoFinalize="autoFinalize"
           :minutesPerRound="minutesPerRound"
           :projectData="projectData"
           :graphData="graphData"
@@ -94,7 +96,9 @@ const viewMode = ref('split')
 // Data State
 const currentSimulationId = ref(route.params.simulationId)
 // 直接在初始化时从 query 参数获取 maxRounds，确保子组件能立即获取到值
-const maxRounds = ref(route.query.maxRounds ? parseInt(route.query.maxRounds) : null)
+const maxRounds = ref(route.query.maxRounds ? parseInt(route.query.maxRounds, 10) : null)
+const selectedPlatform = ref(['twitter','reddit','parallel'].includes(route.query.platform) ? route.query.platform : 'parallel')
+const autoFinalize = ref(route.query.autoFinalize !== '0')
 const minutesPerRound = ref(30) // 默认每轮30分钟
 const projectData = ref(null)
 const graphData = ref(null)
@@ -123,6 +127,8 @@ const statusClass = computed(() => {
 const statusText = computed(() => {
   if (currentStatus.value === 'error') return t('common.error')
   if (currentStatus.value === 'completed') return t('common.completed')
+  if (currentStatus.value === 'awaiting_close') return t('step3.roundsFinishedWaiting')
+  if (currentStatus.value === 'finalizing') return t('step3.finalizing')
   return t('common.running')
 })
 
