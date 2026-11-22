@@ -405,7 +405,8 @@
     "envRunning": "Environment is running and ready for Interview commands",
     "envNotRunningShort": "Environment not running or closed",
     "requireGraphIdAndQuery": "Please provide graph_id and query",
-    "initReportAgent": "Initializing Report Agent..."
+    "initReportAgent": "Initializing Report Agent...",
+    "reportRequiresCompletedSimulation": "A report requires a successfully completed or stopped simulation. If the run failed, download its technical diagnostic."
   },
   "progress": {
     "initGraphService": "Initializing graph build service...",
