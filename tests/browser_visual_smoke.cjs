@@ -33,7 +33,9 @@ async function run() {
     screenshots.push('01-login-desktop.png')
     await page.locator('button[type="submit"]').click()
     await page.waitForURL(url => url.pathname === '/', { timeout: 20000 })
-    assert(await page.locator('body').innerText().then(t => t.includes('Tenonderã') || t.includes('TENONDERÃ')))
+    const dashboardText = await page.locator('body').innerText()
+    assert(dashboardText.includes('Tenonderã') || dashboardText.includes('TENONDERÃ'))
+    assert(!/OASIS|Fly\.io|GraphRAG|agentes sintéticos/i.test(dashboardText), 'Dashboard shows engineering jargon')
     await page.screenshot({ path: path.join(DIR, '02-dashboard-desktop.png'), fullPage: true })
     screenshots.push('02-dashboard-desktop.png')
 
@@ -92,6 +94,7 @@ async function run() {
     const text = await page.locator('.interaction-panel').innerText()
     assert(text.includes('Informe sintético de prueba visual'))
     assert(!/[\u3400-\u9fff]/u.test(text), 'Visible report UI contains Chinese script')
+    assert((await page.locator('.survey-pill').innerText()).includes('Encuestas'), 'Survey action is not concise in Spanish')
     const chat = await page.locator('.action-bar-tabs button.tab-pill').first().boundingBox()
     const survey = await page.locator('.survey-pill').boundingBox()
     assert(chat && survey, 'Chat or survey button has no browser layout')
