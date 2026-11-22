@@ -7,11 +7,14 @@
         <div v-if="reportOutline" class="report-content-wrapper">
           <!-- Report Header -->
           <div class="report-header-block">
+            <p v-if="translationStatus" class="translation-status" role="status">{{ translationStatus }}</p>
+            <p v-if="translationError" class="translation-error" role="alert">{{ translationError }}</p>
+            <button v-if="translationError" class="translation-retry" @click="refreshSpanishCopy">{{ $t('step4.retryTranslation') }}</button>
             <div class="report-export-toolbar" v-if="isComplete">
               <span>✓ {{ $t('step5.savedAutomatically') }}</span>
-              <button @click="downloadSavedReport('md')">{{ $t('step5.exportMarkdown') }}</button>
-              <button @click="downloadSavedReport('html')">{{ $t('step5.exportHtml') }}</button>
-              <button @click="printSavedReport">{{ $t('step5.exportPdf') }}</button>
+              <button :disabled="translationBusy" @click="downloadSavedReport('md')">{{ $t('step5.exportMarkdown') }}</button>
+              <button :disabled="translationBusy" @click="downloadSavedReport('html')">{{ $t('step5.exportHtml') }}</button>
+              <button :disabled="translationBusy" @click="printSavedReport">{{ $t('step5.exportPdf') }}</button>
             </div>
             <div class="report-meta">
               <span class="report-tag">{{ $t('step5.savedReportLabel') }}</span>
@@ -403,6 +406,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick, h, reactive } f
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getAgentLog, getConsoleLog, getReport, getSavedReportSections, reportExportUrl } from '../api/report'
+import { ensureSpanishReport, containsChinese } from '../utils/reportSpanish'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -414,6 +418,31 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['add-log', 'update-status'])
+
+const translationBusy = ref(false)
+const translationStatus = ref('')
+const translationError = ref('')
+
+const refreshSpanishCopy = async () => {
+  if (!props.reportId || translationBusy.value || !isComplete.value) return
+  if (!containsChinese(reportOutline.value) && !Object.values(generatedSections.value).some(containsChinese)) return
+  translationBusy.value = true
+  translationError.value = ''
+  try {
+    const result = await ensureSpanishReport(props.reportId, reportOutline.value, generatedSections.value,
+      (done,total) => {
+        translationStatus.value = t('step4.translatingProgress', { done, total })
+      })
+    reportOutline.value = result.outline
+    generatedSections.value = result.sections
+    translationStatus.value = t('step4.translationSaved')
+  } catch (error) {
+    translationError.value = error.message || t('step4.translationFailed')
+    translationStatus.value = ''
+  } finally {
+    translationBusy.value = false
+  }
+}
 
 // Persistent report exports use the existing authenticated session.
 const downloadSavedReport = (format) => {
@@ -437,6 +466,7 @@ const restoreSavedReport = async () => {
       currentSectionIndex.value = null
       emit('update-status', 'completed')
       stopPolling()
+      await refreshSpanishCopy()
     }
   } catch (error) {
     // A report can still be generating; polling then remains authoritative.
@@ -5210,4 +5240,11 @@ html[lang="en"] .report-header-block .main-title {
 .report-export-toolbar span{font-size:11px;font-weight:700;color:#178270}
 .report-export-toolbar button{padding:7px 10px;border:1px solid #d5e9ed;background:#effaff;border-radius:7px;color:#146b87;font-size:11px;font-weight:700;cursor:pointer}
 @media print{.right-panel,.console-logs,.report-export-toolbar{display:none!important}.left-panel.report-style{width:100%!important;min-width:0!important;max-width:100%!important;overflow:visible!important}.main-split-layout{display:block!important}.report-panel{height:auto!important;overflow:visible!important}}
+</style>
+
+<style scoped>
+.translation-status{color:#0a7795;background:#eafafb;padding:9px 12px;font-size:12px;border-radius:9px}
+.translation-error{color:#a23b4a;background:#fff3f3;padding:9px 12px;font-size:12px;border-radius:9px}
+.translation-retry{background:#096d92;color:#fff;border:0;border-radius:8px;padding:9px;font-size:12px;cursor:pointer}
+.report-export-toolbar button:disabled{opacity:.45;cursor:not-allowed}
 </style>
