@@ -23,7 +23,8 @@
     "minutes": "minutos",
     "rounds": "rondas",
     "items": "elementos",
-    "files": "archivos"
+    "files": "archivos",
+    "waiting": "En espera"
   },
   "meta": {
     "title": "Tenonderã - Simula escenarios futuros",
@@ -312,7 +313,22 @@
     "generationCompleteLabel": "Informe generado y guardado",
     "waitingForActivity": "Preparando el análisis del informe...",
     "technicalLogLabel": "Registro técnico",
-    "planningTitle": "Planificación del informe"
+    "planningTitle": "Planificación del informe",
+    "showTechnicalDetails": "Mostrar detalles técnicos",
+    "hideTechnicalDetails": "Ocultar detalles técnicos",
+    "sectionReady": "Sección «{title}» terminada",
+    "yes": "Sí",
+    "no": "No",
+    "showParameters": "Ver parámetros",
+    "hideParameters": "Ocultar parámetros",
+    "showResponse": "Ver respuesta",
+    "hideResponse": "Ocultar respuesta",
+    "rawOutput": "Contenido original",
+    "structuredOutput": "Vista organizada",
+    "analysisComplete": "Informe completado",
+    "toolConsultation": "Consulta",
+    "finalResponse": "Respuesta final",
+    "backgroundStatus": "Procesando información"
   },
   "step5": {
     "interactiveTools": "Herramientas interactivas",
@@ -359,7 +375,8 @@
     "syntheticParticipant": "Participante virtual",
     "syntheticNote": "Estas respuestas son interpretaciones de participantes virtuales. No representan encuestas ni opiniones reales.",
     "surveyLimit": "Podés encuestar hasta 8 participantes por consulta para cuidar los recursos.",
-    "surveyLimitShort": "hasta 8 participantes"
+    "surveyLimitShort": "hasta 8 participantes",
+    "exportJson": "Exportar datos (.json)"
   },
   "graph": {
     "panelTitle": "Visualización de relaciones",
