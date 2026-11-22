@@ -411,6 +411,8 @@ class GraphBuilderService:
         batch_size: int = 350,
         progress_callback: Optional[Callable] = None,
         batch_created_callback: Optional[Callable[[str | None, str], None]] = None,
+        occurrence_counts: Optional[List[int]] = None,
+        original_chunk_count: Optional[int] = None,
     ) -> BatchSubmission:
         """Submit document chunks through Zep's current Batch API.
 
@@ -425,6 +427,14 @@ class GraphBuilderService:
         self.validate_batch_chunks(chunks, batch_size=batch_size)
 
         total_chunks = len(chunks)
+        if occurrence_counts is None:
+            occurrence_counts = [1] * total_chunks
+        if (len(occurrence_counts) != total_chunks
+                or any(type(n) is not int or n < 1 for n in occurrence_counts)):
+            raise ValueError("Invalid graph chunk occurrence counts")
+        original_chunk_count = original_chunk_count or sum(occurrence_counts)
+        if original_chunk_count != sum(occurrence_counts):
+            raise ValueError("Graph chunk counts do not match the original document")
         operation_id = self.build_operation_id(graph_id, chunks)
         if batch_created_callback:
             # Journal the deterministic operation before the server-generated
@@ -438,6 +448,8 @@ class GraphBuilderService:
                     "mirofish_operation_id": operation_id,
                     "graph_id": graph_id,
                     "chunk_count": total_chunks,
+                    "original_chunk_count": original_chunk_count,
+                    "duplicate_chunks_omitted": original_chunk_count - total_chunks,
                 }
             )
         except Exception as error:
@@ -477,6 +489,7 @@ class GraphBuilderService:
                     metadata={
                         "mirofish_operation_id": operation_id,
                         "chunk_index": i + offset,
+                        "occurrences_in_source": occurrence_counts[i + offset],
                         "chunk_sha256": hashlib.sha256(
                             chunk.encode("utf-8")
                         ).hexdigest(),
@@ -668,7 +681,9 @@ class GraphBuilderService:
 
             if status in terminal_states:
                 break
-            time.sleep(3)
+            # A remote extraction can take hours; polling every 3s wastes
+            # requests and does not make Zep ingest any faster.
+            time.sleep(10)
 
         items = self._list_batch_items(submission.batch_id)
         if status != "succeeded":

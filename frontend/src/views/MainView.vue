@@ -84,7 +84,7 @@ import { useI18n } from 'vue-i18n'
 import GraphPanel from '../components/GraphPanel.vue'
 import Step1GraphBuild from '../components/Step1GraphBuild.vue'
 import Step2EnvSetup from '../components/Step2EnvSetup.vue'
-import { generateOntology, getProject, buildGraph, getTaskStatus, getGraphData } from '../api/graph'
+import { generateOntology, getProject, buildGraph, getTaskStatus, getProjectBuildStatus, getGraphData } from '../api/graph'
 import { getPendingUpload, clearPendingUpload } from '../store/pendingUpload'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 
@@ -114,6 +114,9 @@ const systemLogs = ref([])
 // Polling timers
 let pollTimer = null
 let graphPollTimer = null
+let graphPollBusy = false
+let recoveryInProgress = false
+let lastProgressLogBucket = -1
 
 // --- Computed Layout Styles ---
 const leftPanelStyle = computed(() => {
@@ -244,8 +247,14 @@ const loadProject = async () => {
       
       if (res.data.status === 'ontology_generated' && !res.data.graph_id) {
         await startBuildGraph()
-      } else if (res.data.status === 'graph_building' && res.data.graph_build_task_id) {
+      } else if (
+        (res.data.status === 'graph_building' || res.data.status === 'failed')
+        && res.data.zep_batch_id
+      ) {
+        // Old code marked large batches as locally failed after 600s while
+        // Zep was still processing. Recover status from the saved batch ID.
         currentPhase.value = 1
+        error.value = ''
         startPollingTask(res.data.graph_build_task_id)
       } else if (res.data.status === 'graph_completed' && res.data.graph_id) {
         currentPhase.value = 2
@@ -282,13 +291,14 @@ const startBuildGraph = async () => {
     const res = await buildGraph({ project_id: currentProjectId.value })
     if (res.success) {
       if (res.data.reused && res.data.graph_id) {
-        currentPhase.value = 2
-        buildProgress.value = null
         const projectRes = await getProject(currentProjectId.value)
-        if (projectRes.success) {
-          projectData.value = projectRes.data
+        if (projectRes.success) projectData.value = projectRes.data
+        if (projectRes.data?.status === 'graph_completed') {
+          await finishGraphBuild()
+        } else {
+          // 'reused' also means a running Cloud batch; never treat it as done.
+          startPollingTask(res.data.task_id || projectRes.data?.graph_build_task_id)
         }
-        await loadGraph(res.data.graph_id)
         return
       }
 
@@ -328,44 +338,115 @@ const fetchGraphData = async () => {
   }
 }
 
+const finishGraphBuild = async () => {
+  if (currentPhase.value >= 2) return
+  stopPolling()
+  stopGraphPolling()
+  currentPhase.value = 2
+  buildProgress.value = { progress: 100, message: 'Red de conocimiento finalizada.' }
+  const projectRes = await getProject(currentProjectId.value)
+  if (projectRes.success) {
+    projectData.value = projectRes.data
+    if (projectRes.data.graph_id) await loadGraph(projectRes.data.graph_id)
+  }
+}
+
+const recoverFinishedCloudBatch = async () => {
+  if (recoveryInProgress) return
+  recoveryInProgress = true
+  try {
+    // This is safe for a saved, verified Zep batch: the backend re-attaches
+    // its existing identity instead of adding the document for a second time.
+    const response = await buildGraph({ project_id: currentProjectId.value })
+    if (!response.success) throw new Error(response.error || 'No se pudo retomar.')
+    if (response.data.task_id) {
+      startPollingTask(response.data.task_id)
+    } else {
+      const projectRes = await getProject(currentProjectId.value)
+      if (projectRes.data?.status === 'graph_completed') await finishGraphBuild()
+    }
+  } catch (e) {
+    error.value = 'No se pudo recuperar el cierre de la red: ' + (e.message || 'error')
+  } finally {
+    recoveryInProgress = false
+  }
+}
+
 const startPollingTask = (taskId) => {
+  stopPolling()
   pollTaskStatus(taskId)
-  pollTimer = setInterval(() => pollTaskStatus(taskId), 2000)
+  // The remote Cloud batch advances independently; avoid 2s HTTP polling.
+  pollTimer = setInterval(() => pollTaskStatus(taskId), 12000)
 }
 
 const pollTaskStatus = async (taskId) => {
+  if (graphPollBusy || !currentProjectId.value) return
+  graphPollBusy = true
   try {
-    const res = await getTaskStatus(taskId)
-    if (res.success) {
-      const task = res.data
-      
-      // Log progress message if it changed
-      if (task.message && task.message !== buildProgress.value?.message) {
-        addLog(task.message)
+    // The Zep batch status is durable; TaskManager is only in-process.
+    // Read the remote truth first so a Fly restart does not freeze the UI.
+    let cloud = null
+    try {
+      const result = await getProjectBuildStatus(currentProjectId.value)
+      if (result.success) cloud = result.data
+    } catch (_e) {
+      // Keep the latest known status on transient read failures.
+    }
+
+    if (cloud?.project_status === 'graph_completed' || cloud?.status === 'completed') {
+      await finishGraphBuild()
+      return
+    }
+
+    if (cloud && ['failed', 'partial', 'invalid', 'canceled'].includes(cloud.status)) {
+      stopPolling()
+      error.value = 'El servicio de conocimiento informó un fallo. Revisá el estado del lote antes de reintentar.'
+      return
+    }
+
+    if (cloud?.total > 0) {
+      const pct = Number(cloud.percent || 0)
+      const state = cloud.status === 'succeeded' ? 'Consolidando relaciones'
+        : cloud.status === 'queued' ? 'En cola de procesamiento'
+        : 'Construyendo relaciones'
+      const message = state + ': ' + cloud.processed + ' de ' + cloud.total
+        + ' fragmentos (' + pct.toFixed(1) + ' %). '
+        + (cloud.processing || 0) + ' en curso, ' + (cloud.failed || 0) + ' fallidos.'
+      buildProgress.value = { progress: pct, message, processed: cloud.processed, total: cloud.total }
+      const bucket = Math.floor(pct / 5)
+      if (bucket > lastProgressLogBucket) {
+        lastProgressLogBucket = bucket
+        addLog(message)
       }
-      
-      buildProgress.value = { progress: task.progress || 0, message: task.message }
-      
-      if (task.status === 'completed') {
-        addLog('Graph build task completed.')
-        stopPolling()
-        stopGraphPolling() // Stop polling, do final load
-        currentPhase.value = 2
-        
-        // Final load
-        const projRes = await getProject(currentProjectId.value)
-        if (projRes.success && projRes.data.graph_id) {
-            projectData.value = projRes.data
-            await loadGraph(projRes.data.graph_id)
+      if (cloud.needs_recovery) await recoverFinishedCloudBatch()
+      return
+    }
+
+    // Early stages may not have an external batch yet.
+    if (taskId) {
+      try {
+        const res = await getTaskStatus(taskId)
+        if (res.success) {
+          const task = res.data
+          if (task.status === 'completed') {
+            await finishGraphBuild()
+          } else if (task.status === 'failed') {
+            stopPolling()
+            error.value = task.message || 'No se pudo preparar el procesamiento.'
+          } else {
+            buildProgress.value = { progress: task.progress || 0, message: task.message }
+          }
         }
-      } else if (task.status === 'failed') {
-        stopPolling()
-        error.value = task.error
-        addLog(`Graph build task failed: ${task.error}`)
+      } catch (_e) {
+        // A Fly restart can erase this in-memory task. Cloud status remains
+        // available through the project endpoint and will be polled again.
+        buildProgress.value = buildProgress.value || {
+          progress: 0, message: 'Recuperando el seguimiento del procesamiento...'
+        }
       }
     }
-  } catch (e) {
-    console.error(e)
+  } finally {
+    graphPollBusy = false
   }
 }
 

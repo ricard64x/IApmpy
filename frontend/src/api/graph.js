@@ -34,6 +34,11 @@ export function buildGraph(data) {
  * @param {String} taskId - 任务ID
  * @returns {Promise}
  */
+/** Durable Cloud progress for a knowledge-graph build, across web-server restarts. */
+export function getProjectBuildStatus(projectId) {
+  return service.get(`/api/graph/project/${encodeURIComponent(projectId)}/build-status`)
+}
+
 export function getTaskStatus(taskId) {
   return service({
     url: `/api/graph/task/${taskId}`,

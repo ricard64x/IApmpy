@@ -148,6 +148,78 @@ def get_project(project_id: str):
     })
 
 
+@graph_bp.route('/project/<project_id>/build-status', methods=['GET'])
+def get_project_build_status(project_id: str):
+    """Durable, read-only graph processing status directly from Zep Cloud.
+
+    A Gunicorn restart erases in-memory TaskManager entries, but neither the
+    project's persisted batch ID nor the Cloud progress. No graph mutation,
+    batch restart or replay is made by this endpoint. Authorization is enforced
+    by the normal project-owner middleware.
+    """
+    project = ProjectManager.get_project(project_id)
+    if project is None:
+        return jsonify({
+            "success": False,
+            "error": t('api.projectNotFound', id=project_id),
+        }), 404
+
+    current_status = (
+        project.status.value if isinstance(project.status, ProjectStatus)
+        else str(project.status)
+    )
+    if project.status == ProjectStatus.GRAPH_COMPLETED:
+        return jsonify({"success": True, "data": {
+            "status": "completed", "project_status": current_status,
+            "processed": None, "total": None, "percent": 100,
+            "processing": 0, "failed": 0,
+            "local_task_active": False, "needs_recovery": False,
+        }})
+
+    active = _project_has_active_build(project)
+    if not project.zep_batch_id:
+        return jsonify({"success": True, "data": {
+            "status": "preparing" if active else current_status,
+            "project_status": current_status, "processed": 0,
+            "total": None, "percent": 0, "processing": 0, "failed": 0,
+            "local_task_active": active, "needs_recovery": False,
+        }})
+
+    try:
+        summary = GraphBuilderService(api_key=Config.ZEP_API_KEY).get_batch_summary(
+            project.zep_batch_id
+        )
+    except Exception as error:
+        logger.warning("Cloud graph progress unavailable (%s)", type(error).__name__)
+        return jsonify({
+            "success": False,
+            "error": "No se pudo consultar el avance remoto. Conservamos el trabajo enviado; volvé a consultar.",
+        }), 503
+
+    progress = getattr(summary, 'progress', None)
+    total = int(
+        getattr(progress, 'total_items', None)
+        or getattr(summary, 'item_count', None) or 0
+    )
+    done = int(getattr(progress, 'succeeded_items', None) or 0)
+    failed = int(getattr(progress, 'failed_items', None) or 0)
+    processing = int(getattr(progress, 'processing_items', None) or 0)
+    percent = round(100 * done / total, 1) if total else 0
+    cloud_state = str(getattr(summary, 'status', '') or 'queued')
+    return jsonify({"success": True, "data": {
+        "status": cloud_state,
+        "project_status": current_status,
+        "processed": done,
+        "total": total or None,
+        "pending": max(0, total - done - failed - processing) if total else None,
+        "processing": processing,
+        "failed": failed,
+        "percent": percent,
+        "local_task_active": active,
+        "needs_recovery": cloud_state == "succeeded" and not active,
+    }})
+
+
 @graph_bp.route('/project/list', methods=['GET'])
 def list_projects():
     """
@@ -527,7 +599,7 @@ def _build_graph_impl():
             }), 400
         
         resume_existing_batch = False
-        if project.status == ProjectStatus.GRAPH_BUILDING:
+        if project.status in {ProjectStatus.GRAPH_BUILDING, ProjectStatus.FAILED}:
             if _project_has_active_build(project):
                 return jsonify({
                     "success": True,
@@ -540,26 +612,24 @@ def _build_graph_impl():
                     }
                 })
 
-            if (
-                not force
-                and project.graph_id
-                and project.zep_batch_id
-                and project.zep_batch_operation_id
-            ):
+            # A local timeout from the old 600s deadline can mark the project
+            # FAILED while the *same batch* is still ingesting in Zep.
+            # Consult Cloud FIRST, even for failed projects. Never delete or
+            # re-upload a running/succeeded batch, including on force=True.
+            if (project.graph_id and project.zep_batch_id
+                    and project.zep_batch_operation_id):
                 builder = GraphBuilderService(api_key=Config.ZEP_API_KEY)
                 batch_summary = builder.get_batch_summary(project.zep_batch_id)
-                if getattr(batch_summary, "status", None) in {
-                    "queued",
-                    "processing",
-                    "succeeded",
-                }:
-                    resume_existing_batch = True
+                resume_existing_batch = (
+                    getattr(batch_summary, "status", None)
+                    in {"queued", "processing", "succeeded"}
+                )
 
             if not resume_existing_batch:
                 project.status = ProjectStatus.FAILED
                 project.error = (
-                    "Graph build task is no longer present; the persisted Zep "
-                    "batch cannot be resumed automatically"
+                    "El lote remoto no está activo o no puede recuperarse. "
+                    "Revisá su estado antes de reconstruir el proyecto."
                 )
                 ProjectManager.save_project(project)
                 if not force:
@@ -567,7 +637,7 @@ def _build_graph_impl():
                         "success": False,
                         "error": project.error,
                         "task_id": project.graph_build_task_id,
-                        "recoverable": True,
+                        "recoverable": False,
                     }), 409
 
         if project.status == ProjectStatus.GRAPH_COMPLETED and not force:
@@ -619,8 +689,9 @@ def _build_graph_impl():
             }), 400
 
         # Only mutate Cloud state after the complete rebuild request validates.
-        if project.status == ProjectStatus.FAILED or (
-            force and project.status == ProjectStatus.GRAPH_COMPLETED
+        if (not resume_existing_batch) and (
+            project.status == ProjectStatus.FAILED or
+            (force and project.status == ProjectStatus.GRAPH_COMPLETED)
         ):
             graph_id_to_delete = project.graph_id
             graph_guard = (
@@ -641,6 +712,7 @@ def _build_graph_impl():
         
         # 更新项目状态
         project.status = ProjectStatus.GRAPH_BUILDING
+        project.error = None
         project.graph_build_task_id = task_id
         ProjectManager.save_project(project)
         
@@ -668,13 +740,21 @@ def _build_graph_impl():
                     message=t('progress.textChunking'),
                     progress=5
                 )
-                chunks = TextProcessor.split_text(
-                    text, 
-                    chunk_size=chunk_size, 
-                    overlap=chunk_overlap
+                # Preserve legacy chunk identity for projects already sent to
+                # Zep. New projects collapse exact repeated excerpts only.
+                dedupe = getattr(project, 'ingestion_mode', 'legacy_v0') == 'optimized_v1'
+                chunks, recurrence_counts, original_chunk_count = (
+                    TextProcessor.prepare_graph_chunks(
+                        text, chunk_size=chunk_size, overlap=chunk_overlap,
+                        deduplicate=dedupe,
+                    )
                 )
                 builder.validate_batch_chunks(chunks, batch_size=350)
                 total_chunks = len(chunks)
+                build_logger.info(
+                    "Prepared graph episodes: %s unique from %s original chunks",
+                    total_chunks, original_chunk_count,
+                )
                 
                 if resume_existing_batch:
                     graph_id = project.graph_id
@@ -745,6 +825,8 @@ def _build_graph_impl():
                         batch_size=350,
                         progress_callback=add_progress_callback,
                         batch_created_callback=remember_batch,
+                        occurrence_counts=recurrence_counts,
+                        original_chunk_count=original_chunk_count,
                     )
                 
                 # 等待Zep处理完成（查询每个episode的processed状态）
@@ -762,7 +844,13 @@ def _build_graph_impl():
                         progress=progress
                     )
                 
-                builder._wait_for_batch(submission, wait_progress_callback)
+                # Cloud extraction is substantially slower than the HTTP
+                # request itself. Ten minutes is not a sensible timeout for
+                # 1,000+ submitted episodes; keep the resumable batch intact.
+                ingestion_timeout = max(1800, min(21600, total_chunks * 15))
+                builder._wait_for_batch(
+                    submission, wait_progress_callback, timeout=ingestion_timeout
+                )
                 
                 # 获取图谱数据
                 task_manager.update_task(
@@ -798,6 +886,29 @@ def _build_graph_impl():
                         }
                     )
                 
+            except TimeoutError as e:
+                # An ingestion poll timeout does NOT mean the Cloud batch
+                # failed. Preserve its identity for authenticated recovery.
+                if project.zep_batch_id and project.zep_batch_operation_id:
+                    with _project_build_lock(project_id):
+                        project.status = ProjectStatus.GRAPH_BUILDING
+                        ProjectManager.save_project(project)
+                        task_manager.update_task(
+                            task_id, status=TaskStatus.FAILED,
+                            message="El procesamiento remoto continúa; se puede recuperar el seguimiento.",
+                            error=type(e).__name__,
+                        )
+                    build_logger.warning("Monitoring deadline elapsed for batch %s", project.zep_batch_id)
+                else:
+                    with _project_build_lock(project_id):
+                        project.status = ProjectStatus.FAILED
+                        project.error = "La construcción falló antes de registrar un lote recuperable."
+                        ProjectManager.save_project(project)
+                        task_manager.update_task(
+                            task_id, status=TaskStatus.FAILED,
+                            message=project.error, error=type(e).__name__,
+                        )
+
             except Exception as e:
                 # 更新项目状态为失败
                 build_logger.error(f"[{task_id}] 图谱构建失败: {str(e)}")

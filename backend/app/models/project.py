@@ -48,8 +48,10 @@ class Project:
     
     # 配置
     simulation_requirement: Optional[str] = None
-    chunk_size: int = 500
-    chunk_overlap: int = 50
+    chunk_size: int = 3000
+    chunk_overlap: int = 150
+    # Legacy saved projects retain their exact original ingestion semantics.
+    ingestion_mode: str = 'optimized_v1'
     
     # 错误信息
     error: Optional[str] = None
@@ -73,6 +75,7 @@ class Project:
             "simulation_requirement": self.simulation_requirement,
             "chunk_size": self.chunk_size,
             "chunk_overlap": self.chunk_overlap,
+            "ingestion_mode": self.ingestion_mode,
             "error": self.error
         }
     
@@ -100,6 +103,7 @@ class Project:
             simulation_requirement=data.get('simulation_requirement'),
             chunk_size=data.get('chunk_size', 500),
             chunk_overlap=data.get('chunk_overlap', 50),
+            ingestion_mode=data.get('ingestion_mode', 'legacy_v0'),
             error=data.get('error')
         )
 

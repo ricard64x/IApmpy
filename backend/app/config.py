@@ -38,8 +38,10 @@ class Config:
     ALLOWED_EXTENSIONS = {'pdf', 'md', 'txt', 'markdown'}
     
     # 文本处理配置
-    DEFAULT_CHUNK_SIZE = 500  # 默认切块大小
-    DEFAULT_CHUNK_OVERLAP = 50  # 默认重叠大小
+    # Larger chunks lower remote graph-episode overhead; within Zep's 10k item limit.
+    # Existing saved projects retain their original chunk settings.
+    DEFAULT_CHUNK_SIZE = 3000
+    DEFAULT_CHUNK_OVERLAP = 150
     
     # OASIS模拟配置
     OASIS_DEFAULT_MAX_ROUNDS = int(os.environ.get('OASIS_DEFAULT_MAX_ROUNDS', '10'))

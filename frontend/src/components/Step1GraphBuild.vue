@@ -124,7 +124,15 @@
           <p class="description">
             {{ $t('step1.graphRagDesc') }}
           </p>
-          
+          <p v-if="currentPhase === 1 && buildProgress?.message"
+             class="graph-live-progress" role="status">
+            {{ buildProgress.message }}
+          </p>
+          <p v-if="currentPhase === 1 && buildProgress?.total" class="graph-progress-explanation">
+            El porcentaje corresponde a fragmentos realmente procesados por el servicio,
+            no solamente a los documentos enviados.
+          </p>
+
           <!-- Stats Cards -->
           <div class="stats-grid">
             <div class="stat-card">
@@ -697,4 +705,6 @@ watch(() => props.systemLogs.length, () => {
   color: #CCC;
   word-break: break-all;
 }
+.graph-live-progress{padding:12px 14px;border:1px solid #b6dce5;border-radius:10px;color:#18566b;background:#f1fafd;font-size:12px;font-weight:650;line-height:1.6;overflow-wrap:anywhere}
+.graph-progress-explanation{font-size:11px;color:#668190;line-height:1.6;margin:8px 0 14px}
 </style>
