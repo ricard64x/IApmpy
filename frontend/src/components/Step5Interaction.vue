@@ -424,7 +424,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { getReport, getAgentLog, createReportInteraction, getReportInteractions, reportExportUrl } from '../api/report'
+import { getReport, getAgentLog, getSavedReportSections, createReportInteraction, getReportInteractions, reportExportUrl } from '../api/report'
 import { getSimulationProfilesRealtime } from '../api/simulation'
 
 const { t } = useI18n()
@@ -826,8 +826,18 @@ const loadReportData = async () => {
     // Get report info
     const reportRes = await getReport(props.reportId)
     if (reportRes.success && reportRes.data) {
-      // Load agent logs to get report outline and sections
-      await loadAgentLogs()
+      // Durable report metadata and chapter files are authoritative after
+      // refresh; generation logs are optional diagnostics.
+      if (reportRes.data.outline) reportOutline.value = reportRes.data.outline
+      const chapters = await getSavedReportSections(props.reportId)
+      for (const chapter of chapters.data?.sections || []) {
+        if (chapter.section_index && chapter.content) {
+          generatedSections.value[chapter.section_index] = chapter.content
+        }
+      }
+      if (!reportOutline.value || !Object.keys(generatedSections.value).length) {
+        await loadAgentLogs()
+      }
     }
   } catch (err) {
     addLog(t('log.loadReportFailed', { error: err.message }))
