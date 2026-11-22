@@ -11,6 +11,7 @@ import InteractionView from '../views/InteractionView.vue'
 
 const routes = [
   { path: '/login', name: 'Login', component: Login, meta: { public: true } },
+  { path: '/cambiar-clave', name: 'ChangePassword', component: () => import('../views/ChangePassword.vue') },
   { path: '/', name: 'Dashboard', component: Dashboard },
   { path: '/administracion', name: 'Administration', component: Dashboard, meta: { admin: true } },
   { path: '/workspace', name: 'Home', component: Home },
@@ -27,6 +28,8 @@ router.beforeEach(async to => {
   const current = await loadSession()
   if (to.meta.public) return current ? { name: 'Dashboard' } : true
   if (!current) return { name: 'Login', query: { redirect: to.fullPath } }
+  if (current.must_change_password && to.name !== 'ChangePassword') return { name: 'ChangePassword' }
+  if (!current.must_change_password && to.name === 'ChangePassword') return { name: 'Dashboard' }
   if (to.meta.admin && current.role !== 'administrator') return { name: 'Dashboard' }
   return true
 })
