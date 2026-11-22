@@ -2542,6 +2542,14 @@ html[lang="en"] .report-header-block .main-title {
 .translation-error{color:#a23b4a;background:#fff3f3;padding:9px 12px;font-size:12px;border-radius:9px}
 .translation-retry{background:#096d92;color:#fff;border:0;border-radius:8px;padding:9px;font-size:12px;cursor:pointer}
 .report-export-toolbar button:disabled{opacity:.45;cursor:not-allowed}
+/* Keep participant choices and survey results readable at every height.
+   Let the survey scroll as a unit instead of shrinking its form to nothing. */
+.survey-container { overflow-y: auto; min-height: 0; }
+.survey-setup { flex: 0 0 auto; min-height: 0; overflow: visible; }
+.survey-setup .setup-section:first-child { flex: 0 0 auto; overflow: visible; }
+.survey-setup .agents-grid { flex: 0 0 auto; min-height: 54px; max-height: 180px; overflow-y: auto; }
+.survey-results { flex: 0 0 auto; overflow: visible; padding: 18px 20px; }
+.survey-submit-btn { position: static; margin-top: 14px; box-shadow: none; }
 /* On narrow screens keep the actions accessible before the report, without
    retaining the original 450px split-panel minimum width. */
 @media (max-width: 760px) {
@@ -2554,5 +2562,7 @@ html[lang="en"] .report-header-block .main-title {
   .tab-pill { max-width: 100%; padding: 8px 10px; font-size: 11px; }
   .agent-pill { min-width: 140px; max-width: 100%; }
   .survey-setup { padding: 12px; }
+  .survey-setup .agents-grid { max-height: 145px; }
+  .survey-results { padding: 14px 12px; }
 }
 </style>
