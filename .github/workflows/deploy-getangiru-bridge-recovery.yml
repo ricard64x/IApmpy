@@ -33,10 +33,10 @@ jobs:
       - name: Confirm exact tested source
         run: test "$(git rev-parse HEAD)" = "d623c8e352f8b3d8107003df7e17e7ff791741a1"
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - name: Deploy verified source using local Docker build
+      - name: Deploy previously built and verified image
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: flyctl deploy --local-only --ha=false -a iapmpy
+        run: flyctl deploy --image registry.fly.io/iapmpy:deployment-01M82S0HANS86AD9XJXB5AEKGV --ha=false -a iapmpy
       - name: Verify live service and protected webhook
         run: |
           curl -fsS --max-time 15 https://iapmpy.fly.dev/health | jq -e '.status == "ok"'
