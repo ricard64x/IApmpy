@@ -247,8 +247,14 @@ const loadProject = async () => {
       
       if (res.data.status === 'ontology_generated' && !res.data.graph_id) {
         await startBuildGraph()
-      } else if (res.data.status === 'graph_building' && res.data.graph_build_task_id) {
+      } else if (
+        (res.data.status === 'graph_building' || res.data.status === 'failed')
+        && res.data.zep_batch_id
+      ) {
+        // Old code marked large batches as locally failed after 600s while
+        // Zep was still processing. Recover status from the saved batch ID.
         currentPhase.value = 1
+        error.value = ''
         startPollingTask(res.data.graph_build_task_id)
       } else if (res.data.status === 'graph_completed' && res.data.graph_id) {
         currentPhase.value = 2
