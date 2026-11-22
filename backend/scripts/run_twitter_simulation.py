@@ -37,6 +37,7 @@ sys.path.insert(0, _scripts_dir)
 sys.path.insert(0, _backend_dir)
 
 # 加载项目根目录的 .env 文件（包含 LLM_API_KEY 等配置）
+from oasis_runtime import make_oasis_env
 from dotenv import load_dotenv
 _env_file = os.path.join(_project_root, '.env')
 if os.path.exists(_env_file):
@@ -589,11 +590,10 @@ class TwitterSimulationRunner:
         
         # 创建环境
         print("创建OASIS环境...")
-        self.env = oasis.make(
+        self.env = make_oasis_env(
             agent_graph=self.agent_graph,
-            platform=oasis.DefaultPlatformType.TWITTER,
-            database_path=db_path,
-            semaphore=30,  # 限制最大并发 LLM 请求数，防止 API 过载
+            platform="twitter",
+            db_path=db_path,
         )
         
         await self.env.reset()
