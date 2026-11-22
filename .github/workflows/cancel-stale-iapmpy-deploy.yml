@@ -28,5 +28,5 @@ jobs:
           echo "Stale candidate status: $STATUS"
           if [ "$STATUS" = "completed" ]; then echo "Already completed"; exit 0; fi
           test "$SHA" = "bea4d22394822b75bda51b7ea967461cba38e00a" || { echo "Different run identity: refusing cancellation"; exit 1; }
-          curl --fail --silent --show-error -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "$URL/cancel"
-          echo "Cancellation requested for stale deployment $OLD"
+          curl --fail --silent --show-error -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "$URL/force-cancel"
+          echo "Force-cancellation requested for already-cancelled but still-active run $OLD"
