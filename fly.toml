@@ -14,10 +14,10 @@ primary_region = "ams"
 
 [http_service]
   auto_start_machines = true
-  auto_stop_machines = "stop"
+  auto_stop_machines = "off"
   force_https = true
   internal_port = 3000
-  min_machines_running = 0
+  min_machines_running = 1
   processes = ["app"]
 
   [[http_service.checks]]
@@ -27,7 +27,11 @@ primary_region = "ams"
     path = "/health"
     timeout = "10s"
 
+[mounts]
+  source = "iapmpy_data"
+  destination = "/app/backend/uploads"
+
 [[vm]]
   cpu_kind = "shared"
   cpus = 1
-  memory = "512mb"
+  memory = "2048mb"
