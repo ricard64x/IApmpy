@@ -20,6 +20,7 @@ from ..utils.file_parser import FileParser
 from ..utils.logger import get_logger
 from ..utils.locale import t, get_locale, set_locale
 from ..utils.zep_lifecycle import get_graph_readers, graph_lifecycle_lock
+from ..utils.zep import is_retryable_zep_error
 from ..models.task import TaskManager, TaskStatus
 from ..models.project import ProjectManager, ProjectStatus
 from ..services.simulation_manager import SimulationManager
@@ -896,12 +897,33 @@ def get_graph_data(graph_id: str):
             "data": graph_data
         })
         
-    except Exception as e:
+    except Exception as error:
+        # The full graph is fetched page by page from Zep Cloud. A temporary
+        # upstream failure should not leak a traceback or look like a broken project.
+        if is_retryable_zep_error(error):
+            logger.warning(
+                "Temporary graph read failure: graph_id=%s type=%s status=%s",
+                graph_id,
+                type(error).__name__,
+                getattr(error, "status_code", None),
+            )
+            response = jsonify({
+                "success": False,
+                "error": "Graph temporarily unavailable; retry in a moment.",
+                "retryable": True,
+            })
+            response.headers["Retry-After"] = "5"
+            return response, 503
+
+        logger.error(
+            "Graph read failure: graph_id=%s type=%s",
+            graph_id,
+            type(error).__name__,
+        )
         return jsonify({
             "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+            "error": "Graph data could not be retrieved; check server logs.",
+        }), 502
 
 
 @graph_bp.route('/delete/<graph_id>', methods=['DELETE'])
