@@ -99,7 +99,7 @@ def execution_progress(run: dict, settings: dict | None = None) -> dict:
     else:
         phase = "idle"
     round_fraction = sum(min(rounds[p], total) for p in enabled) / (total * len(enabled)) if total else 0
-    progress = 100 if phase in ("completed", "stopped") else (
+    progress = 100 if phase == "completed" or (phase == "stopped" and complete) else (
         95 if phase == "finalizing" else
         90 if phase == "awaiting_close" else round(round_fraction * 85)
     )
