@@ -6,6 +6,7 @@ from pathlib import Path
 from flask import Blueprint, g, jsonify, request
 from .services.simulation_manager import SimulationManager
 from .services.simulation_runner import SimulationRunner, RunnerStatus
+from .services.simulation_execution import get_execution_settings
 
 capacity_bp = Blueprint("capacity", __name__)
 _start_lock = threading.Lock()
@@ -27,8 +28,9 @@ def runtime_capacity():
         "/sys/fs/cgroup/memory/memory.usage_in_bytes"
     )
     used_mb = round(used / 1048576) if used else None
-    # Validated for 45 loaded profiles, 2 active agents per platform and 10
-    # rounds on one 2048 MiB Fly Machine using OASIS random recommendations.
+    # Conservative admission ceiling for the legacy engine. It is NOT a
+    # measured guarantee: even very small OASIS runs have previously hit OOM.
+    # The GPT-lite engine is a different, opt-in synthetic simulation.
     limits = {512: 8, 1024: 20, 1536: 30, 2048: 45}
     cap = min((limit for size, limit in limits.items() if memory_mb <= size), default=45)
     cap = min(cap, int(os.environ.get("OASIS_MAX_PROFILES", "45")))
@@ -55,12 +57,18 @@ def runtime_capacity():
         "max_active_agents_per_platform_per_round": max_active,
         "maximum_parallel_simulations": 1,
         "recommended_max_rounds": 10,
+        "lightweight_max_profiles": 120,
+        "lightweight_engine_available": bool(
+            os.environ.get("LLM_API_KEY") or os.environ.get("OPENAI_API_KEY")
+        ) and bool(os.environ.get("LLM_MODEL_NAME")),
         "busy": busy,
         "recommendation_mode": os.environ.get("OASIS_TWITTER_RECSYS", "random"),
         "note": (
             "Límite operativo conservador, no garantía de capacidad universal. "
-            "En 2 GB se validaron 45 perfiles, 2 agentes activos por plataforma y 10 rondas. "
-            "La demanda real depende de agentes, rondas y modelo."
+            "El motor social OASIS ha presentado fallos de memoria incluso con una "
+            "población mínima en 2 GB. El modo GPT liviano, si está habilitado, "
+            "conserva los perfiles pero produce acciones sintéticas resumidas, "
+            "sin reproducir las dinámicas completas de OASIS."
         ),
     }
 
@@ -110,13 +118,34 @@ def install_capacity(app):
         config = SimulationManager().get_simulation_config(simulation_id)
         if isinstance(config, dict):
             profiles = config.get("agent_configs") or []
-            if len(profiles) > info["recommended_max_profiles"]:
+            try:
+                settings = get_execution_settings(simulation_id)
+            except (ValueError, OSError):
+                settings = {}
+            engine = settings.get("engine_mode", "oasis")
+            requested_engine = payload.get("engine_mode", engine)
+            if requested_engine != engine:
+                return jsonify({"success": False, "error":
+                    "Guardá el motor de ejecución antes de iniciar."}), 409
+            if engine == "lightweight":
+                if not info["lightweight_engine_available"]:
+                    return jsonify({"success": False, "error":
+                        "El modo GPT liviano requiere un modelo y una clave configurados."}), 503
+                if not payload.get("auto_finalize", settings.get("auto_finalize", True)):
+                    return jsonify({"success": False, "error":
+                        "El modo GPT liviano requiere cierre automático."}), 422
+                if len(profiles) > info["lightweight_max_profiles"]:
+                    return jsonify({"success": False, "error":
+                        f"El modo GPT liviano admite como máximo {info['lightweight_max_profiles']} perfiles."}), 422
+            elif len(profiles) > info["recommended_max_profiles"]:
                 return jsonify({
                     "success": False,
                     "error": (
                         f"El escenario contiene {len(profiles)} perfiles. "
-                        f"Máximo configurado: {info['recommended_max_profiles']} "
-                        f"con {info['machine_memory_mb']} MB."
+                        f"OASIS admite como máximo {info['recommended_max_profiles']} "
+                        f"con {info['machine_memory_mb']} MB, sin garantía de estabilidad. "
+                        "Regresá a Preparar entorno y seleccioná modo GPT liviano "
+                        "para conservar todos los perfiles sin cargar OASIS."
                     ),
                     "capacity": info,
                 }), 422

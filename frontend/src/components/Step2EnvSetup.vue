@@ -456,17 +456,41 @@
                 <small>{{ $t('step2.interactionBothDesc') }}</small>
               </label>
             </div>
+            <p v-if="oasisOverLimit" class="preference-error" role="status">
+              El expediente tiene {{configuredProfileCount}} perfiles. El motor OASIS solo
+              admite {{oasisLimit}} según la memoria configurada y puede fallar incluso
+              por debajo de ese límite. Seleccioná modo GPT liviano para conservar los perfiles.
+            </p>
+            <div class="engine-options" role="radiogroup" aria-label="Motor de simulación">
+              <label class="engine-option" :class="{chosen:engineMode==='lightweight'}">
+                <input type="radio" value="lightweight" v-model="engineMode" name="engineMode">
+                <span><strong>Modo eficiente con GPT · recomendado para 2 GB</strong>
+                  <small>Conserva hasta 120 perfiles y crea interacciones sintéticas por lotes.
+                  Usa el servicio de IA configurado; no reproduce todas las dinámicas de OASIS.
+                  No equivale a respuestas reales de personas.</small></span>
+              </label>
+              <label class="engine-option" :class="{chosen:engineMode==='oasis'}">
+                <input type="radio" value="oasis" v-model="engineMode" name="engineMode">
+                <span><strong>Motor social completo (experimental en 2 GB)</strong>
+                  <small>Carga OASIS en el servidor y puede agotar la memoria, incluso con pocos perfiles.
+                  No se recomienda para este escenario de 60 participantes.</small></span>
+              </label>
+            </div>
             <div class="preference-control">
               <label for="safe-rounds">{{ $t('step2.roundsCountLabel') }}</label>
               <input id="safe-rounds" v-model.number="customMaxRounds" type="number" min="1" max="10" step="1">
               <span>{{ $t('step2.roundsSafeHint') }}</span>
             </div>
             <label class="auto-close-choice">
-              <input v-model="autoFinalize" type="checkbox">
+              <input v-model="autoFinalize" type="checkbox" :disabled="engineMode==='lightweight'">
               <span><strong>{{ $t('step2.autoFinalizeLabel') }}</strong>
                 <small>{{ $t('step2.autoFinalizeDesc') }}</small>
               </span>
             </label>
+            <div v-if="engineMode==='lightweight'" class="manual-close-tip">
+              El cierre es automático para ahorrar memoria. Se procesarán acciones sintéticas,
+              no las interacciones internas de OASIS. Los perfiles del expediente se conservan.
+            </div>
             <div v-if="!autoFinalize" class="manual-close-tip">{{ $t('step2.manualFinalizeDesc') }}</div>
             <p v-if="settingError" class="preference-error" role="alert">{{ settingError }}</p>
           </section>
@@ -599,6 +623,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
+import service from '../api'
 import {
   prepareSimulation,
   getPrepareStatus,
@@ -641,6 +666,11 @@ let lastLoggedConfigStage = ''
 
 // 模拟轮数配置
 const interactionPlatform = ref('parallel')
+const engineMode = ref('oasis')
+const capacityInfo = ref(null)
+const configuredProfileCount = computed(() => simulationConfig.value?.agent_configs?.length || profiles.value.length || 0)
+const oasisLimit = computed(() => capacityInfo.value?.recommended_max_profiles || 45)
+const oasisOverLimit = computed(() => configuredProfileCount.value > oasisLimit.value)
 const autoFinalize = ref(true)
 const savingPreferences = ref(false)
 const settingError = ref('')
@@ -725,6 +755,16 @@ const handleStartSimulation = async () => {
     settingError.value = t('step2.roundsValidation')
     return
   }
+  if (engineMode.value === 'oasis' && oasisOverLimit.value) {
+    settingError.value = 'No se puede iniciar OASIS con ' + configuredProfileCount.value
+      + ' perfiles. Seleccioná el modo eficiente con GPT antes de continuar.'
+    return
+  }
+  if (engineMode.value === 'lightweight' && capacityInfo.value?.lightweight_engine_available === false) {
+    settingError.value = 'El modelo GPT todavía no está configurado en el servidor.'
+    return
+  }
+  if (engineMode.value === 'lightweight') autoFinalize.value = true
   if (savingPreferences.value || !props.simulationId) return
   savingPreferences.value = true
   settingError.value = ''
@@ -732,13 +772,15 @@ const handleStartSimulation = async () => {
     const settings = {
       platform: interactionPlatform.value,
       auto_finalize: autoFinalize.value,
+      engine_mode: engineMode.value,
       max_rounds: rounds
     }
     await saveExecutionSettings(props.simulationId, settings)
     emit('next-step', {
       maxRounds: rounds,
       platform: settings.platform,
-      autoFinalize: settings.auto_finalize
+      autoFinalize: settings.auto_finalize,
+      engineMode: settings.engine_mode
     })
   } catch (error) {
     settingError.value = error.message || t('common.unknownError')
@@ -1072,9 +1114,14 @@ watch(() => props.systemLogs?.length, () => {
 onMounted(async () => {
   if (!props.simulationId) return
   try {
+    const cap = await service.get('/api/capacity/status')
+    if (cap.success) capacityInfo.value = cap.data
+  } catch (_) { /* Backend remains the authority for capacity. */ }
+  try {
     const result = await getExecutionSettings(props.simulationId)
     if (result.success && result.data) {
       interactionPlatform.value = result.data.platform || 'parallel'
+      engineMode.value = result.data.engine_mode || 'oasis'
       autoFinalize.value = result.data.auto_finalize !== false
       customMaxRounds.value = result.data.max_rounds || 10
     }
@@ -2640,4 +2687,12 @@ onUnmounted(() => {
 <style scoped>
 .logs-toggle{flex-shrink:0;text-align:left;border:0;border-top:1px solid #dce9ef;padding:9px 17px;background:#f5fafb;color:#24758c;cursor:pointer;font-size:11px;font-weight:750}
 .api-note{display:none}
+
+.engine-options{display:grid;gap:10px;margin:15px 0}
+.engine-option{border:1px solid #d8e5eb;background:#fff;border-radius:11px;padding:12px;display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.engine-option.chosen{border-color:#1195aa;background:#effbfc}
+.engine-option input{margin-top:3px;accent-color:#1195aa;flex-shrink:0}
+.engine-option span{display:grid;gap:5px}
+.engine-option strong{font-size:12px;color:#17405a}
+.engine-option small{font-size:11px;line-height:1.5;color:#526f7f}
 </style>

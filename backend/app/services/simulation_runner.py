@@ -136,6 +136,7 @@ class SimulationRunState:
 
     # Selected social environments and finalization preference (persisted).
     platform_mode: str = "parallel"
+    engine_mode: str = "oasis"
     auto_finalize: bool = False  # legacy runs originally stayed open
     finalizing_requested: bool = False
 
@@ -189,6 +190,7 @@ class SimulationRunState:
             "twitter_completed": self.twitter_completed,
             "reddit_completed": self.reddit_completed,
             "platform_mode": self.platform_mode,
+            "engine_mode": self.engine_mode,
             "auto_finalize": self.auto_finalize,
             "finalizing_requested": self.finalizing_requested,
             "twitter_actions_count": self.twitter_actions_count,
@@ -348,6 +350,7 @@ class SimulationRunner:
                 twitter_completed=data.get("twitter_completed", False),
                 reddit_completed=data.get("reddit_completed", False),
                 platform_mode=data.get("platform_mode", "parallel"),
+                engine_mode=data.get("engine_mode", "oasis"),
                 auto_finalize=data.get("auto_finalize", False),
                 finalizing_requested=data.get("finalizing_requested", False),
                 twitter_actions_count=data.get("twitter_actions_count", 0),
@@ -417,6 +420,7 @@ class SimulationRunner:
         enable_graph_memory_update: bool = False,  # 是否将活动更新到Zep图谱
         graph_id: str = None,  # Zep图谱ID（启用图谱更新时必需）
         auto_finalize: bool = True,
+        engine_mode: str = "oasis",
     ) -> SimulationRunState:
         """
         启动模拟
@@ -431,6 +435,10 @@ class SimulationRunner:
         Returns:
             SimulationRunState
         """
+        if engine_mode not in ("oasis", "lightweight"):
+            raise ValueError("Motor de simulación no reconocido.")
+        if engine_mode == "lightweight" and not auto_finalize:
+            raise ValueError("El modo GPT liviano requiere cierre automático.")
         # 加载模拟配置
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
         config_path = os.path.join(sim_dir, "simulation_config.json")
@@ -460,6 +468,7 @@ class SimulationRunner:
             total_rounds=total_rounds,
             total_simulation_hours=total_hours,
             platform_mode=platform,
+            engine_mode=engine_mode,
             auto_finalize=auto_finalize,
             started_at=datetime.now().isoformat(),
         )
@@ -508,7 +517,10 @@ class SimulationRunner:
         
         # A single common OASIS runner provides the same IPC graceful-close
         # support regardless of whether one or both platforms were selected.
-        script_name = "run_parallel_simulation.py"
+        script_name = (
+            "run_lightweight_simulation.py"
+            if engine_mode == "lightweight" else "run_parallel_simulation.py"
+        )
         state.twitter_running = platform in ("twitter", "parallel")
         state.reddit_running = platform in ("reddit", "parallel")
         

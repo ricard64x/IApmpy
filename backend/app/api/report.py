@@ -27,6 +27,58 @@ from ..utils.zep_lifecycle import (
 logger = get_logger('mirofish.api.report')
 
 
+def _synthetic_gpt_evidence(simulation_id: str) -> str:
+    """Read only persisted action events, never profile/prompt secrets.
+
+    Explicitly flag methodological limits; the normal report agent primarily
+    queries the original knowledge graph, so synthetic actions MUST be given
+    as separate evidence rather than implicitly treating the source graph
+    as a record of simulated deliberations.
+    """
+    import json
+    import re
+    from pathlib import Path
+    if not re.fullmatch(r"sim_[A-Za-z0-9_-]{1,90}", simulation_id):
+        raise ValueError("Identificador inválido.")
+    directory = Path(Config.UPLOAD_FOLDER) / "simulations" / simulation_id
+    evidence = []
+    for platform, name in (("twitter", "Plaza"), ("reddit", "Comunidad")):
+        path = directory / platform / "actions.jsonl"
+        if not path.is_file():
+            continue
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if len(evidence) >= 120:
+                break
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if event.get("source_mode") != "sintetico_gpt_liviano":
+                continue
+            if event.get("action_type") != "CREATE_POST":
+                continue
+            message = event.get("action_args", {}).get("content", "")
+            if not isinstance(message, str) or not message.strip():
+                continue
+            evidence.append(
+                f"- Ronda {int(event.get('round') or 0)}, {name}, "
+                f"participante ficticio {event.get('agent_id')}: {message[:320]}"
+            )
+    if not evidence:
+        raise ValueError("No hay acciones sintéticas válidas; no corresponde generar informe.")
+    return (
+        "\n\n## DATOS SINTÉTICOS DE ESTA EJECUCIÓN\n"
+        "Estas intervenciones fueron generadas por un modelo GPT para un "
+        "escenario hipotético. NO son encuestas, hechos reales, evidencia "
+        "forense ni una corrida de OASIS completa. No atribuyas porcentajes "
+        "de opinión pública real ni inferencias estadísticas válidas. "
+        "Fundamentá cualquier conclusión solo en los textos enumerados "
+        "y diferenciá estrictamente de la información documental original.\n"
+        + "\n".join(evidence)
+    )
+
+
+
 
 @report_bp.route('/diagnostic/<simulation_id>', methods=['GET'])
 def download_failed_simulation_diagnostic(simulation_id: str):
@@ -326,10 +378,14 @@ def generate_report():
                         message=t('api.initReportAgent')
                     )
 
+                    is_lite = getattr(refreshed_run_state, "engine_mode", "oasis") == "lightweight"
+                    report_context = simulation_requirement
+                    if is_lite:
+                        report_context += _synthetic_gpt_evidence(simulation_id)
                     agent = ReportAgent(
                         graph_id=graph_id,
                         simulation_id=simulation_id,
-                        simulation_requirement=simulation_requirement
+                        simulation_requirement=report_context
                     )
 
                     def progress_callback(stage, progress, message):
@@ -343,6 +399,18 @@ def generate_report():
                         progress_callback=progress_callback,
                         report_id=report_id
                     )
+                    if is_lite and report.status == ReportStatus.COMPLETED:
+                        warning = (
+                            "**NOTA METODOLÓGICA:** Informe de simulación "
+                            "SINTÉTICA mediante GPT. No representa personas reales, "
+                            "encuestas ni la dinámica social completa de OASIS. "
+                            "Las interacciones generadas deben interpretarse "
+                            "como hipótesis y no como evidencia comprobada.\n\n"
+                        )
+                        report.markdown_content = warning + (report.markdown_content or "")
+                        markdown_path = ReportManager._get_report_markdown_path(report_id)
+                        with open(markdown_path, "w", encoding="utf-8") as handle:
+                            handle.write(report.markdown_content)
                     ReportManager.save_report(report)
 
                     if report.status == ReportStatus.COMPLETED:

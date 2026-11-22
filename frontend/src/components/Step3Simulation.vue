@@ -133,6 +133,21 @@
       <p v-if="closeError" class="completion-error" role="alert">{{ closeError }}</p>
     </section>
 
+    <section v-if="engineMode==='lightweight' || runStatus.engine_mode==='lightweight'" class="lite-mode-notice">
+      <strong>Modo eficiente GPT · interacciones sintéticas</strong>
+      <span>Los participantes permanecen guardados. Se procesan por pequeños lotes
+      mediante el servicio de IA configurado, sin cargar OASIS en memoria.
+      Esta modalidad no reproduce la simulación social completa ni representa opiniones reales.</span>
+    </section>
+    <section v-if="startError" class="execution-start-error" role="alert">
+      <strong>La simulación todavía no comenzó</strong>
+      <p>{{startError}}</p>
+      <p>Los participantes y documentos siguen guardados; no se registraron rondas de esta ejecución.</p>
+      <button type="button" @click="router.push('/simulation/'+encodeURIComponent(simulationId))">
+        Volver a Preparar entorno
+      </button>
+    </section>
+
     <!-- Main Content: Dual Timeline -->
     <div class="main-content-area" ref="scrollContainer">
       <!-- Timeline Header -->
@@ -362,6 +377,7 @@ const startError = ref(null)
 const runStatus = ref({})
 const activePlatform = ref(props.selectedPlatform)
 const autoFinalizeEnabled = ref(props.autoFinalize)
+const engineMode = ref('oasis')
 const selectedMaxRounds = ref(props.maxRounds || 10)
 const isClosing = ref(false)
 const closeError = ref('')
@@ -463,8 +479,11 @@ const doStartSimulation = async () => {
       simulation_id: props.simulationId,
       platform: activePlatform.value,
       auto_finalize: autoFinalizeEnabled.value,
+      engine_mode: engineMode.value,
       force: false,  // New runs only; never discard existing results on navigation
-      enable_graph_memory_update: true  // 开启动态图谱更新
+      // The existing graph is read-only by default. External graph ingestion
+      // is optional and can cause large waits after the final GPT batch.
+      enable_graph_memory_update: engineMode.value === 'oasis'
     }
     
     params.max_rounds = selectedMaxRounds.value
@@ -483,6 +502,7 @@ const doStartSimulation = async () => {
       
       phase.value = 1
       runStatus.value = res.data
+      engineMode.value = res.data.engine_mode || engineMode.value
       
       startStatusPolling()
       startDetailPolling()
@@ -795,6 +815,7 @@ onMounted(async () => {
       const prefs = await getExecutionSettings(props.simulationId)
       if (prefs.success && prefs.data) {
         activePlatform.value = prefs.data.platform
+        engineMode.value = prefs.data.engine_mode || 'oasis'
         autoFinalizeEnabled.value = prefs.data.auto_finalize
         selectedMaxRounds.value = prefs.data.max_rounds
       }
@@ -802,6 +823,7 @@ onMounted(async () => {
     } else {
       if (status === 'failed') {
         phase.value = 2
+        startError.value = response.data.error || t('step3.failedNoReport')
         emit('update-status', 'error')
         addLog(t('step3.failedNoReport'))
       } else if (status === 'completed' || status === 'stopped') {
@@ -1414,4 +1436,12 @@ onUnmounted(() => {
 <style scoped>
 .logs-toggle{flex-shrink:0;text-align:left;border:0;border-top:1px solid #dce9ef;padding:9px 17px;background:#f5fafb;color:#24758c;cursor:pointer;font-size:11px;font-weight:750}
 .api-note{display:none}
+
+.execution-start-error{background:#fff4f0;border:1px solid #e4a69c;padding:14px 18px;color:#7a2727;margin:10px 16px;border-radius:11px;font-size:13px}
+.execution-start-error strong{display:block;font-size:15px}
+.execution-start-error p{margin-top:7px;line-height:1.4}
+.execution-start-error button{margin-top:12px;border:0;border-radius:9px;padding:9px 13px;color:#fff;background:#166d92;cursor:pointer;font-weight:700}
+
+.lite-mode-notice{display:grid;gap:5px;flex-shrink:0;background:#effafb;color:#17546b;padding:11px 18px;border-bottom:1px solid #bbe4ee;font-size:11px;line-height:1.45}
+.lite-mode-notice strong{font-size:12px}
 </style>
