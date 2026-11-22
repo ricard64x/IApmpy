@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - main
-      - fix/fly-iapmpy-config
 
 permissions:
   contents: read
