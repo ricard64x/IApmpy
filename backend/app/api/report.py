@@ -821,6 +821,17 @@ def export_persisted_report(report_id: str):
             return jsonify({"success": False, "error": "El informe todavía no terminó."}), 409
         fmt = request.args.get('format', 'md').lower()
         markdown = report.markdown_content or ""
+        if request.args.get("locale") == "es":
+            from ..services.report_localization import localized_markdown
+            from ..services.report_localization import _CJK
+            if _CJK.search(markdown):
+                localized = localized_markdown(report_id)
+                if localized is None:
+                    return jsonify({
+                        "success": False,
+                        "error": "Para exportar en español, primero traducí todos los capítulos desde el informe.",
+                    }), 409
+                markdown = localized
         if fmt == 'md':
             payload = markdown.encode('utf-8')
             mime, ext = "text/markdown", "md"
@@ -864,6 +875,31 @@ def export_persisted_report(report_id: str):
     except Exception as error:
         logger.exception("Error en exportación: %s", type(error).__name__)
         return jsonify({"success": False, "error": "No se pudo exportar el informe."}), 500
+
+
+
+@report_bp.route('/<report_id>/localize', methods=['GET', 'POST'])
+def localize_persisted_report(report_id: str):
+    """Read/translate one saved report part with durable Spanish caching."""
+    from ..services.report_localization import (
+        TranslationBusy, get_saved_translation, translate_saved_part,
+    )
+    part = request.args.get('part', 'outline') if request.method == 'GET' else (
+        (request.get_json(silent=True) or {}).get('part', 'outline')
+    )
+    try:
+        if request.method == 'GET':
+            content = get_saved_translation(report_id, part)
+            return jsonify({"success": True, "data": {"cached": bool(content), **(content or {})}})
+        content = translate_saved_part(report_id, part)
+        return jsonify({"success": True, "data": content})
+    except TranslationBusy as error:
+        return jsonify({"success": False, "error": str(error)}), 429
+    except ValueError as error:
+        return jsonify({"success": False, "error": str(error)}), 400
+    except Exception as error:
+        logger.exception("Error de traducción guardada: %s", type(error).__name__)
+        return jsonify({"success": False, "error": "No se pudo traducir el informe. Volvé a intentarlo."}), 502
 
 
 # ============== 报告进度与分章节接口 ==============
