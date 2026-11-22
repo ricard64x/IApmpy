@@ -196,6 +196,7 @@ def execute(config_path: Path, platform: str, max_rounds: int, request_fn=None):
                   "Escenario de análisis sintético basado en los perfiles preparados.")
     started = time.monotonic()
     count = 0
+    platform_counts = {name: 0 for name in enabled}
     assignments = [
         profiles[math.floor(i * len(profiles) / rounds):math.floor((i + 1) * len(profiles) / rounds)]
         for i in range(rounds)
@@ -237,6 +238,7 @@ def execute(config_path: Path, platform: str, max_rounds: int, request_fn=None):
                         "source_mode":"sintetico_gpt_liviano",
                     })
                     count += 1
+                    platform_counts[name] += 1
         for name in enabled:
             amount = len(by_platform[name])
             _log(log_paths[name], {"event_type":"round_end", "round":round_no,
@@ -252,11 +254,9 @@ def execute(config_path: Path, platform: str, max_rounds: int, request_fn=None):
     if count != len(profiles):
         raise RuntimeError("No todos los perfiles tuvieron participación sintética.")
     for name in enabled:
-        total_count = sum(1 for i, person in enumerate(profiles)
-                          if (i % len(enabled)) == enabled.index(name)) if len(enabled) > 1 else len(profiles)
         _log(log_paths[name], {"event_type":"simulation_end", "platform":name,
                                "total_rounds":rounds,
-                               "total_actions":total_count})
+                               "total_actions":platform_counts[name]})
     return {"rounds":rounds, "profiles":len(profiles), "actions":count,
             "elapsed_seconds":round(time.monotonic()-started,2),
             "peak_rss_kib":resource.getrusage(resource.RUSAGE_SELF).ru_maxrss}
