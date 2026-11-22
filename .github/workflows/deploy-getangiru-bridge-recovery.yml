@@ -1,0 +1,45 @@
+name: Recover verified Getangiru bridge deployment
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/deploy-getangiru-bridge-recovery.yml
+
+permissions:
+  contents: read
+
+# Isolated from the legacy Fly deployment group, which has a stale in-progress run.
+concurrency:
+  group: iapmpy-recovery-verified-bridge
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: "github.event.head_commit.message == 'Recover blocked Fly deployment for verified Getangiru bridge'"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    steps:
+      - name: Confirm previously tested source commit
+        run: |
+          test -n "${{ secrets.FLY_API_TOKEN }}"
+          curl --fail --silent --show-error \
+            "https://api.github.com/repos/ricard64x/IApmpy/actions/runs/45082019496" \
+            | jq -e '.status == "completed" and .conclusion == "success" and .head_sha == "d623c8e352f8b3d8107003df7e17e7ff791741a1"'
+      - uses: actions/checkout@v5
+        with:
+          ref: d623c8e352f8b3d8107003df7e17e7ff791741a1
+      - name: Confirm exact tested source
+        run: test "$(git rev-parse HEAD)" = "d623c8e352f8b3d8107003df7e17e7ff791741a1"
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy verified source using local Docker build
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl deploy --local-only --ha=false -a iapmpy
+      - name: Verify live service and protected webhook
+        run: |
+          curl -fsS --max-time 15 https://iapmpy.fly.dev/health | jq -e '.status == "ok"'
+          CODE="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 -X POST https://iapmpy.fly.dev/__getangiru/ping)"
+          echo "Unauthenticated webhook status: $CODE"
+          test "$CODE" = "401"
