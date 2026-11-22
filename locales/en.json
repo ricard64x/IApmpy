@@ -75,7 +75,22 @@
     "layoutGraph": "Graph",
     "layoutSplit": "Split",
     "layoutWorkbench": "Workbench",
-    "stepNames": ["Graph Build", "Env Setup", "Run Simulation", "Report Generation", "Deep Interaction"]
+    "stepNames": [
+      "Graph Build",
+      "Env Setup",
+      "Run Simulation",
+      "Report Generation",
+      "Deep Interaction"
+    ],
+    "stepPrefix": "Step",
+    "systemDashboard": "System dashboard",
+    "simulationMonitor": "Simulation monitor",
+    "noProject": "NO_PROJECT",
+    "noSimulation": "NO_SIMULATION",
+    "statusBuildingGraph": "Building graph",
+    "statusGeneratingOntology": "Generating ontology",
+    "statusInitializing": "Initializing",
+    "statusPreparing": "Preparing"
   },
   "step1": {
     "ontologyGeneration": "Ontology Generation",
