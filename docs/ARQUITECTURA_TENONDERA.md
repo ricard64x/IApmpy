@@ -132,7 +132,8 @@ sequenceDiagram
 | POST /api/report/generate | Preparar el informe |
 | GET /api/report/<id> | Informe persistente y metadatos |
 | GET /api/report/<id>/sections | Capítulos guardados |
-| GET /api/report/<id>/export?format=md | Exportación MD/HTML/JSON/TXT |
+| GET /api/report/<id>/export?format=md&locale=es | Exportación MD/HTML/JSON/TXT, con versión española almacenada |
+| GET/POST /api/report/<id>/localize | Traducción por capítulo de informes históricos con caché en español |
 | POST /api/report/interactions | Consulta y encuesta sintética posterior |
 | GET /api/report/interactions | Historial privado de respuestas |
 | GET /api/capacity/status | Límites de ejecución |
@@ -156,6 +157,8 @@ Todas las rutas con objetos pertenecientes al usuario deben validar la propiedad
     ipc_commands/                     Control de proceso
     ipc_responses/                    Respuestas de control
   reports/report_*/
+    es/outline.json                    Copia española de índice anterior
+    es/section_N.json                  Traducción española cacheada
     meta.json                         Estado / metadatos
     outline.json                      Estructura del informe
     section_01.md                     Capítulos independientes
@@ -189,6 +192,7 @@ Configuración de referencia: Fly.io, 2 GB RAM, 1 CPU compartida, una máquina c
 - Informes españoles con máximo dos consultas de evidencia por sección, reduciendo iteraciones y gasto del modelo.
 - Menor frecuencia de consultas de progreso en navegador; registros visibles acotados en memoria.
 - Exportación desde archivos almacenados, sin regeneración.
+- Traducción de informes antiguos solamente una vez por capítulo, con caché; las consultas posteriores usan las copias persistentes.
 
 **Alternativas de menor costo a evaluar:** medición de RSS y perfiles de OOM por etapa; caducidad controlada para sesiones de simulación abiertas; paginación de logs; resumir evidencia contextual; caché con separación por usuario/escenario; colas durables para trabajos pesados; evaluar grafos autogestionados solo cuando sus costos y requisitos operativos estén medidos. No reducir memoria ni aumentar límites de perfiles sin pruebas de carga.
 
@@ -219,7 +223,7 @@ Configuración de referencia: Fly.io, 2 GB RAM, 1 CPU compartida, una máquina c
 
 - **Dependencia del proveedor remoto:** el servicio de grafos y el modelo se consumen externamente; una arquitectura totalmente local requiere otro plan.
 - **Estado monomáquina:** la memoria del proceso y el volumen local impiden horizontalización transparente. Se requiere coordinación distribuida antes de ampliar a varias instancias.
-- **Contenido de informes anteriores:** informes ya guardados en otros idiomas no se traducen automáticamente; la generación nueva en español aplica al crear informes nuevos.
+- **Contenido de informes anteriores:** los informes guardados con escritura china se traducen al español bajo demanda al abrirlos, por capítulo y con caché persistente; se conserva siempre el original.
 - **Evidencia de opinión:** nunca convertir respuestas de personas virtuales en cifras estadísticas de la población paraguaya.
 - **Rendimiento:** no existe garantía técnica de “optimización al 100 %”; establecer línea base y comparar RAM pico, tiempo, costo LLM, fallos y número de perfiles.
 
