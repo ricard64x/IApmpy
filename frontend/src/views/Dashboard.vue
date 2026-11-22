@@ -5,18 +5,18 @@
       <article class="stat-card"><span class="stat-icon blue">♧</span><div class="stat-label">{{isAdmin?'Usuarios activos':'Mi cuenta'}}</div><strong>{{isAdmin?users.filter(u=>u.active).length:1}}</strong><span class="stat-foot">{{isAdmin?'Usuarios habilitados':'Acceso personal'}}</span></article>
       <article class="stat-card"><span class="stat-icon teal">◈</span><div class="stat-label">Perfiles de acceso</div><strong>{{isAdmin?3:1}}</strong><span class="stat-foot">{{isAdmin?'Administrador · Analista · Investigador':roleLabel}}</span></article>
       <article class="stat-card"><span class="stat-icon purple">▷</span><div class="stat-label">{{isAdmin?'Simulaciones totales':'Mis simulaciones'}}</div><strong>{{visibleHistory.length}}</strong><span class="stat-foot">Historial guardado en disco persistente</span></article>
-      <article class="stat-card"><span class="stat-icon green">▣</span><div class="stat-label">Memoria asignada</div><strong>{{capacity?.machine_memory_mb||'—'}} <small>MB</small></strong><span class="stat-foot">Instancia OASIS · Fly.io</span></article>
+      <article class="stat-card"><span class="stat-icon green">▣</span><div class="stat-label">Memoria asignada</div><strong>{{capacity?.machine_memory_mb||'—'}} <small>MB</small></strong><span class="stat-foot">Servidor de Tenonderã</span></article>
     </section>
 
     <section class="middle-grid">
       <article class="panel capacity">
-        <div class="panel-heading"><span class="title-icon">◉</span><div><h2>Capacidad segura de simulación</h2><p>Recomendación en función de la máquina y los ensayos de OASIS</p></div></div>
+        <div class="panel-heading"><span class="title-icon">◉</span><div><h2>Capacidad segura de simulación</h2><p>Estimación según los recursos disponibles y las pruebas de capacidad</p></div></div>
         <div class="tier-row">
           <div class="tier tier-green"><strong>1–10</strong><span>Ligero</span><small>Menor demanda</small></div>
           <div class="tier tier-blue"><strong>11–25</strong><span>Medio</span><small>Carga moderada</small></div>
           <div class="tier tier-purple"><strong>26–{{capacity?.recommended_max_profiles||45}}</strong><span>Alto</span><small>Validar recursos</small></div>
         </div>
-        <div class="capacity-note"><span>⚠</span><p><strong>Máximo operativo: {{capacity?.recommended_max_profiles||'—'}} perfiles.</strong> Cada ronda activa hasta {{capacity?.max_active_agents_per_platform_per_round||'—'}} agentes por plataforma y solo se admite una simulación simultánea. Más perfiles no significa más agentes activos a la vez.</p></div>
+        <div class="capacity-note"><span>⚠</span><p><strong>Máximo operativo: {{capacity?.recommended_max_profiles||'—'}} perfiles.</strong> Cada ronda activa hasta {{capacity?.max_active_agents_per_platform_per_round||'—'}} participantes virtuales por entorno y solo se admite una simulación simultánea. Más perfiles no significa más participantes activos simultáneamente.</p></div>
       </article>
       <article class="panel resources">
         <div class="panel-heading"><span class="title-icon">▤</span><div><h2>Recursos disponibles</h2><p>Estado actual de la infraestructura</p></div></div>
@@ -24,7 +24,7 @@
         <div class="progress-track"><div :style="{width:memoryPercent+'%'}"></div></div>
         <p class="resource-tip">Memoria utilizada (estimada). La disponibilidad puede variar durante una simulación.</p>
         <div class="resource-status" :class="{busy:capacity?.busy}"><span>{{capacity?.busy?'◉':'✓'}}</span>{{capacity?.busy?'Hay una simulación en curso':'Capacidad disponible para una nueva ejecución'}}</div>
-        <div class="algorithm">Motor social: <strong>{{capacity?.recommendation_mode||'random'}}</strong> · recomendaciones ligeras</div>
+        <div class="algorithm">Modo de funcionamiento eficiente · consumo reducido de recursos</div>
       </article>
     </section>
 

@@ -87,6 +87,20 @@ jobs:
               env.platform.db.close()
           print("Real OASIS random mode: OK; TwHIN-BERT model not loaded.")
           '
+      - name: Run actual Chromium visual and interaction smoke
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.56.0
+          CHROME_BIN="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+          test -n "$CHROME_BIN" || { echo "Chrome no está instalado en el ejecutor"; exit 1; }
+          echo "Navegador de pruebas: $CHROME_BIN"
+          CHROME_BIN="$CHROME_BIN" node tests/browser_visual_smoke.cjs
+      - name: Upload visual browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tenondera-browser-visual-qa
+          path: artifacts/ui-qa/
+          if-no-files-found: ignore
       - name: Container logs on failure
         if: failure()
         run: docker logs iapmpy-smoke --tail 100 || true

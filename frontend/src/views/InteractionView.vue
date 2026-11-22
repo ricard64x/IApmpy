@@ -353,4 +353,12 @@ onMounted(() => {
 .panel-wrapper.left {
   border-right: 1px solid #EAEAEA;
 }
+/* Compact mobile header: avoid overlapping the brand, view controls and language. */
+@media (max-width: 760px) {
+  .app-header { height: 60px; flex: 0 0 60px; padding: 0 12px; gap: 8px; }
+  .header-center { display: none; }
+  .header-right { gap: 6px; min-width: 0; }
+  .workflow-step, .step-divider, .status-indicator { display: none; }
+}
+
 </style>
