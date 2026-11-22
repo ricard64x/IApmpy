@@ -171,7 +171,7 @@ def local_search(project_id):
     with _db() as conn:
         rows = conn.execute(
             """SELECT episode_id,source_id,substr(content,1,2000) AS content,status
-               FROM received WHERE project_id=? AND content LIKE ? ESCAPE '\'
+               FROM received WHERE project_id=? AND content LIKE ? ESCAPE '~'
                ORDER BY inserted_at DESC LIMIT ?""",
             (project_id, term, int(limit)),
         ).fetchall()
