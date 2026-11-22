@@ -89,7 +89,7 @@ def _check_signature(raw: bytes):
     return None
 
 
-@getangiru_bp.post("/internal/ingest")
+@getangiru_bp.post("/__getangiru/ingest")
 def ingest():
     raw = request.get_data(cache=False)
     error = _check_signature(raw)
@@ -140,7 +140,7 @@ def ingest():
     return jsonify({"success": True, "stored": True, "episode_id": str(episode)}), 201
 
 
-@getangiru_bp.post("/internal/ping")
+@getangiru_bp.post("/__getangiru/ping")
 def integration_ping():
     """Prove transport/auth with no private data or persistent source mutation."""
     error = _check_signature(request.get_data(cache=False))
@@ -149,7 +149,7 @@ def integration_ping():
     return jsonify({"success": True, "service": "tenondera", "bridge": "getangiru-v1"})
 
 
-@getangiru_bp.get("/project/<project_id>/search")
+@getangiru_bp.get("/api/getangiru/project/<project_id>/search")
 def local_search(project_id):
     from ..auth import can_access_project
     if not _enabled():
