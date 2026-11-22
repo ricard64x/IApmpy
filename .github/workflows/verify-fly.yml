@@ -1,0 +1,32 @@
+name: Verify IApmpy Fly deployment
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - fix/fly-iapmpy-config
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build frontend
+        run: |
+          npm ci --prefix frontend
+          npm run build --prefix frontend
+      - name: Check Python syntax
+        run: python3 -m compileall -q backend/app backend/wsgi.py
+      - name: Build production container
+        run: docker build -t iapmpy:test .
