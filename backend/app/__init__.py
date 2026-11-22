@@ -47,6 +47,8 @@ def create_app(config_class=Config):
     # Sessions, account bootstrap and backend ownership checks.
     from .auth import install_auth
     install_auth(app)
+    from .capacity import install_capacity
+    install_capacity(app)
 
     # 注册模拟进程清理函数（确保服务器关闭时终止所有模拟进程）
     from .services.simulation_runner import SimulationRunner
