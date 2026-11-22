@@ -1580,6 +1580,17 @@ def start_simulation():
         saved_settings = get_execution_settings(simulation_id)
         platform = data.get('platform', saved_settings['platform'])
         auto_finalize = data.get('auto_finalize', saved_settings['auto_finalize'])
+        engine_mode = data.get('engine_mode', saved_settings.get('engine_mode', 'oasis'))
+        # Engine selection must be persisted in Step 2. Never let an ad-hoc
+        # POST bypass the operator's capacity/preflight decision.
+        if engine_mode not in ('oasis', 'lightweight'):
+            return jsonify({"success": False, "error": "Motor de simulación inválido."}), 400
+        if engine_mode != saved_settings.get('engine_mode', 'oasis'):
+            return jsonify({"success": False, "error":
+                "Primero guardá el motor de ejecución desde Preparar entorno."}), 409
+        if engine_mode == 'lightweight' and not auto_finalize:
+            return jsonify({"success": False, "error":
+                "El modo GPT liviano requiere cierre automático."}), 422
         if type(auto_finalize) is not bool:
             return jsonify({"success": False, "error": "auto_finalize debe ser booleano."}), 400
         max_rounds = data.get('max_rounds', saved_settings['max_rounds'])  # Límite validado de Fly: 10 rondas
@@ -1789,7 +1800,8 @@ def start_simulation():
                 max_rounds=max_rounds,
                 enable_graph_memory_update=enable_graph_memory_update,
                 graph_id=graph_id,
-                auto_finalize=auto_finalize
+                auto_finalize=auto_finalize,
+                engine_mode=engine_mode
             )
         
         response_data = run_state.to_dict()
@@ -1797,6 +1809,7 @@ def start_simulation():
             response_data['max_rounds_applied'] = max_rounds
         response_data['graph_memory_update_enabled'] = enable_graph_memory_update
         response_data['force_restarted'] = force_restarted
+        response_data['engine_mode'] = engine_mode
         if enable_graph_memory_update:
             response_data['graph_id'] = graph_id
         
