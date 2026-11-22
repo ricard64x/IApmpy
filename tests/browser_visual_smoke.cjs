@@ -48,20 +48,49 @@ async function run() {
       files: [{filename: 'expediente-ejemplo.md'}],
       simulation_requirement: 'Simulación ficticia para verificar proyectos guardados.'
     }
+    let processedFragments = 20
+    await page.route('**/api/graph/project/proj_visualqa/build-status', route =>
+      json(route, success({
+        status: 'processing', project_status: 'failed',
+        processed: processedFragments, total: 80, processing: 10, failed: 0,
+        percent: Math.round(processedFragments / 80 * 1000) / 10,
+        local_task_active: false, needs_recovery: false
+      })))
+    await page.route('**/api/graph/project/proj_visualqa', route =>
+      json(route, success({
+        ...savedProject, graph_id: 'graph_visualqa', graph_build_task_id: null,
+        ontology: { entity_types: [], edge_types: [] }
+      })))
     await page.route('**/api/graph/project/list**', route => json(route, success([savedProject])))
     await page.route('**/api/simulation/history**', route => json(route, success([])))
     await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' })
     const projectRow = page.locator('.simulation-item').filter({hasText: 'Caso guardado sin simulación'})
     await projectRow.waitFor({timeout: 20000})
-    assert((await projectRow.innerText()).includes('Revisar avance remoto'))
+    await projectRow.locator('.project-live-inline > span').getByText('Procesando 20 de 80').waitFor({timeout: 15000})
+    assert((await projectRow.innerText()).includes('25.0 %'), 'Dashboard has no live remote progress')
     await page.screenshot({path: path.join(DIR, '02b-proyectos-guardados.png'), fullPage: true})
     screenshots.push('02b-proyectos-guardados.png')
     await projectRow.locator('.link-open').click()
     await page.waitForURL(url => url.pathname === '/process/proj_visualqa', {timeout: 12000})
+    await page.locator('.tracking-banner').getByText('20 de 80 fragmentos procesados').waitFor({timeout: 15000})
+    assert(await page.locator('.tracking-banner').getByText('Actualización automática cada 12 segundos').isVisible())
+    assert(await page.locator('.tracking-banner').getByRole('button', { name: 'Mis proyectos' }).isVisible())
+    await page.screenshot({path: path.join(DIR, '02d-progreso-cabecera.png'), fullPage: true})
+    screenshots.push('02d-progreso-cabecera.png')
+    processedFragments = 40
+    await page.locator('.tracking-banner .tracking-refresh').first().click()
+    await page.locator('.tracking-banner').getByText('40 de 80 fragmentos procesados').waitFor({timeout: 15000})
+    await page.reload({waitUntil: 'domcontentloaded'})
+    await page.locator('.tracking-banner').getByText('40 de 80 fragmentos procesados').waitFor({timeout: 15000})
+    await page.setViewportSize({width: 390, height: 844})
+    await page.screenshot({path: path.join(DIR, '02e-progreso-movil.png'), fullPage: true})
+    screenshots.push('02e-progreso-movil.png')
+    await page.setViewportSize({width: 1440, height: 900})
 
     await page.goto(BASE + '/workspace', {waitUntil: 'domcontentloaded'})
     const historyCard = page.locator('.project-card').filter({hasText: 'Caso guardado sin simulación'})
     await historyCard.waitFor({timeout: 20000})
+    await historyCard.locator('.history-live strong').getByText('Procesando 40 de 80').waitFor({timeout: 15000})
     await historyCard.click()
     assert(await page.locator('.modal-btn.btn-simulation').isDisabled(),
       'An unstarted project must not offer a nonexistent simulation')

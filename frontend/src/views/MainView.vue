@@ -34,6 +34,16 @@
         </span>
       </div>
     </header>
+    <BuildProgressBanner
+      v-if="currentPhase === 1"
+      :progress="cloudProgress || buildProgress"
+      :refreshed-at="lastProgressAt"
+      :stale="progressUnavailable"
+      :refreshing="progressRefreshing"
+      @refresh="pollTaskStatus(projectData?.graph_build_task_id)"
+      @go-projects="router.push('/')"
+      @focus-workbench="viewMode = 'workbench'"
+    />
 
     <!-- Main Content Area -->
     <main class="content-area">
@@ -82,6 +92,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import GraphPanel from '../components/GraphPanel.vue'
+import BuildProgressBanner from '../components/BuildProgressBanner.vue'
 import Step1GraphBuild from '../components/Step1GraphBuild.vue'
 import Step2EnvSetup from '../components/Step2EnvSetup.vue'
 import { generateOntology, getProject, buildGraph, getTaskStatus, getProjectBuildStatus, getGraphData } from '../api/graph'
@@ -109,6 +120,10 @@ const graphData = ref(null)
 const currentPhase = ref(-1) // -1: Upload, 0: Ontology, 1: Build, 2: Complete
 const ontologyProgress = ref(null)
 const buildProgress = ref(null)
+const cloudProgress = ref(null)
+const lastProgressAt = ref(null)
+const progressUnavailable = ref(false)
+const progressRefreshing = ref(false)
 const systemLogs = ref([])
 
 // Polling timers
@@ -380,17 +395,26 @@ const startPollingTask = (taskId) => {
 }
 
 const pollTaskStatus = async (taskId) => {
-  if (graphPollBusy || !currentProjectId.value) return
+  if (graphPollBusy || !currentProjectId.value || (typeof document !== 'undefined' && document.hidden)) return
   graphPollBusy = true
+  progressRefreshing.value = true
   try {
     // The Zep batch status is durable; TaskManager is only in-process.
     // Read the remote truth first so a Fly restart does not freeze the UI.
     let cloud = null
     try {
       const result = await getProjectBuildStatus(currentProjectId.value)
-      if (result.success) cloud = result.data
+      if (result.success && result.data) {
+        cloud = result.data
+        cloudProgress.value = result.data
+        lastProgressAt.value = Date.now()
+        progressUnavailable.value = false
+      } else {
+        progressUnavailable.value = true
+      }
     } catch (_e) {
       // Keep the latest known status on transient read failures.
+      progressUnavailable.value = true
     }
 
     if (cloud?.project_status === 'graph_completed' || cloud?.status === 'completed') {
@@ -447,6 +471,7 @@ const pollTaskStatus = async (taskId) => {
     }
   } finally {
     graphPollBusy = false
+    progressRefreshing.value = false
   }
 }
 
@@ -490,11 +515,18 @@ const stopGraphPolling = () => {
   }
 }
 
+const onVisibilityChange = () => {
+  if (!document.hidden && currentPhase.value === 1) {
+    pollTaskStatus(projectData.value?.graph_build_task_id)
+  }
+}
 onMounted(() => {
+  document.addEventListener('visibilitychange', onVisibilityChange)
   initProject()
 })
 
 onUnmounted(() => {
+  document.removeEventListener('visibilitychange', onVisibilityChange)
   stopPolling()
   stopGraphPolling()
 })
