@@ -148,6 +148,78 @@ def get_project(project_id: str):
     })
 
 
+@graph_bp.route('/project/<project_id>/build-status', methods=['GET'])
+def get_project_build_status(project_id: str):
+    """Durable, read-only graph processing status directly from Zep Cloud.
+
+    A Gunicorn restart erases in-memory TaskManager entries, but neither the
+    project's persisted batch ID nor the Cloud progress. No graph mutation,
+    batch restart or replay is made by this endpoint. Authorization is enforced
+    by the normal project-owner middleware.
+    """
+    project = ProjectManager.get_project(project_id)
+    if project is None:
+        return jsonify({
+            "success": False,
+            "error": t('api.projectNotFound', id=project_id),
+        }), 404
+
+    current_status = (
+        project.status.value if isinstance(project.status, ProjectStatus)
+        else str(project.status)
+    )
+    if project.status == ProjectStatus.GRAPH_COMPLETED:
+        return jsonify({"success": True, "data": {
+            "status": "completed", "project_status": current_status,
+            "processed": None, "total": None, "percent": 100,
+            "processing": 0, "failed": 0,
+            "local_task_active": False, "needs_recovery": False,
+        }})
+
+    active = _project_has_active_build(project)
+    if not project.zep_batch_id:
+        return jsonify({"success": True, "data": {
+            "status": "preparing" if active else current_status,
+            "project_status": current_status, "processed": 0,
+            "total": None, "percent": 0, "processing": 0, "failed": 0,
+            "local_task_active": active, "needs_recovery": False,
+        }})
+
+    try:
+        summary = GraphBuilderService(api_key=Config.ZEP_API_KEY).get_batch_summary(
+            project.zep_batch_id
+        )
+    except Exception as error:
+        logger.warning("Cloud graph progress unavailable (%s)", type(error).__name__)
+        return jsonify({
+            "success": False,
+            "error": "No se pudo consultar el avance remoto. Conservamos el trabajo enviado; volvé a consultar.",
+        }), 503
+
+    progress = getattr(summary, 'progress', None)
+    total = int(
+        getattr(progress, 'total_items', None)
+        or getattr(summary, 'item_count', None) or 0
+    )
+    done = int(getattr(progress, 'succeeded_items', None) or 0)
+    failed = int(getattr(progress, 'failed_items', None) or 0)
+    processing = int(getattr(progress, 'processing_items', None) or 0)
+    percent = round(100 * done / total, 1) if total else 0
+    cloud_state = str(getattr(summary, 'status', '') or 'queued')
+    return jsonify({"success": True, "data": {
+        "status": cloud_state,
+        "project_status": current_status,
+        "processed": done,
+        "total": total or None,
+        "pending": max(0, total - done - failed - processing) if total else None,
+        "processing": processing,
+        "failed": failed,
+        "percent": percent,
+        "local_task_active": active,
+        "needs_recovery": cloud_state == "succeeded" and not active,
+    }})
+
+
 @graph_bp.route('/project/list', methods=['GET'])
 def list_projects():
     """
