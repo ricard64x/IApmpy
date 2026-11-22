@@ -35,6 +35,9 @@ jobs:
           node --test frontend/tests/projectHistory.test.mjs
       - name: Check Python syntax
         run: python3 -m compileall -q backend/app backend/wsgi.py
+      - name: Validate lightweight GPT simulation without external calls
+        run: python3 -m unittest discover -s tests -p 'test_lightweight_simulation.py' -v
+
       - name: Validate low-memory OASIS configuration
         run: python3 -m unittest discover -s tests -p 'test_oasis_runtime.py' -v
       - name: Build production container
