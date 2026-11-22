@@ -367,13 +367,13 @@ const platformLabel = computed(() => activePlatform.value === 'twitter'
     ? t('step2.interactionCommunity') : t('step2.interactionBoth'))
 const lifecycleTitle = computed(() => ({
   awaiting_close:t('step3.roundsFinishedWaiting'), finalizing:t('step3.finalizing'),
-  completed:t('step3.finalized'), stopped:t('step3.finalized'),
+  completed:t('step3.finalized'), stopped:t('step3.stoppedTitle'),
   failed:t('step3.failed'), running_rounds:t('step3.runningRounds'),
   idle:t('step3.preparingRun')
 }[lifecyclePhase.value] || t('step3.preparingRun')))
 const lifecycleHelp = computed(() => ({
   awaiting_close:t('step3.waitingCloseHelp'), finalizing:t('step3.finalizingHelp'),
-  completed:t('step3.finalizedHelp'), stopped:t('step3.finalizedHelp'),
+  completed:t('step3.finalizedHelp'), stopped:t('step3.stoppedHelp'),
   failed:t('step3.failedNoReport'), running_rounds:t('step3.runningRoundsHelp'),
   idle:t('step3.preparingRunHelp')
 }[lifecyclePhase.value] || ''))
