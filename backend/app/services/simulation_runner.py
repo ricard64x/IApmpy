@@ -388,9 +388,24 @@ class SimulationRunner:
         
         data = state.to_detail_dict()
         
-        with open(state_file, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        
+        # The monitor and close endpoint may write concurrently. Atomic
+        # replace prevents the polling UI from reading a half-written JSON.
+        import tempfile
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", dir=sim_dir, prefix=".run-state-",
+                suffix=".tmp", delete=False,
+            ) as handle:
+                tmp_path = handle.name
+                json.dump(data, handle, ensure_ascii=False, indent=2)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(tmp_path, state_file)
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
         cls._run_states[state.simulation_id] = state
     
     @classmethod
