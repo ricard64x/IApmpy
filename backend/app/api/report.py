@@ -62,14 +62,14 @@ def download_failed_simulation_diagnostic(simulation_id: str):
     def field(value):
         return str(value) if value is not None else "No disponible"
 
-    md = "\\n".join([
+    md = chr(10).join([
         "# Informe técnico de ejecución fallida",
         "",
         "**Advertencia:** Este archivo NO es un informe de resultados ni una"
         " predicción de opinión pública. La simulación no finalizó correctamente.",
         "",
-        f"- Simulación: \\u0060{simulation_id}\\u0060",
-        f"- Proyecto: \\u0060{simulation.project_id}\\u0060",
+        f"- Simulación: `{simulation_id}`",
+        f"- Proyecto: `{simulation.project_id}`",
         "- Estado: FALLIDA",
         f"- Inicio: {field(run.started_at)}",
         f"- Finalización: {field(run.completed_at)}",
