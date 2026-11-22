@@ -2,9 +2,6 @@ name: Deploy IApmpy to Fly.io
 
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows: ["Verify IApmpy Fly deployment"]
-    types: [completed]
 
 permissions:
   contents: read
@@ -16,19 +13,13 @@ concurrency:
 jobs:
   deploy:
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_branch == 'main' &&
-       github.event.workflow_run.head_repository.full_name == github.repository)
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: production
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.workflow_run.head_sha || 'main' }}
-      - name: Confirm exact tested revision
-        if: github.event_name == 'workflow_run'
-        run: test "$(git rev-parse HEAD)" = "${{ github.event.workflow_run.head_sha }}"
+          ref: main
       - name: Verify deploy token is configured
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
