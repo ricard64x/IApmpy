@@ -681,7 +681,9 @@ class GraphBuilderService:
 
             if status in terminal_states:
                 break
-            time.sleep(3)
+            # A remote extraction can take hours; polling every 3s wastes
+            # requests and does not make Zep ingest any faster.
+            time.sleep(10)
 
         items = self._list_batch_items(submission.batch_id)
         if status != "succeeded":
