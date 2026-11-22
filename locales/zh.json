@@ -254,7 +254,9 @@
     "runningRounds": "运行模拟轮次",
     "runningRoundsHelp": "智能体正在所选平台上互动。",
     "preparingRun": "准备模拟",
-    "preparingRunHelp": "正在初始化环境。"
+    "preparingRunHelp": "正在初始化环境。",
+    "stoppedTitle": "模拟已停止",
+    "stoppedHelp": "运行已停止。如果尚未完成所有轮次，则结果不完整，需谨慎解读。"
   },
   "step4": {
     "generatingSection": "正在生成{title}...",
