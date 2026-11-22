@@ -111,7 +111,12 @@
     "creating": "Creando...",
     "enterEnvSetup": "Preparar entorno",
     "createSimulationFailed": "No se pudo crear la simulación: {error}",
-    "createSimulationException": "Error al crear la simulación: {error}"
+    "createSimulationException": "Error al crear la simulación: {error}",
+    "attributesLabel": "ATRIBUTOS",
+    "examplesLabel": "EJEMPLOS",
+    "connectionsLabel": "VÍNCULOS",
+    "generatedElementTypesLabel": "TIPOS DE ELEMENTOS IDENTIFICADOS",
+    "generatedRelationTypesLabel": "TIPOS DE RELACIONES IDENTIFICADAS"
   },
   "step2": {
     "simInstanceInit": "Inicialización de la simulación",
@@ -204,7 +209,12 @@
     "autoFinalizeLabel": "Cerrar automáticamente al terminar las rondas",
     "autoFinalizeDesc": "Recomendado. Libera recursos y habilita el informe al finalizar correctamente.",
     "manualFinalizeDesc": "El entorno quedará abierto para entrevistas. Después tendrás que pulsar «Cerrar entorno y finalizar».",
-    "roundsValidation": "Ingresá un número entero de 1 a 10 rondas."
+    "roundsValidation": "Ingresá un número entero de 1 a 10 rondas.",
+    "preparationMonitorLabel": "ESTADO DE PREPARACIÓN",
+    "projectLabel": "Identificador de proyecto",
+    "networkLabel": "Identificador de relaciones",
+    "simLabel": "Identificador de simulación",
+    "taskLabel": "Identificador de tarea"
   },
   "step3": {
     "startGenerateReport": "Generar informe de resultados",
