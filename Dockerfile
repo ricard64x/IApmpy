@@ -12,9 +12,10 @@ FROM python:3.11-slim-bookworm
 COPY --from=ghcr.io/astral-sh/uv:0.9.26 /uv /uvx /bin/
 WORKDIR /app
 COPY backend/pyproject.toml backend/uv.lock ./backend/
+RUN cd backend && uv sync --frozen --no-dev --no-install-project
+COPY backend/ ./backend/
 RUN cd backend && uv sync --frozen --no-dev \
     && uv pip install --python /app/backend/.venv/bin/python gunicorn==23.0.0
-COPY backend/ ./backend/
 COPY locales/ ./locales/
 COPY --from=frontend-build /workspace/frontend/dist ./frontend/dist
 ENV PYTHONUNBUFFERED=1 \
