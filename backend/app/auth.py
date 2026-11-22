@@ -288,13 +288,20 @@ def install_auth(app):
     def filter_private_lists(response):
         if not request.path.startswith("/api/") or not response.is_json:
             return response
-        if not current_user() or is_admin():
+        if not current_user():
             return response
         path = request.path.removeprefix("/api/")
         if path not in ("graph/project/list", "simulation/list", "simulation/history", "report/list"):
             return response
         obj = response.get_json(silent=True)
         if not isinstance(obj, dict) or not isinstance(obj.get("data"), list):
+            return response
+        if is_admin():
+            # Admin overview is the only route exposing owners to other users.
+            for item in obj["data"]:
+                if isinstance(item, dict) and item.get("project_id"):
+                    item["owner_id"] = project_owner(item["project_id"])
+            response.set_data(current_app.json.dumps(obj))
             return response
         def allowed(row):
             if not isinstance(row, dict):
