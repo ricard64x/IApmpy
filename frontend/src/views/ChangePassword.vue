@@ -4,7 +4,7 @@
       <TenonderaBrand />
       <div class="eyebrow">PROTEGÉ TU CUENTA</div>
       <h1>Actualizá tu contraseña</h1>
-      <p>Por seguridad, antes de usar Tenonderã tenés que reemplazar la contraseña temporal. Esta operación cerrará tu sesión.</p>
+      <p>Elegí una contraseña segura y diferente de la anterior. Al guardarla, se cerrará tu sesión y se revocarán las sesiones anteriores de esta cuenta.</p>
       <form @submit.prevent="submit">
         <label for="current">Contraseña actual</label>
         <input id="current" type="password" v-model="currentPassword" autocomplete="current-password" required/>
@@ -27,6 +27,7 @@ const router=useRouter()
 const currentPassword=ref(''),newPassword=ref(''),confirmPassword=ref(''),saving=ref(false),error=ref('')
 async function submit(){
  if(newPassword.value!==confirmPassword.value){error.value='Las contraseñas no coinciden.';return}
+ if(newPassword.value===currentPassword.value){error.value='Elegí una contraseña diferente de la actual.';return}
  saving.value=true;error.value=''
  try {await updateOwnPassword(currentPassword.value,newPassword.value);await router.replace('/login')}
  catch(e){error.value=e.message||'No se pudo actualizar.'}

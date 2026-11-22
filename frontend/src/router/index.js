@@ -29,7 +29,8 @@ router.beforeEach(async to => {
   if (to.meta.public) return current ? { name: 'Dashboard' } : true
   if (!current) return { name: 'Login', query: { redirect: to.fullPath } }
   if (current.must_change_password && to.name !== 'ChangePassword') return { name: 'ChangePassword' }
-  if (!current.must_change_password && to.name === 'ChangePassword') return { name: 'Dashboard' }
+  // Any authenticated user may rotate their own password at any time.
+  // The backend still requires the current password and a valid CSRF token.
   if (to.meta.admin && current.role !== 'administrator') return { name: 'Dashboard' }
   return true
 })

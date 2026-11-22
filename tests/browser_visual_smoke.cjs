@@ -39,6 +39,29 @@ async function run() {
     await page.screenshot({ path: path.join(DIR, '02-dashboard-desktop.png'), fullPage: true })
     screenshots.push('02-dashboard-desktop.png')
 
+    // Any authenticated administrator can rotate credentials after the initial
+    // required change. Never submit real passwords in browser QA.
+    const passwordButton = page.getByRole('button', {name: 'Cambiar mi contraseña'})
+    await passwordButton.waitFor({timeout: 12000})
+    await passwordButton.click()
+    await page.waitForURL(url => url.pathname === '/cambiar-clave', {timeout: 12000})
+    assert(await page.locator('#current').isVisible())
+    assert(await page.locator('#next').isVisible())
+    assert(await page.locator('#repeat').isVisible())
+    await page.locator('#current').fill('dummy-ci-password-rotated')
+    await page.locator('#next').fill('different-dummy-ci-password-2026')
+    await page.locator('#repeat').fill('different-dummy-ci-password-wrong')
+    await page.getByRole('button',{name:/Guardar nueva contraseña/}).click()
+    await page.getByText('Las contraseñas no coinciden.').waitFor({timeout: 12000})
+    await page.locator('#repeat').fill('different-dummy-ci-password-2026')
+    await page.locator('#next').fill('dummy-ci-password-rotated')
+    await page.locator('#repeat').fill('dummy-ci-password-rotated')
+    await page.getByRole('button',{name:/Guardar nueva contraseña/}).click()
+    await page.getByText('Elegí una contraseña diferente de la actual.').waitFor({timeout: 12000})
+    await page.screenshot({path: path.join(DIR,'02a-cambiar-clave-administrador.png'),fullPage:true})
+    screenshots.push('02a-cambiar-clave-administrador.png')
+    await page.goto(BASE+'/',{waitUntil:'domcontentloaded'})
+
     // An existing project has no simulation until its graph has been built.
     // The history must still show it, and allow returning to its own process.
     const savedProject = {
