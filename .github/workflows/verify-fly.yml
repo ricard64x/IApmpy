@@ -35,14 +35,28 @@ jobs:
         run: docker build -t iapmpy:test .
       - name: Verify HTTP startup and access control
         run: |
-          docker run -d --name iapmpy-smoke -p 3000:3000 -e LLM_API_KEY=dummy-ci-key -e ZEP_API_KEY=dummy-ci-key -e APP_REQUIRE_AUTH=true -e APP_BASIC_AUTH_USER=admin -e APP_BASIC_AUTH_PASSWORD=dummy-ci-password iapmpy:test
+          docker run -d --name iapmpy-smoke -p 3000:3000 -e FLASK_DEBUG=true -e LLM_API_KEY=dummy-ci-key -e ZEP_API_KEY=dummy-ci-key -e APP_REQUIRE_AUTH=true -e APP_BASIC_AUTH_USER=admin -e APP_BASIC_AUTH_PASSWORD=dummy-ci-password iapmpy:test
           for i in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:3000/health >/dev/null; then break; fi
             sleep 3
           done
           curl --fail http://127.0.0.1:3000/health
-          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/)" = 401
-          curl --fail --user admin:dummy-ci-password http://127.0.0.1:3000/ | grep -iq '<html'
+          echo "SPA root status: $(curl -s -o /tmp/tenondera-root.html -w '%{http_code}' http://127.0.0.1:3000/)"
+          echo "SPA root bytes: $(wc -c < /tmp/tenondera-root.html)"
+          grep -iq '<html' /tmp/tenondera-root.html
+          echo "Unauthenticated API status: $(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/auth/me)"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/auth/me)" = 401
+          echo "Login/API verification follows"
+          curl -fsS -c /tmp/tenondera-test-cookies -H 'Content-Type: application/json' -d '{"username":"admin","password":"dummy-ci-password"}' http://127.0.0.1:3000/api/auth/login > /tmp/tenondera-session.json
+          CSRF=$(python3 -c 'import json;print(json.load(open("/tmp/tenondera-session.json"))["data"]["csrf"])')
+          test -n "$CSRF"
+          echo "Authenticated API status: $(curl -s -b /tmp/tenondera-test-cookies -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/auth/me)"
+          curl -fsS -b /tmp/tenondera-test-cookies http://127.0.0.1:3000/api/auth/me | python3 -c 'import json,sys; assert json.load(sys.stdin)["success"] is True'
+          test "$(curl -s -b /tmp/tenondera-test-cookies -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/graph/project/list)" = 403
+          curl -fsS -b /tmp/tenondera-test-cookies -c /tmp/tenondera-test-cookies -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d '{"current_password":"dummy-ci-password","new_password":"dummy-ci-password-rotated"}' http://127.0.0.1:3000/api/auth/password >/dev/null
+          curl -fsS -c /tmp/tenondera-test-cookies -H 'Content-Type: application/json' -d '{"username":"admin","password":"dummy-ci-password-rotated"}' http://127.0.0.1:3000/api/auth/login >/dev/null
+          curl -fsS -b /tmp/tenondera-test-cookies http://127.0.0.1:3000/api/capacity/status | grep -q 'recommended_max_profiles'
+          docker exec iapmpy-smoke /app/backend/.venv/bin/python -m unittest discover -s tests -p 'test_tenondera_auth.py' -v
       - name: Verify installed OASIS 0.2.5 uses lightweight Twitter
         run: |
           docker exec \

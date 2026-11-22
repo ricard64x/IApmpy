@@ -3,7 +3,7 @@
     <!-- Header -->
     <header class="app-header">
       <div class="header-left">
-        <div class="brand" @click="router.push('/')">MIROFISH</div>
+        <div class="brand" @click="router.push('/')"><TenonderaBrand compact /></div>
       </div>
       
       <div class="header-center">
@@ -77,6 +77,7 @@
 </template>
 
 <script setup>
+import TenonderaBrand from '../components/TenonderaBrand.vue'
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'

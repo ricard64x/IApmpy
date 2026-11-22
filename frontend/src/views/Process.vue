@@ -2,7 +2,7 @@
   <div class="process-page">
     <!-- 顶部导航栏 -->
     <nav class="navbar">
-      <div class="nav-brand" @click="goHome">MIROFISH</div>
+      <div class="nav-brand" @click="goHome"><TenonderaBrand compact /></div>
       
       <!-- 中间步骤指示器 -->
       <div class="nav-center">
@@ -412,6 +412,7 @@
 </template>
 
 <script setup>
+import TenonderaBrand from '../components/TenonderaBrand.vue'
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { generateOntology, getProject, buildGraph, getTaskStatus, getGraphData } from '../api/graph'

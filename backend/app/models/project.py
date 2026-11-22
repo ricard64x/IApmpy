@@ -167,7 +167,13 @@ class ProjectManager:
         
         # 保存项目元数据
         cls.save_project(project)
-        
+        # Bind ownership immediately, before a response can expose the project.
+        from flask import has_request_context
+        if has_request_context():
+            from ..auth import current_user, set_project_owner
+            user = current_user()
+            if user:
+                set_project_owner(project_id, user["id"])
         return project
     
     @classmethod

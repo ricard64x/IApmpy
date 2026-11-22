@@ -496,6 +496,8 @@ class TwitterSimulationRunner:
             multiplier = 1.0
         
         target_count = int(random.uniform(base_min, base_max) * multiplier)
+    # Prevent generated high-activity configs from exceeding measured Fly capacity.
+    target_count = max(0, min(target_count, max(1, int(os.environ.get("OASIS_MAX_ACTIVE_AGENTS_PER_ROUND", "2")))))
         
         # 根据每个Agent的配置计算激活概率
         candidates = []

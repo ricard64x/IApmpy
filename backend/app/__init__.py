@@ -1,16 +1,15 @@
 """
-MiroFish Backend - Flask应用工厂
+Tenonderã Backend - Flask应用工厂
 """
 
 import os
-import hmac
 import warnings
 
 # 抑制 multiprocessing resource_tracker 的警告（来自第三方库如 transformers）
 # 需要在所有其他导入之前设置
 warnings.filterwarnings("ignore", message=".*resource_tracker.*")
 
-from flask import Flask, request, send_from_directory, abort, Response
+from flask import Flask, request, send_from_directory, abort
 from flask_cors import CORS
 
 from .config import Config
@@ -28,7 +27,7 @@ def create_app(config_class=Config):
         app.json.ensure_ascii = False
     
     # 设置日志
-    logger = setup_logger('mirofish')
+    logger = setup_logger('tenondera')
     
     # 只在 reloader 子进程中打印启动信息（避免 debug 模式下打印两次）
     is_reloader_process = os.environ.get('WERKZEUG_RUN_MAIN') == 'true'
@@ -37,7 +36,7 @@ def create_app(config_class=Config):
     
     if should_log_startup:
         logger.info("=" * 50)
-        logger.info("MiroFish Backend 启动中...")
+        logger.info("Tenonderã Backend 启动中...")
         logger.info("=" * 50)
     
     # 启用CORS
@@ -45,24 +44,11 @@ def create_app(config_class=Config):
     if cors_origins:
         CORS(app, resources={r"/api/*": {"origins": cors_origins}})
     
-    # Optional HTTP Basic authentication protects public LLM-consuming endpoints.
-    # Fly enables it with APP_REQUIRE_AUTH and supplies the password via secrets.
-    auth_user = os.environ.get('APP_BASIC_AUTH_USER', 'admin')
-    auth_password = os.environ.get('APP_BASIC_AUTH_PASSWORD', '')
-    if auth_password:
-        @app.before_request
-        def require_auth():
-            # Fly probes this route without user credentials.
-            if request.path == '/health':
-                return None
-            credentials = request.authorization
-            if (not credentials
-                or not hmac.compare_digest(credentials.username or '', auth_user)
-                or not hmac.compare_digest(credentials.password or '', auth_password)):
-                return Response(
-                    'Authentication required', status=401,
-                    headers={'WWW-Authenticate': 'Basic realm="IApmpy", charset="UTF-8"'}
-                )
+    # Sessions, account bootstrap and backend ownership checks.
+    from .auth import install_auth
+    install_auth(app)
+    from .capacity import install_capacity
+    install_capacity(app)
 
     # 注册模拟进程清理函数（确保服务器关闭时终止所有模拟进程）
     from .services.simulation_runner import SimulationRunner
@@ -73,17 +59,20 @@ def create_app(config_class=Config):
     # 请求日志中间件
     @app.before_request
     def log_request():
-        logger = get_logger('mirofish.request')
+        logger = get_logger('tenondera.request')
         logger.debug(f"请求: {request.method} {request.path}")
         # Do not log JSON bodies: requests can contain private simulation data.
     
     @app.after_request
     def log_response(response):
-        logger = get_logger('mirofish.request')
+        logger = get_logger('tenondera.request')
         logger.debug(f"响应: {response.status_code}")
         response.headers.setdefault('X-Content-Type-Options', 'nosniff')
         response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
         response.headers.setdefault('X-Frame-Options', 'DENY')
+        response.headers.setdefault('Content-Security-Policy', "frame-ancestors 'none'")
+        if request.path.startswith('/api/'):
+            response.headers.setdefault('Cache-Control', 'no-store')
         return response
     
     # 注册蓝图
@@ -95,7 +84,7 @@ def create_app(config_class=Config):
     # 健康检查
     @app.route('/health')
     def health():
-        return {'status': 'ok', 'service': 'MiroFish Backend'}
+        return {'status': 'ok', 'service': 'Tenonderã Backend'}
     
     # Serve the built Vue app from the same origin as /api; Vite is for local development.
     frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../frontend/dist'))
@@ -114,7 +103,7 @@ def create_app(config_class=Config):
         return send_from_directory(frontend_dist, 'index.html')
 
     if should_log_startup:
-        logger.info("MiroFish Backend 启动完成")
+        logger.info("Tenonderã Backend 启动完成")
     
     return app
 
