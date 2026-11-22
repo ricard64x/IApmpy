@@ -34,7 +34,7 @@ jobs:
           npm run build --prefix frontend
           node --test frontend/tests/projectHistory.test.mjs
       - name: Check Python syntax
-        run: python3 -m compileall -q backend/app backend/scripts backend/wsgi.py
+        run: python3 -m compileall -q backend/app backend/wsgi.py backend/scripts/getangiru_bridge.py backend/scripts/run_lightweight_simulation.py
       - name: Validate lightweight GPT simulation without external calls
         run: python3 -m unittest discover -s tests -p 'test_lightweight_simulation.py' -v
 
