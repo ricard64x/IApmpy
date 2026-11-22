@@ -29,6 +29,8 @@ jobs:
           npm run build --prefix frontend
       - name: Check Python syntax
         run: python3 -m compileall -q backend/app backend/wsgi.py
+      - name: Validate low-memory OASIS configuration
+        run: python3 -m unittest discover -s tests -p 'test_oasis_runtime.py' -v
       - name: Build production container
         run: docker build -t iapmpy:test .
       - name: Verify HTTP startup and access control
@@ -41,6 +43,28 @@ jobs:
           curl --fail http://127.0.0.1:3000/health
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/)" = 401
           curl --fail --user admin:dummy-ci-password http://127.0.0.1:3000/ | grep -iq '<html'
+      - name: Verify installed OASIS 0.2.5 uses lightweight Twitter
+        run: |
+          docker exec \
+            -e OASIS_TWITTER_RECSYS=random \
+            -e OASIS_MAX_CONCURRENT_LLM_ACTIONS=2 \
+            iapmpy-smoke /app/backend/.venv/bin/python -c '
+          import os, tempfile
+          from scripts.oasis_runtime import make_oasis_env
+          with tempfile.TemporaryDirectory() as root:
+              env = make_oasis_env(
+                  agent_graph=object(),
+                  platform="twitter",
+                  db_path=os.path.join(root, "twitter.db"),
+              )
+              assert env.platform.recsys_type.value == "random"
+              assert env.llm_semaphore._value == 2
+              from oasis.social_platform import recsys
+              assert recsys.twhin_model is None
+              env.platform.db_cursor.close()
+              env.platform.db.close()
+          print("Real OASIS random mode: OK; TwHIN-BERT model not loaded.")
+          '
       - name: Container logs on failure
         if: failure()
         run: docker logs iapmpy-smoke --tail 100 || true
