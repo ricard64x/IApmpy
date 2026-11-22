@@ -692,17 +692,19 @@ class SimulationRunner:
                         error_message = str(monitor_error)
                     elif not manual_stop and exit_code != 0:
                         desired_status = RunnerStatus.FAILED
-                        main_log_path = os.path.join(sim_dir, "simulation.log")
-                        error_info = ""
-                        try:
-                            if os.path.exists(main_log_path):
-                                with open(main_log_path, 'r', encoding='utf-8') as f:
-                                    error_info = f.read()[-2000:]
-                        except Exception:
-                            pass
-                        error_message = (
-                            f"进程退出码: {exit_code}, 错误: {error_info}"
-                        )
+                        # Avoid including log tails in API errors: OASIS logs
+                        # may contain full private persona text or prompts.
+                        if exit_code == -signal.SIGKILL:
+                            error_message = (
+                                "Simulation subprocess was killed (SIGKILL/-9). "
+                                "Check container OOM counters and memory usage; "
+                                "reduce active agents/concurrency before retrying."
+                            )
+                        else:
+                            error_message = (
+                                f"Simulation subprocess exited with code {exit_code}. "
+                                "Inspect the server-side simulation.log for details."
+                            )
 
                     state.twitter_running = False
                     state.reddit_running = False
