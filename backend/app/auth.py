@@ -397,7 +397,16 @@ def list_users():
         rows = con.execute(
             "SELECT id,username,name,role,active,must_change_password,created_at FROM users ORDER BY created_at"
         ).fetchall()
-    return jsonify({"success": True, "data": [dict(x) for x in rows]})
+    users = [dict(x) for x in rows]
+    from .services.simulation_manager import SimulationManager
+    counts = {}
+    for sim in SimulationManager().list_simulations():
+        owner = project_owner(sim.project_id)
+        if owner:
+            counts[owner] = counts.get(owner, 0) + 1
+    for user in users:
+        user["simulation_count"] = counts.get(user["id"], 0)
+    return jsonify({"success": True, "data": users})
 
 
 @auth_bp.post("/users")
@@ -409,7 +418,7 @@ def create_user():
     name = str(body.get("name", "")).strip()[:120]
     password = body.get("password", "")
     role = body.get("role", "analyst")
-    if (not USERNAME.fullmatch(username) or not name or role not in ROLES
+    if (not USERNAME.fullmatch(username) or not name or role not in ("analyst", "researcher")
             or not isinstance(password, str) or not 12 <= len(password) <= 200):
         return jsonify({"success": False, "error": "Usuario, nombre, rol o contraseña inválidos (mínimo 12 caracteres)."}), 400
     user_id = uuid.uuid4().hex
