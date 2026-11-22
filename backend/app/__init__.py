@@ -27,7 +27,7 @@ def create_app(config_class=Config):
         app.json.ensure_ascii = False
     
     # 设置日志
-    logger = setup_logger('mirofish')
+    logger = setup_logger('tenondera')
     
     # 只在 reloader 子进程中打印启动信息（避免 debug 模式下打印两次）
     is_reloader_process = os.environ.get('WERKZEUG_RUN_MAIN') == 'true'
@@ -36,7 +36,7 @@ def create_app(config_class=Config):
     
     if should_log_startup:
         logger.info("=" * 50)
-        logger.info("MiroFish Backend 启动中...")
+        logger.info("Tenonderã Backend 启动中...")
         logger.info("=" * 50)
     
     # 启用CORS
@@ -59,13 +59,13 @@ def create_app(config_class=Config):
     # 请求日志中间件
     @app.before_request
     def log_request():
-        logger = get_logger('mirofish.request')
+        logger = get_logger('tenondera.request')
         logger.debug(f"请求: {request.method} {request.path}")
         # Do not log JSON bodies: requests can contain private simulation data.
     
     @app.after_request
     def log_response(response):
-        logger = get_logger('mirofish.request')
+        logger = get_logger('tenondera.request')
         logger.debug(f"响应: {response.status_code}")
         response.headers.setdefault('X-Content-Type-Options', 'nosniff')
         response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
@@ -84,7 +84,7 @@ def create_app(config_class=Config):
     # 健康检查
     @app.route('/health')
     def health():
-        return {'status': 'ok', 'service': 'MiroFish Backend'}
+        return {'status': 'ok', 'service': 'Tenonderã Backend'}
     
     # Serve the built Vue app from the same origin as /api; Vite is for local development.
     frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../frontend/dist'))
@@ -103,7 +103,7 @@ def create_app(config_class=Config):
         return send_from_directory(frontend_dist, 'index.html')
 
     if should_log_startup:
-        logger.info("MiroFish Backend 启动完成")
+        logger.info("Tenonderã Backend 启动完成")
     
     return app
 
