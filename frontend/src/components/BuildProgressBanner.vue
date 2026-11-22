@@ -25,6 +25,7 @@
       <div class="tracking-actions">
         <button type="button" @click="$emit('refresh')" :disabled="refreshing" class="tracking-refresh"
                 aria-label="Consultar avance actualizado">↻ Actualizar</button>
+        <button type="button" @click="$emit('focus-workbench')" class="tracking-refresh">Solo seguimiento</button>
         <button type="button" @click="$emit('go-projects')" class="tracking-refresh">Mis proyectos</button>
       </div>
     </div>
@@ -38,7 +39,7 @@ const props = defineProps({
   refreshing: { type: Boolean, default: false },
   stale: { type: Boolean, default: false },
 })
-defineEmits(['refresh', 'go-projects'])
+defineEmits(['refresh', 'go-projects', 'focus-workbench'])
 const processed = computed(() => Math.max(0, Number(props.progress?.processed) || 0))
 const total = computed(() => Math.max(0, Number(props.progress?.total) || 0))
 const knownTotal = computed(() => total.value > 0)
