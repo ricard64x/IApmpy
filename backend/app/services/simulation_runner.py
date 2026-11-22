@@ -1962,10 +1962,12 @@ class SimulationRunner:
                 "timestamp": response.timestamp
             }
         except TimeoutError:
-            # 超时可能是因为环境正在关闭
+            # An unacknowledged command is not a completed shutdown. Keep
+            # the button retryable while the monitor continues to poll.
             return {
-                "success": True,
-                "message": "环境关闭命令已发送（等待响应超时，环境可能正在关闭）"
+                "success": False,
+                "pending": True,
+                "message": "No se confirmó el cierre del entorno. Consultá el estado y volvé a intentarlo si continúa abierto.",
             }
     
     @classmethod
