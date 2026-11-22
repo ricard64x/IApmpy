@@ -1,0 +1,32 @@
+name: Cancel confirmed stale Fly deployment
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/cancel-stale-iapmpy-deploy.yml
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  cancel-stale:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Cancel only previously inspected stale deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          OLD=45067574161
+          URL="https://api.github.com/repos/${{ github.repository }}/actions/runs/$OLD"
+          JSON="$(curl --fail --silent --show-error -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "$URL")"
+          STATUS="$(echo "$JSON" | jq -r '.status')"
+          SHA="$(echo "$JSON" | jq -r '.head_sha')"
+          echo "Stale candidate status: $STATUS"
+          if [ "$STATUS" = "completed" ]; then echo "Already completed"; exit 0; fi
+          test "$SHA" = "45a61c2c1d4f5b04c526c3de75fe6d921bae94a5" || { echo "Different run identity: refusing cancellation"; exit 1; }
+          curl --fail --silent --show-error -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "$URL/cancel"
+          echo "Cancellation requested for stale deployment $OLD"
