@@ -2959,4 +2959,8 @@ def get_efficiency_metrics(simulation_id: str):
     response = jsonify({"success": True, "data": data})
     response.headers["Cache-Control"] = "no-store, private"
     response.headers["X-Content-Type-Options"] = "nosniff"
+    if request.args.get("download") == "1":
+        response.headers["Content-Disposition"] = (
+            f'attachment; filename="metricas_{simulation_id}.json"'
+        )
     return response
