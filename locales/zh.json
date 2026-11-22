@@ -75,7 +75,22 @@
     "layoutGraph": "图谱",
     "layoutSplit": "双栏",
     "layoutWorkbench": "工作台",
-    "stepNames": ["图谱构建", "环境搭建", "开始模拟", "报告生成", "深度互动"]
+    "stepNames": [
+      "图谱构建",
+      "环境搭建",
+      "开始模拟",
+      "报告生成",
+      "深度互动"
+    ],
+    "stepPrefix": "步骤",
+    "systemDashboard": "系统仪表盘",
+    "simulationMonitor": "模拟监控",
+    "noProject": "无项目",
+    "noSimulation": "无模拟",
+    "statusBuildingGraph": "图谱构建中",
+    "statusGeneratingOntology": "本体生成中",
+    "statusInitializing": "初始化中",
+    "statusPreparing": "准备中"
   },
   "step1": {
     "ontologyGeneration": "本体生成",
