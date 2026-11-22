@@ -128,10 +128,21 @@
              class="graph-live-progress" role="status">
             {{ buildProgress.message }}
           </p>
-          <p v-if="currentPhase === 1 && buildProgress?.total" class="graph-progress-explanation">
-            El porcentaje corresponde a fragmentos realmente procesados por el servicio,
-            no solamente a los documentos enviados.
-          </p>
+          <div v-if="currentPhase === 1 && buildProgress?.total" class="step-live-meter">
+            <div class="step-live-head">
+              <strong>Avance real: {{buildProgress.processed || 0}} de {{buildProgress.total}} fragmentos</strong>
+              <strong>{{Math.max(0,Math.min(100, Number(buildProgress.progress)||0)).toFixed(1)}} %</strong>
+            </div>
+            <div class="step-live-track" role="progressbar"
+                 :aria-valuenow="Math.max(0,Math.min(100, Number(buildProgress.progress)||0))"
+                 aria-valuemin="0" aria-valuemax="100">
+              <div :style="{width:Math.max(0,Math.min(100,Number(buildProgress.progress)||0))+'%'}"></div>
+            </div>
+            <p class="graph-progress-explanation">
+              Se actualiza automáticamente. El porcentaje indica fragmentos procesados,
+              no solo enviados. Podés volver a Mis proyectos y continuar después.
+            </p>
+          </div>
 
           <!-- Stats Cards -->
           <div class="stats-grid">
@@ -707,4 +718,8 @@ watch(() => props.systemLogs.length, () => {
 }
 .graph-live-progress{padding:12px 14px;border:1px solid #b6dce5;border-radius:10px;color:#18566b;background:#f1fafd;font-size:12px;font-weight:650;line-height:1.6;overflow-wrap:anywhere}
 .graph-progress-explanation{font-size:11px;color:#668190;line-height:1.6;margin:8px 0 14px}
+.step-live-meter{display:grid;gap:8px;margin:11px 0 14px}
+.step-live-head{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:#1c6984;flex-wrap:wrap}
+.step-live-track{width:100%;height:9px;border-radius:12px;overflow:hidden;background:#deedf3}
+.step-live-track>div{height:100%;background:linear-gradient(90deg,#1769b9,#12a895);border-radius:12px;transition:width .6s ease}
 </style>
