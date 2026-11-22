@@ -70,6 +70,7 @@ jobs:
           docker exec iapmpy-smoke /app/backend/.venv/bin/python -m unittest discover -s tests -p 'test_report_interactions.py' -v
           docker exec iapmpy-smoke /app/backend/.venv/bin/python -m unittest discover -s tests -p 'test_report_localization.py' -v
           docker exec iapmpy-smoke /app/backend/.venv/bin/python -m unittest discover -s tests -p 'test_graph_ingestion_optimizer.py' -v
+          docker exec iapmpy-smoke /app/backend/.venv/bin/python -m unittest discover -s tests -p 'test_getangiru_*.py' -v
       - name: Verify installed OASIS 0.2.5 uses lightweight Twitter
         run: |
           docker exec \
