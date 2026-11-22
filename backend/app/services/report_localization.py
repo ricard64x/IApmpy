@@ -118,10 +118,18 @@ def translate_saved_part(report_id, part):
                 translated_titles = answer.get("section_titles")
                 if not isinstance(translated_titles, list) or len(translated_titles) != len(source["sections"]):
                     raise ValueError("La traducción del índice devolvió capítulos incompatibles.")
+                # Legacy outlines carry full original chapter bodies inside
+                # sections[].content. These are NOT translated by this request:
+                # each chapter has its own independently cached translation.
+                # Do not carry Chinese source bodies into the Spanish outline.
                 translated = {
                     "title": answer.get("title"),
                     "summary": answer.get("summary"),
-                    "sections": [{**old, "title": title} for old,title in zip(source["sections"], translated_titles)],
+                    "sections": [
+                        {**{key: value for key, value in old.items() if key != "content"},
+                         "title": title, "content": ""}
+                        for old, title in zip(source["sections"], translated_titles)
+                    ],
                 }
                 if not isinstance(translated["title"], str) or not isinstance(translated["summary"], str) or not all(isinstance(t, str) and t.strip() for t in translated_titles):
                     raise ValueError("La traducción del índice no es válida.")
