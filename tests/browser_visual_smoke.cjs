@@ -108,7 +108,8 @@ async function run() {
     screenshots.push('04-chat-funcionando.png')
 
     await page.locator('.survey-pill').click()
-    await page.locator('.agent-checkbox').first().locator('input').check()
+    await page.locator('.agent-checkbox').first().click()
+    assert(await page.locator('.agent-checkbox').first().evaluate(el => el.classList.contains('checked')), 'Visible participant selection did not toggle')
     await page.locator('.survey-input').fill('¿Usarías esta solución hipotética?')
     await page.locator('.survey-submit-btn').click()
     await page.locator('.result-card').first().waitFor({ timeout: 12000 })
