@@ -1,6 +1,6 @@
 # Tenonderã + Getangiru: arquitectura híbrida, seguridad y evidencia
 
-**Estado:** adaptador de consulta integrado en código, **OFF por defecto**. No existe una URL ni credencial de Getangiru verificadas mediante los conectores actuales: ninguna prueba con un doble simulado equivale a integración real.
+**Estado:** adaptador de consulta integrado en código, **OFF por defecto**. El Sprite Getangiru real fue identificado y probado por separado; su URL permanece privada. La integración de consulta directa aún está deshabilitada y no equivale a conexión en producción.
 
 ## Objetivo
 
@@ -135,3 +135,15 @@ Comparación controlada: mismos perfiles, documentos, rondas, modelo, temperatur
 ## Criterio de cierre en producción
 
 No declarar “integrado y optimizado” hasta demostrar: endpoint real accesible, aislamiento multiempresa, ninguna fuga en pruebas adversariales, A/B con etiquetas independientes, smoke sin pérdida de simulaciones, costo/memoria/latencia medidos, backups y rollback. El código puede desplegarse en **off** mientras se obtiene acceso al servicio, pero eso **no significa que Getangiru ya esté conectado**.
+
+
+## Fase 2: sincronización autenticada sin exponer el Sprite (22-11-2026)
+
+La API Getangiru mantiene URL privada en Sprites y base de datos independiente. Para evitar entregar un token administrativo de Sprites a Tenonderã, se agrega una **alternativa de PUSH** desde el Sprite mediante `integrations/getangiru/push_to_tenondera.py` hacia `https://iapmpy.fly.dev/__getangiru/ingest`.
+
+- Se valida HMAC-SHA256, marca temporal ±120 s, nonce de un solo uso, límite de 6.200 bytes, proyecto existente y `space=project_id`. La consulta privada es `GET /api/getangiru/project/<project_id>/search?q=...`; solo responde al propietario autenticado.
+- La nueva ruta ofrece recuperación de texto de SQLite local, **0 llamadas al proveedor LLM/embeddings por búsqueda**, y no modifica Zep. El gateway de memoria **no** sustituye extracción relacional, Graphiti ni inferencia generativa.
+- Habilitación únicamente después de CI y secretos dedicados: `GETANGIRU_MIRROR_ENABLED=true` y `GETANGIRU_PUSH_SECRET` en Fly; archivo homólogo de secreto en Sprite modo 0600. Nunca copiar claves de Tenonderã.
+- Tenant `tenondera` separado y espacios idénticos a los proyectos; no enviar datos reales sin clasificación y autorización.
+- En pruebas sintéticas: 9 tests, contrato firmado 200/201/200, 40 consultas locales Getangiru p50 2,49 ms y p95 3,22 ms; 64 inserciones concurrentes en receptor aislado, todas 201, p95 148,21 ms. **No son ahorros económicos demostrados ni pruebas productivas de carga.**
+- Modo de consulta directa de esta documentación y modo push son rutas complementarias, ambas deshabilitadas hasta activación y auditoría. El adaptador `backend/scripts/getangiru_bridge.py` del motor GPT liviano continúa independiente.
