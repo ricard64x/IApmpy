@@ -26,8 +26,8 @@
     "files": "archivos"
   },
   "meta": {
-    "title": "MiroFish - Simula escenarios futuros",
-    "description": "MiroFish - Plataforma de simulación de opinión pública y redes sociales"
+    "title": "Tenonderã - Simula escenarios futuros",
+    "description": "Tenonderã - Plataforma de simulación de opinión pública y redes sociales"
   },
   "nav": {
     "visitGithub": "Visitar nuestro repositorio de GitHub"
@@ -38,7 +38,7 @@
     "heroTitle1": "Subí tus documentos,",
     "heroTitle2": "simulá el futuro",
     "heroDesc": "A partir de un solo documento, {brand} identifica elementos del mundo real y genera automáticamente un universo paralelo con hasta {agentScale}. Incorporá variables y analizá interacciones colectivas para identificar la {optimalSolution}.",
-    "heroDescBrand": "MiroFish",
+    "heroDescBrand": "Tenonderã",
     "heroDescAgentScale": "millones de agentes",
     "heroDescOptimalSolution": "\"solución local óptima\"",
     "slogan": "Simulá escenarios con agentes para tomar mejores decisiones",
@@ -67,7 +67,7 @@
     "inputParams": "Parámetros de entrada",
     "simulationPrompt": ">_ 02 / Objetivo de la simulación",
     "promptPlaceholder": "// Describí el escenario que querés simular o analizar",
-    "engineBadge": "Motor: MiroFish-V1.0",
+    "engineBadge": "Motor: Tenonderã-V1.0",
     "startEngine": "Iniciar simulación",
     "initializing": "Inicializando..."
   },
@@ -160,7 +160,7 @@
     "setupComplete": "Preparación terminada",
     "setupCompleteDesc": "El entorno está preparado. Ya podés iniciar la simulación.",
     "roundsConfig": "Configuración de rondas",
-    "roundsConfigDesc": "MiroFish simula {hours} horas de un escenario real. Cada ronda equivale a {minutesPerRound} minutos.",
+    "roundsConfigDesc": "Tenonderã simula {hours} horas de un escenario real. Cada ronda equivale a {minutesPerRound} minutos.",
     "customToggle": "Personalizar",
     "roundsUnit": "rondas",
     "estimatedDuration": "Con 100 agentes: ~{minutes} minutos estimados",
@@ -274,7 +274,7 @@
     "selectChatTarget": "Seleccionar interlocutor",
     "sendSurvey": "Enviar encuesta al mundo simulado",
     "reportAgentChat": "Chat con el agente de informes",
-    "reportAgentDesc": "Versión conversacional del agente de informes con 4 herramientas profesionales y acceso a la memoria de MiroFish.",
+    "reportAgentDesc": "Versión conversacional del agente de informes con 4 herramientas profesionales y acceso a la memoria de Tenonderã.",
     "toolInsightForge": "InsightForge: análisis de causas",
     "toolInsightForgeDesc": "Combina información real y estados simulados para analizar causas y cambios a lo largo del tiempo.",
     "toolPanoramaSearch": "PanoramaSearch: seguimiento general",
