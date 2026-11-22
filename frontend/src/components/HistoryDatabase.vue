@@ -85,6 +85,13 @@
 
         <!-- 卡片描述（模拟需求完整展示） -->
         <p class="card-desc">{{ truncateText(project.simulation_requirement, 55) }}</p>
+        <div v-if="liveProgress[project.project_id]" class="history-live">
+          <strong>{{progressLabel(liveProgress[project.project_id])}}</strong>
+          <div class="history-live-track" :aria-label="'Avance de construcción '+(liveProgress[project.project_id].percent||0)+' por ciento'">
+            <div :style="{width:Math.min(100,Math.max(0,Number(liveProgress[project.project_id].percent)||0))+'%'}"></div>
+          </div>
+          <small>{{unavailable[project.project_id] ? 'Sin lectura reciente' : 'Actualización automática cada 15 segundos'}}</small>
+        </div>
 
         <!-- 卡片底部 -->
         <div class="card-footer">
@@ -93,7 +100,7 @@
             <span class="card-time">{{ formatTime(project.created_at) }}</span>
           </div>
           <span class="card-progress" :class="getProgressClass(project)">
-            <span class="status-dot">●</span> {{ formatRounds(project) }}
+            <span class="status-dot">●</span> {{ liveProgress[project.project_id] ? progressLabel(liveProgress[project.project_id]) : formatRounds(project) }}
           </span>
         </div>
         
@@ -201,6 +208,7 @@ import { useI18n } from 'vue-i18n'
 import { getSimulationHistory } from '../api/simulation'
 import service from '../api'
 import {mergeProjectHistory,projectEntryStatus} from '../utils/projectHistory'
+import {useLiveProjectProgress,progressLabel} from '../composables/useLiveProjectProgress'
 
 const router = useRouter()
 const route = useRoute()
@@ -208,6 +216,7 @@ const { t } = useI18n()
 
 // 状态
 const projects = ref([])
+const {liveProgress,unavailable} = useLiveProjectProgress(projects)
 const loading = ref(true)
 const isExpanded = ref(false)
 const hoveringCard = ref(null)
@@ -1374,4 +1383,9 @@ onUnmounted(() => {
 .history-error{margin:14px 0;color:#ab3e44;font-size:12px;text-align:center}
 .history-refresh{display:flex;justify-content:flex-end;margin:8px 6px}
 .history-refresh button{border:1px solid #cfe3ec;color:#087e96;border-radius:10px;background:#fff;padding:7px 13px;cursor:pointer;font-size:12px;font-weight:700}
+.history-live{display:grid;gap:4px;margin:8px 0;font-size:10px;color:#146c83}
+.history-live strong{font-size:10px;font-weight:750}
+.history-live small{font-size:9px;color:#688697}
+.history-live-track{height:6px;width:100%;border-radius:8px;background:#dcecf1;overflow:hidden}
+.history-live-track>div{height:100%;border-radius:8px;background:linear-gradient(90deg,#176ac0,#10aa9a);transition:width .6s ease}
 </style>
