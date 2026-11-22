@@ -59,9 +59,13 @@ export const getReportInteractions = (reportId, simulationId) =>
   service.get('/api/report/interactions', { params: { report_id: reportId, simulation_id: simulationId } })
 
 /** URL relativa de exportación autenticada con cookie de sesión. */
-export const reportExportUrl = (reportId, format = 'md') =>
-  `/api/report/${encodeURIComponent(reportId)}/export?format=${encodeURIComponent(format)}`
+export const reportExportUrl = (reportId, format = 'md', locale = 'es') =>
+  '/api/report/' + encodeURIComponent(reportId) + '/export?format=' + encodeURIComponent(format) + '&locale=' + encodeURIComponent(locale)
 
 /** Recupera capítulos guardados para volver a abrir un informe sin depender de logs. */
 export const getSavedReportSections = (reportId) =>
   service.get(`/api/report/${encodeURIComponent(reportId)}/sections`)
+
+/** Translate one historical report part; the backend persists the Spanish version. */
+export const translateReportPart = (reportId, part) =>
+  service.post('/api/report/' + encodeURIComponent(reportId) + '/localize', { part })
