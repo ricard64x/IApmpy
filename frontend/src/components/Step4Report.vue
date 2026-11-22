@@ -2072,6 +2072,8 @@ const fetchAgentLog = async () => {
       if (newLogs.length > 0) {
         newLogs.forEach(log => {
           agentLogs.value.push(log)
+          // Keep the browser bounded; historical logs remain saved on the server.
+          if (agentLogs.value.length > 300) agentLogs.value.splice(0, agentLogs.value.length - 300)
           
           if (log.action === 'planning_complete' && log.details?.outline) {
             reportOutline.value = log.details.outline
@@ -2179,6 +2181,7 @@ const fetchConsoleLog = async () => {
       
       if (newLogs.length > 0) {
         consoleLogs.value.push(...newLogs)
+        if (consoleLogs.value.length > 180) consoleLogs.value.splice(0, consoleLogs.value.length - 180)
         consoleLogLine.value = res.data.from_line + newLogs.length
         
         nextTick(() => {
@@ -2199,8 +2202,8 @@ const startPolling = () => {
   fetchAgentLog()
   fetchConsoleLog()
   
-  agentLogTimer = setInterval(fetchAgentLog, 2000)
-  consoleLogTimer = setInterval(fetchConsoleLog, 1500)
+  agentLogTimer = setInterval(fetchAgentLog, 3500)
+  consoleLogTimer = setInterval(fetchConsoleLog, 6000)
 }
 
 const stopPolling = () => {
