@@ -7,8 +7,14 @@
         <div v-if="reportOutline" class="report-content-wrapper">
           <!-- Report Header -->
           <div class="report-header-block">
+            <div class="report-export-toolbar">
+              <span>✓ {{ $t('step5.savedAutomatically') }}</span>
+              <button type="button" @click="downloadSavedReport('md')">{{ $t('step5.exportMarkdown') }}</button>
+              <button type="button" @click="downloadSavedReport('html')">{{ $t('step5.exportHtml') }}</button>
+              <button type="button" @click="printSavedReport">{{ $t('step5.exportPdf') }}</button>
+            </div>
             <div class="report-meta">
-              <span class="report-tag">Prediction Report</span>
+              <span class="report-tag">{{ $t('step5.savedReportLabel') }}</span>
               <span class="report-id">ID: {{ reportId || 'REF-2024-X92' }}</span>
             </div>
             <h1 class="main-title">{{ reportOutline.title }}</h1>
@@ -72,7 +78,7 @@
             <div class="waiting-ring"></div>
             <div class="waiting-ring"></div>
           </div>
-          <span class="waiting-text">Waiting for Report Agent...</span>
+          <span class="waiting-text">{{ $t('step5.loadingSavedReport') }}</span>
         </div>
       </div>
 
@@ -100,6 +106,19 @@
               </svg>
               <span>{{ $t('step5.chatWithReportAgent') }}</span>
             </button>
+                        <div class="tab-divider"></div>
+            <button
+              class="tab-pill survey-pill"
+              :class="{ active: activeTab === 'survey' }"
+              @click="selectSurveyTab"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 11l3 3L22 4"></path>
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+              </svg>
+              <span>{{ $t('step5.sendSurvey') }}</span>
+            </button>
+
             <div class="agent-dropdown" v-if="profiles.length > 0">
               <button 
                 class="tab-pill agent-pill"
@@ -131,18 +150,6 @@
                 </div>
               </div>
             </div>
-            <div class="tab-divider"></div>
-            <button
-              class="tab-pill survey-pill"
-              :class="{ active: activeTab === 'survey' }"
-              @click="selectSurveyTab"
-            >
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 11l3 3L22 4"></path>
-                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-              </svg>
-              <span>{{ $t('step5.sendSurvey') }}</span>
-            </button>
           </div>
         </div>
 
@@ -241,6 +248,7 @@
             </div>
           </div>
 
+          <p class="synthesis-note">{{ $t('step5.syntheticNote') }}</p>
           <!-- Chat Messages -->
           <div class="chat-messages" ref="chatMessages">
             <div v-if="chatHistory.length === 0" class="chat-empty">
@@ -266,7 +274,7 @@
               <div class="message-content">
                 <div class="message-header">
                   <span class="sender-name">
-                    {{ msg.role === 'user' ? 'You' : (chatTarget === 'report_agent' ? 'Report Agent' : (selectedAgent?.username || 'Agent')) }}
+                    {{ msg.role === 'user' ? $t('step5.youLabel') : (chatTarget === 'report_agent' ? $t('step5.reportAdvisor') : (selectedAgent?.username || $t('step5.syntheticParticipant'))) }}
                   </span>
                   <span class="message-time">{{ formatTime(msg.timestamp) }}</span>
                 </div>
@@ -287,6 +295,7 @@
             </div>
           </div>
 
+          <p v-if="chatError" class="interaction-error" role="alert">{{ chatError }}</p>
           <!-- Chat Input -->
           <div class="chat-input-area">
             <textarea 
@@ -294,14 +303,14 @@
               class="chat-input"
               :placeholder="$t('step5.chatInputPlaceholder')"
               @keydown.enter.exact.prevent="sendMessage"
-              :disabled="isSending || (!selectedAgent && chatTarget === 'agent')"
+              :disabled="isSending || !simulationId || !reportId || (!selectedAgent && chatTarget === 'agent')"
               rows="1"
               ref="chatInputRef"
             ></textarea>
             <button 
               class="send-btn"
               @click="sendMessage"
-              :disabled="!chatInput.trim() || isSending || (!selectedAgent && chatTarget === 'agent')"
+              :disabled="!chatInput.trim() || isSending || !simulationId || !reportId || (!selectedAgent && chatTarget === 'agent')"
             >
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -317,7 +326,7 @@
           <div class="survey-setup">
             <div class="setup-section">
               <div class="section-header">
-                <span class="section-title">{{ $t('step5.selectSurveyTarget') }}</span>
+                <span class="section-title">{{ $t('step5.selectSurveyTarget') }} · {{ $t('step5.surveyLimitShort') }}</span>
                 <span class="selection-count">{{ $t('step5.selectedCount', { selected: selectedAgents.size, total: profiles.length }) }}</span>
               </div>
               <div class="agents-grid">
@@ -365,7 +374,7 @@
 
             <button 
               class="survey-submit-btn"
-              :disabled="selectedAgents.size === 0 || !surveyQuestion.trim() || isSurveying"
+              :disabled="selectedAgents.size === 0 || selectedAgents.size > 8 || !surveyQuestion.trim() || isSurveying || !simulationId || !reportId"
               @click="submitSurvey"
             >
               <span v-if="isSurveying" class="loading-spinner"></span>
@@ -373,6 +382,8 @@
             </button>
           </div>
 
+          <p class="synthesis-note">{{ $t('step5.syntheticNote') }}</p>
+          <p v-if="surveyError" class="interaction-error" role="alert">{{ surveyError }}</p>
           <!-- Survey Results -->
           <div v-if="surveyResults.length > 0" class="survey-results">
             <div class="results-header">
@@ -793,7 +804,7 @@ const loadStoredInteractions = async () => {
       }
     }
     chatHistoryCache.value = caches
-    const key = chatTarget.value === 'participant' ? `agent_${selectedAgentIndex.value}` : 'report_agent'
+    const key = chatTarget.value === 'agent' ? `agent_${selectedAgentIndex.value}` : 'report_agent'
     chatHistory.value = caches[key] || []
   } catch (error) {
     addLog(t('log.loadReportFailed', {error:error.message}))
@@ -2519,4 +2530,22 @@ watch(() => [props.reportId, props.simulationId], ([reportId, simulationId]) => 
 html[lang="en"] .report-header-block .main-title {
   font-size: 28px;
 }
+</style>
+
+<style scoped>
+/* Keep chat and polls visibly adjacent, even on narrower screens. */
+.action-bar{flex-wrap:wrap;justify-content:flex-start}
+.action-bar-tabs{flex:0 1 auto;justify-content:flex-start;flex-wrap:wrap;gap:8px}
+.survey-pill{order:0}
+.agent-pill{width:auto;min-width:160px;max-width:260px}
+.interaction-error{padding:9px 16px;color:#ad3246;background:#fff2f3;font-size:12px}
+.synthesis-note{padding:8px 16px;margin:0;color:#426882;font-size:11px;background:#eff8fd;line-height:1.45}
+.report-export-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:15px}
+.report-export-toolbar span{color:#067a76;font-size:11px;font-weight:700}
+.report-export-toolbar button{border:1px solid #d3e7ed;background:#f4fafc;border-radius:9px;color:#145f80;padding:7px 9px;font-size:11px;font-weight:700;cursor:pointer}
+.survey-setup{overflow-y:auto;min-height:0;padding:16px 20px}
+.survey-setup .setup-section:first-child{flex:0 1 auto;overflow:visible}
+.survey-setup .agents-grid{max-height:230px;overflow-y:auto}
+.survey-submit-btn{position:sticky;bottom:0;z-index:2;box-shadow:0 -4px 10px #16365813}
+@media print{.right-panel,.action-bar,.chat-container,.survey-container,.report-export-toolbar{display:none!important}.left-panel.report-style{width:100%!important;max-width:100%!important;min-width:0!important;overflow:visible!important}.main-split-layout{display:block!important}}
 </style>
