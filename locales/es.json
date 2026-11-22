@@ -322,7 +322,7 @@
     "selectChatTarget": "Seleccionar interlocutor",
     "sendSurvey": "Enviar encuesta al mundo simulado",
     "reportAgentChat": "Chat con el asistente de análisis",
-    "reportAgentDesc": "Versión conversacional del asistente de análisis con 4 herramientas profesionales y acceso a la memoria de Tenonderã.",
+    "reportAgentDesc": "Consultá y analizá los resultados guardados sin volver a ejecutar la simulación.",
     "toolInsightForge": "InsightForge: análisis de causas",
     "toolInsightForgeDesc": "Combina información real y estados simulados para analizar causas y cambios a lo largo del tiempo.",
     "toolPanoramaSearch": "PanoramaSearch: seguimiento general",
@@ -330,10 +330,10 @@
     "toolQuickSearch": "QuickSearch: búsqueda rápida",
     "toolQuickSearchDesc": "Consulta instantánea de nodos, hechos y propiedades mediante red de conocimiento.",
     "toolInterviewSubAgent": "InterviewSubAgent: entrevistas virtuales",
-    "toolInterviewSubAgentDesc": "Realiza entrevistas en varias rondas con participantes simulados para conocer opiniones y percepciones.",
+    "toolInterviewSubAgentDesc": "Respuestas sintéticas posteriores de participantes, sin necesidad de mantener la simulación en memoria.",
     "profileBio": "Descripción",
-    "chatEmptyReportAgent": "Conversá con el asistente de análisis para analizar los resultados.",
-    "chatEmptyAgent": "Conversá con un participante simulado para conocer su opinión.",
+    "chatEmptyReportAgent": "Hacé una pregunta sobre tu informe guardado.",
+    "chatEmptyAgent": "Consultá a un participante virtual sobre el escenario simulado.",
     "chatInputPlaceholder": "Escribí tu pregunta...",
     "selectSurveyTarget": "Seleccionar participantes de la encuesta",
     "selectedCount": "Seleccionados: {selected} de {total}",
@@ -385,7 +385,9 @@
     "detailsEpisodes": "Evidencias",
     "detailsValidFrom": "Vigente desde",
     "entityTypesLabel": "Tipos de elementos",
-    "edgeLabelsLabel": "Mostrar vínculos"
+    "edgeLabelsLabel": "Mostrar vínculos",
+    "selfRelations": "Relaciones consigo mismo",
+    "elementsCountLabel": "elementos"
   },
   "history": {
     "title": "Historial de simulaciones",
