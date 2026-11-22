@@ -81,7 +81,16 @@
       "Ejecutar simulación",
       "Generar informe",
       "Interacción avanzada"
-    ]
+    ],
+    "stepPrefix": "Paso",
+    "systemDashboard": "Panel del sistema",
+    "simulationMonitor": "Monitor de simulación",
+    "noProject": "SIN_PROYECTO",
+    "noSimulation": "SIN_SIMULACIÓN",
+    "statusBuildingGraph": "Construyendo grafo",
+    "statusGeneratingOntology": "Generando ontología",
+    "statusInitializing": "Inicializando",
+    "statusPreparing": "Preparando"
   },
   "step1": {
     "ontologyGeneration": "Generación de ontología",
