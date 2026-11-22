@@ -61,3 +61,7 @@ export const getReportInteractions = (reportId, simulationId) =>
 /** URL relativa de exportación autenticada con cookie de sesión. */
 export const reportExportUrl = (reportId, format = 'md') =>
   `/api/report/${encodeURIComponent(reportId)}/export?format=${encodeURIComponent(format)}`
+
+/** Recupera capítulos guardados para volver a abrir un informe sin depender de logs. */
+export const getSavedReportSections = (reportId) =>
+  service.get(`/api/report/${encodeURIComponent(reportId)}/sections`)
