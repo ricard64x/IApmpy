@@ -1,30 +1,26 @@
-# Use a supported Node.js runtime for Vite 7 without replacing Python 3.11.
-FROM node:22-bookworm AS node-runtime
-FROM python:3.11-bookworm
-
-COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
-COPY --from=node-runtime /usr/local/lib/node_modules /usr/local/lib/node_modules
-RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
-  && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
-  && node --version && npm --version
-
-# Install uv from its pinned upstream image.
-COPY --from=ghcr.io/astral-sh/uv:0.9.26 /uv /uvx /bin/
-
-WORKDIR /app
-
-# Cache dependencies.
-COPY package.json package-lock.json ./
+# Compile the Vue application with a Vite 7-compatible Node runtime.
+FROM node:22-bookworm-slim AS frontend-build
+WORKDIR /workspace
 COPY frontend/package.json frontend/package-lock.json ./frontend/
+RUN npm ci --prefix frontend
+COPY frontend/ ./frontend/
+COPY locales/ ./locales/
+RUN npm run build --prefix frontend
+
+# Run the Flask API and the prebuilt Vue SPA from one origin and one port.
+FROM python:3.11-slim-bookworm
+COPY --from=ghcr.io/astral-sh/uv:0.9.26 /uv /uvx /bin/
+WORKDIR /app
 COPY backend/pyproject.toml backend/uv.lock ./backend/
-
-RUN npm ci \
-  && npm ci --prefix frontend \
-  && cd backend && uv sync --frozen
-
-COPY . .
-
-EXPOSE 3000 5001
-
-# Existing development-server architecture; not a production server.
-CMD ["npm", "run", "dev"]
+RUN cd backend && uv sync --frozen --no-dev \
+    && uv pip install --python /app/backend/.venv/bin/python gunicorn==23.0.0
+COPY backend/ ./backend/
+COPY locales/ ./locales/
+COPY --from=frontend-build /workspace/frontend/dist ./frontend/dist
+ENV PYTHONUNBUFFERED=1 \
+    FLASK_DEBUG=False \
+    FLASK_PORT=3000
+WORKDIR /app/backend
+EXPOSE 3000
+# Single worker preserves the application's in-memory simulation state.
+CMD ["/app/backend/.venv/bin/gunicorn", "--bind", "0.0.0.0:3000", "--workers", "1", "--threads", "4", "--timeout", "300", "--graceful-timeout", "30", "wsgi:app"]
