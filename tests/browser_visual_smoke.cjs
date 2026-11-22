@@ -74,7 +74,7 @@ async function run() {
     await page.waitForURL(url => url.pathname === '/process/proj_visualqa', {timeout: 12000})
     await page.locator('.tracking-banner').getByText('20 de 80 fragmentos procesados').waitFor({timeout: 15000})
     assert(await page.locator('.tracking-banner').getByText('Actualización automática cada 12 segundos').isVisible())
-    assert(await page.locator('.tracking-banner').getByText('Mis proyectos').isVisible())
+    assert(await page.locator('.tracking-banner').getByRole('button', { name: 'Mis proyectos' }).isVisible())
     await page.screenshot({path: path.join(DIR, '02d-progreso-cabecera.png'), fullPage: true})
     screenshots.push('02d-progreso-cabecera.png')
     processedFragments = 40
