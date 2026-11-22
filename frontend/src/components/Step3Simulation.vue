@@ -272,8 +272,8 @@
     <!-- Bottom Info / Logs -->
     <div class="system-logs">
       <div class="log-header">
-        <span class="log-title">SIMULATION MONITOR</span>
-        <span class="log-id">{{ simulationId || 'NO_SIMULATION' }}</span>
+        <span class="log-title">{{ $t('main.simulationMonitor') }}</span>
+        <span class="log-id">{{ simulationId || $t('main.noSimulation') }}</span>
       </div>
       <div class="log-content" ref="logContent">
         <div class="log-line" v-for="(log, idx) in systemLogs" :key="idx">
