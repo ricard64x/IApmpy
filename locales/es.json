@@ -405,7 +405,8 @@
     "envRunning": "El entorno está activo y listo para recibir comandos de entrevista",
     "envNotRunningShort": "El entorno está detenido o cerrado",
     "requireGraphIdAndQuery": "Ingresá graph_id y query",
-    "initReportAgent": "Inicializando agente de informes..."
+    "initReportAgent": "Inicializando agente de informes...",
+    "reportRequiresCompletedSimulation": "Para generar un informe de resultados, la simulación debe haber finalizado correctamente o haberse detenido sin errores. Si falló, descargá el diagnóstico técnico."
   },
   "progress": {
     "initGraphService": "Inicializando servicio de construcción del grafo...",
