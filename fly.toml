@@ -11,6 +11,15 @@ primary_region = "ams"
   APP_BASIC_AUTH_USER = "admin"
   LLM_BASE_URL = "https://api.openai.com/v1"
   LLM_MODEL_NAME = "gpt-4o-mini"
+  # Prevent TwHIN-BERT from loading locally into this 2 GiB VM.
+  # random = no local recommendation model; twitter / twhin-bert need more RAM.
+  OASIS_TWITTER_RECSYS = "random"
+  OASIS_MAX_CONCURRENT_LLM_ACTIONS = "2"
+  TOKENIZERS_PARALLELISM = "false"
+  OMP_NUM_THREADS = "1"
+  OPENBLAS_NUM_THREADS = "1"
+  MKL_NUM_THREADS = "1"
+  MALLOC_ARENA_MAX = "2"
 
 [http_service]
   auto_start_machines = true
