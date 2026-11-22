@@ -42,6 +42,7 @@ jobs:
         run: |
           python3 -m unittest discover -s tests -p 'test_getangiru_bridge.py' -v
           python3 -m unittest discover -s tests -p 'test_benchmark_getangiru.py' -v
+          python3 -m unittest discover -s tests -p 'test_decision_quality.py' -v
 
       - name: Validate low-memory OASIS configuration
         run: python3 -m unittest discover -s tests -p 'test_oasis_runtime.py' -v
