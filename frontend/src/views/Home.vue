@@ -7,8 +7,8 @@
         <p>Tenonderã conecta información, genera agentes sintéticos y simula sus interacciones para anticipar tendencias y escenarios posibles.</p>
         <div class="steps">
           <div><span>01</span><p><strong>Documentos</strong><small>Contexto y fuentes del escenario</small></p></div>
-          <div><span>02</span><p><strong>Grafo de conocimiento</strong><small>Entidades, vínculos y memoria</small></p></div>
-          <div><span>03</span><p><strong>Simulación</strong><small>Agentes, acontecimientos y rondas</small></p></div>
+          <div><span>02</span><p><strong>Red de relaciones</strong><small>Entidades, vínculos y memoria</small></p></div>
+          <div><span>03</span><p><strong>Simulación</strong><small>Participantes virtuales, acontecimientos y rondas</small></p></div>
           <div><span>04</span><p><strong>Resultados</strong><small>Informes y análisis de tendencias</small></p></div>
         </div>
         <div class="info-card">
