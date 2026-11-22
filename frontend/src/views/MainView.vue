@@ -1,5 +1,5 @@
 <template>
-  <div class="main-view">
+  <div class="main-view" :class="{ 'view-graph': viewMode === 'graph' }">
     <!-- Header -->
     <header class="app-header">
       <div class="header-left">
@@ -88,7 +88,7 @@
 
 <script setup>
 import TenonderaBrand from '../components/TenonderaBrand.vue'
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import GraphPanel from '../components/GraphPanel.vue'
@@ -105,6 +105,13 @@ const { t, tm } = useI18n()
 
 // Layout State
 const viewMode = ref('split') // graph | split | workbench
+
+// Recalculate the D3 canvas after the user switches from the compact workbench
+// to the full-width graph. A hidden SVG may otherwise retain a zero-size viewBox.
+watch(viewMode, async () => {
+  await nextTick()
+  window.dispatchEvent(new Event('resize'))
+})
 
 // Step State
 const currentStep = ref(1) // 1: 图谱构建, 2: 环境搭建, 3: 开始模拟, 4: 报告生成, 5: 深度互动
@@ -521,6 +528,12 @@ const onVisibilityChange = () => {
   }
 }
 onMounted(() => {
+  // On a narrow screen the split view forces two tiny unusable columns.
+  // Prefer the light, readable workbench; let users open the full-width
+  // graph explicitly from the header.
+  if (window.matchMedia('(max-width: 720px)').matches && viewMode.value === 'split') {
+    viewMode.value = 'workbench'
+  }
   document.addEventListener('visibilitychange', onVisibilityChange)
   initProject()
 })
@@ -664,5 +677,50 @@ onUnmounted(() => {
 
 .panel-wrapper.left {
   border-right: 1px solid #EAEAEA;
+}
+
+@media (max-width: 720px) {
+  .app-header {
+    height: auto;
+    min-height: 96px;
+    padding: 8px 12px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    gap: 7px;
+    flex-shrink: 0;
+  }
+  .header-left { grid-column: 1; grid-row: 1; min-width: 0; }
+  .header-right { grid-column: 2; grid-row: 1; gap: 7px; justify-content: flex-end; }
+  .header-center {
+    position: static;
+    left: auto;
+    transform: none;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+  }
+  .view-switcher { width: 100%; display: flex; justify-content: stretch; }
+  .switch-btn { flex: 1; padding: 7px 8px; font-size: 11px; white-space: nowrap; }
+  .switch-btn:nth-child(2) { display: none; }
+  .step-divider, .status-indicator { display: none; }
+  .workflow-step { flex-direction: column; align-items: flex-end; gap: 2px; font-size: 11px; }
+  .step-name { display: none; }
+  .content-area { display: block; min-height: 0; }
+  .panel-wrapper { height: 100%; transition: none; }
+  .main-view:not(.view-graph) .panel-wrapper.left { display: none; }
+  .main-view:not(.view-graph) .panel-wrapper.right {
+    display: block;
+    width: 100% !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .main-view.view-graph .panel-wrapper.left {
+    display: block;
+    width: 100% !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .main-view.view-graph .panel-wrapper.right { display: none; }
 }
 </style>
