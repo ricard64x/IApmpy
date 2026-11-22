@@ -68,6 +68,8 @@ class Config:
             errors.append("LLM_API_KEY 未配置")
         if not cls.ZEP_API_KEY:
             errors.append("ZEP_API_KEY 未配置")
+        if os.environ.get("APP_REQUIRE_AUTH", "false").lower() == "true" and not os.environ.get("APP_BASIC_AUTH_PASSWORD"):
+            errors.append("APP_BASIC_AUTH_PASSWORD is required in production")
         if os.environ.get("ZEP_API_URL"):
             errors.append("ZEP_API_URL 不受支持；MiroFish 仅连接 Zep Cloud")
         if cls.DEBUG:

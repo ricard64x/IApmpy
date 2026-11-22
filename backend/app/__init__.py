@@ -3,13 +3,14 @@ MiroFish Backend - Flask应用工厂
 """
 
 import os
+import hmac
 import warnings
 
 # 抑制 multiprocessing resource_tracker 的警告（来自第三方库如 transformers）
 # 需要在所有其他导入之前设置
 warnings.filterwarnings("ignore", message=".*resource_tracker.*")
 
-from flask import Flask, request
+from flask import Flask, request, send_from_directory, abort, Response
 from flask_cors import CORS
 
 from .config import Config
@@ -18,7 +19,7 @@ from .utils.logger import setup_logger, get_logger
 
 def create_app(config_class=Config):
     """Flask应用工厂函数"""
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder=None)
     app.config.from_object(config_class)
     
     # 设置JSON编码：确保中文直接显示（而不是 \uXXXX 格式）
@@ -40,8 +41,29 @@ def create_app(config_class=Config):
         logger.info("=" * 50)
     
     # 启用CORS
-    CORS(app, resources={r"/api/*": {"origins": "*"}})
+    cors_origins = [origin.strip() for origin in os.environ.get('CORS_ORIGINS', '').split(',') if origin.strip()]
+    if cors_origins:
+        CORS(app, resources={r"/api/*": {"origins": cors_origins}})
     
+    # Optional HTTP Basic authentication protects public LLM-consuming endpoints.
+    # Fly enables it with APP_REQUIRE_AUTH and supplies the password via secrets.
+    auth_user = os.environ.get('APP_BASIC_AUTH_USER', 'admin')
+    auth_password = os.environ.get('APP_BASIC_AUTH_PASSWORD', '')
+    if auth_password:
+        @app.before_request
+        def require_auth():
+            # Fly probes this route without user credentials.
+            if request.path == '/health':
+                return None
+            credentials = request.authorization
+            if (not credentials
+                or not hmac.compare_digest(credentials.username or '', auth_user)
+                or not hmac.compare_digest(credentials.password or '', auth_password)):
+                return Response(
+                    'Authentication required', status=401,
+                    headers={'WWW-Authenticate': 'Basic realm="IApmpy", charset="UTF-8"'}
+                )
+
     # 注册模拟进程清理函数（确保服务器关闭时终止所有模拟进程）
     from .services.simulation_runner import SimulationRunner
     SimulationRunner.register_cleanup()
@@ -53,13 +75,15 @@ def create_app(config_class=Config):
     def log_request():
         logger = get_logger('mirofish.request')
         logger.debug(f"请求: {request.method} {request.path}")
-        if request.content_type and 'json' in request.content_type:
-            logger.debug(f"请求体: {request.get_json(silent=True)}")
+        # Do not log JSON bodies: requests can contain private simulation data.
     
     @app.after_request
     def log_response(response):
         logger = get_logger('mirofish.request')
         logger.debug(f"响应: {response.status_code}")
+        response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+        response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+        response.headers.setdefault('X-Frame-Options', 'DENY')
         return response
     
     # 注册蓝图
@@ -73,6 +97,22 @@ def create_app(config_class=Config):
     def health():
         return {'status': 'ok', 'service': 'MiroFish Backend'}
     
+    # Serve the built Vue app from the same origin as /api; Vite is for local development.
+    frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../frontend/dist'))
+
+    @app.route('/', defaults={'path': ''})
+    @app.route('/<path:path>')
+    def serve_spa(path):
+        if path.startswith('api/') or path == 'health':
+            abort(404)
+        if path:
+            target = os.path.join(frontend_dist, path)
+            if os.path.isfile(target):
+                return send_from_directory(frontend_dist, path)
+            if path.startswith('assets/') or '.' in os.path.basename(path):
+                abort(404)
+        return send_from_directory(frontend_dist, 'index.html')
+
     if should_log_startup:
         logger.info("MiroFish Backend 启动完成")
     
