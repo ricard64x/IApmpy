@@ -1,6 +1,6 @@
 <template>
   <TenonderaShell :title="isAdmin ? 'Hola, Administrador' : 'Hola, ' + (activeUser?.name || 'bienvenido')" subtitle="Tus escenarios, usuarios y capacidad operativa, en un solo lugar." :section="isAdmin ? 'ADMINISTRACIÓN' : 'MIS SIMULACIONES'">
-    <div class="top-strip"><span><i></i> Plataforma operativa · datos aislados por usuario</span><button class="new-action" @click="router.push('/workspace')">＋ Nueva simulación</button></div>
+    <div class="top-strip"><span><i></i> Plataforma operativa · datos aislados por usuario</span><div class="account-actions"><button class="account-password" type="button" @click="router.push('/cambiar-clave')">Cambiar mi contraseña</button><button class="new-action" @click="router.push('/workspace')">＋ Nueva simulación</button></div></div>
     <section class="stat-grid">
       <article class="stat-card"><span class="stat-icon blue">♧</span><div class="stat-label">{{isAdmin?'Usuarios activos':'Mi cuenta'}}</div><strong>{{isAdmin?users.filter(u=>u.active).length:1}}</strong><span class="stat-foot">{{isAdmin?'Usuarios habilitados':'Acceso personal'}}</span></article>
       <article class="stat-card"><span class="stat-icon teal">◈</span><div class="stat-label">Perfiles de acceso</div><strong>{{isAdmin?3:1}}</strong><span class="stat-foot">{{isAdmin?'Administrador · Analista · Investigador':roleLabel}}</span></article>
@@ -163,4 +163,8 @@ onMounted(loadData)
 .project-live-inline small{font-size:10px}
 .project-live-track{background:#dfedf3;height:6px;border-radius:9px;overflow:hidden;max-width:440px}
 .project-live-track div{height:100%;border-radius:9px;background:linear-gradient(90deg,#1166b0,#13aa99);transition:width .6s ease}
+.account-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.account-password{border:1px solid #c8e0eb;border-radius:10px;background:#fff;color:#145679;font-size:12px;font-weight:750;padding:10px 13px;cursor:pointer}
+.account-password:hover{background:#eef8fc}
+@media(max-width:680px){.top-strip{flex-wrap:wrap}.account-actions{width:100%}.account-actions button{flex:1}}
 </style>
