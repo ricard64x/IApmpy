@@ -256,7 +256,12 @@
     "preparingRun": "Preparando ejecución",
     "preparingRunHelp": "Inicializando el motor y el entorno de agentes.",
     "stoppedTitle": "Simulación detenida",
-    "stoppedHelp": "La ejecución fue detenida. Si no se completaron todas las rondas, los resultados son parciales y deben interpretarse con cautela."
+    "stoppedHelp": "La ejecución fue detenida. Si no se completaron todas las rondas, los resultados son parciales y deben interpretarse con cautela.",
+    "roundLabel": "RONDA",
+    "timeLabel": "TIEMPO",
+    "actionsLabel": "ACCIONES",
+    "availableActions": "ACCIONES DISPONIBLES",
+    "totalEvents": "EVENTOS TOTALES"
   },
   "step4": {
     "generatingSection": "Generando {title}...",
