@@ -4,7 +4,7 @@
       <section class="workspace-intro">
         <div class="intro-label">✦ INTELIGENCIA COLECTIVA</div>
         <h2>Subí tus documentos.<br><em>Explorá el futuro.</em></h2>
-        <p>Tenonderã conecta información, genera agentes sintéticos y simula sus interacciones para anticipar tendencias y escenarios posibles.</p>
+        <p>Tenonderã conecta información, crea participantes virtuales y simula sus interacciones para anticipar tendencias y escenarios posibles.</p>
         <div class="steps">
           <div><span>01</span><p><strong>Documentos</strong><small>Contexto y fuentes del escenario</small></p></div>
           <div><span>02</span><p><strong>Red de relaciones</strong><small>Entidades, vínculos y memoria</small></p></div>
