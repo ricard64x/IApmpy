@@ -757,6 +757,115 @@ def chat_with_report_agent():
         }), 500
 
 
+
+# ============== Consultas y encuestas posteriores al informe ==============
+
+@report_bp.route('/interactions', methods=['GET', 'POST'])
+def report_interactions():
+    """Store and replay private, explicitly synthetic post-simulation interactions."""
+    from ..services.report_interactions import (
+        BusyInteraction, get_report_context, history_for_report, interact,
+    )
+
+    if request.method == 'GET':
+        report_id = request.args.get('report_id', '')
+        simulation_id = request.args.get('simulation_id', '')
+        try:
+            if not report_id or not simulation_id:
+                raise ValueError("Se requieren el informe y la simulación.")
+            records = history_for_report(report_id, simulation_id)
+        except ValueError as error:
+            return jsonify({"success": False, "error": str(error)}), 400
+        return jsonify({"success": True, "data": {"records": records}})
+
+    data = request.get_json(silent=True) or {}
+    try:
+        result = interact(
+            report_id=data.get('report_id'),
+            simulation_id=data.get('simulation_id'),
+            kind=data.get('kind', ''),
+            message=data.get('message', ''),
+            target=data.get('target', 'report'),
+            agent_id=data.get('agent_id'),
+            agent_ids=data.get('agent_ids'),
+            platform=data.get('platform'),
+            history=data.get('chat_history'),
+        )
+        return jsonify({"success": True, "data": result})
+    except BusyInteraction as error:
+        return jsonify({"success": False, "error": str(error)}), 429
+    except ValueError as error:
+        return jsonify({"success": False, "error": str(error)}), 400
+    except Exception as error:
+        logger.exception("Error al procesar interacción guardada: %s", type(error).__name__)
+        return jsonify({
+            "success": False,
+            "error": "No se pudo generar la respuesta. Verificá la conexión del modelo y volvé a intentarlo.",
+        }), 502
+
+
+@report_bp.route('/<report_id>/export', methods=['GET'])
+def export_persisted_report(report_id: str):
+    """Download an existing report without spawning a model or a simulation."""
+    import html
+    import io
+    import json
+    import re
+    try:
+        if not re.fullmatch(r"report_[A-Za-z0-9_-]{1,64}", report_id):
+            return jsonify({"success": False, "error": "Informe inválido."}), 400
+        report = ReportManager.get_report(report_id)
+        if not report:
+            return jsonify({"success": False, "error": "Informe no encontrado."}), 404
+        if report.status != ReportStatus.COMPLETED:
+            return jsonify({"success": False, "error": "El informe todavía no terminó."}), 409
+        fmt = request.args.get('format', 'md').lower()
+        markdown = report.markdown_content or ""
+        if fmt == 'md':
+            payload = markdown.encode('utf-8')
+            mime, ext = "text/markdown", "md"
+        elif fmt == 'txt':
+            payload = markdown.encode('utf-8')
+            mime, ext = "text/plain", "txt"
+        elif fmt == 'json':
+            payload = json.dumps({
+                "report_id": report.report_id,
+                "simulation_id": report.simulation_id,
+                "created_at": report.created_at,
+                "completed_at": report.completed_at,
+                "content_markdown": markdown,
+                "source_note": "Escenario sintético; no es una encuesta real.",
+            }, ensure_ascii=False, indent=2).encode('utf-8')
+            mime, ext = "application/json", "json"
+        elif fmt == 'html':
+            # Escaped HTML intentionally avoids interpreting model-authored markup.
+            page = (
+                '<!doctype html><html lang="es"><head><meta charset="utf-8">'
+                '<title>Tenonderã — Informe de simulación</title>'
+                '<style>body{max-width:900px;margin:50px auto;padding:24px;'
+                'font-family:system-ui,sans-serif;color:#173658;line-height:1.6}'
+                'pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit}'
+                'h1{color:#11699f}small{color:#5d7890}'
+                '@media print{body{margin:0;padding:0}}</style></head><body>'
+                '<h1>Tenonderã · Informe guardado</h1>'
+                '<small>Resultados de un escenario sintético, no de una encuesta real.</small>'
+                '<pre>' + html.escape(markdown) + '</pre></body></html>'
+            )
+            payload = page.encode("utf-8")
+            mime, ext = "text/html", "html"
+        else:
+            return jsonify({"success": False, "error": "Formato no compatible."}), 400
+        return send_file(
+            io.BytesIO(payload),
+            mimetype=mime,
+            as_attachment=True,
+            download_name=f"Tenondera_{report_id}.{ext}",
+        )
+    except Exception as error:
+        logger.exception("Error en exportación: %s", type(error).__name__)
+        return jsonify({"success": False, "error": "No se pudo exportar el informe."}), 500
+
+
 # ============== 报告进度与分章节接口 ==============
 
 @report_bp.route('/<report_id>/progress', methods=['GET'])
