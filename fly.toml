@@ -6,16 +6,24 @@ primary_region = "ams"
 
 [env]
   FLASK_DEBUG = "False"
-  FLASK_HOST = "0.0.0.0"
-  FLASK_PORT = "5001"
+  FLASK_PORT = "3000"
+  LLM_BASE_URL = "https://api.openai.com/v1"
+  LLM_MODEL_NAME = "gpt-4o-mini"
 
 [http_service]
   auto_start_machines = true
-  auto_stop_machines = true
+  auto_stop_machines = "stop"
   force_https = true
   internal_port = 3000
   min_machines_running = 0
   processes = ["app"]
+
+  [[http_service.checks]]
+    grace_period = "60s"
+    interval = "30s"
+    method = "GET"
+    path = "/health"
+    timeout = "10s"
 
 [[vm]]
   cpu_kind = "shared"
