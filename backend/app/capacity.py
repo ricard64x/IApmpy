@@ -54,6 +54,7 @@ def runtime_capacity():
         "recommended_max_profiles": cap,
         "max_active_agents_per_platform_per_round": max_active,
         "maximum_parallel_simulations": 1,
+        "recommended_max_rounds": 10,
         "busy": busy,
         "recommendation_mode": os.environ.get("OASIS_TWITTER_RECSYS", "random"),
         "note": (
@@ -96,6 +97,13 @@ def install_capacity(app):
                 and info["memory_used_mb"] > info["machine_memory_mb"] * 0.80):
             return jsonify({"success": False, "error": "Memoria insuficiente en este momento."}), 503
         payload = request.get_json(silent=True) or {}
+        rounds = payload.get("max_rounds")
+        if rounds is not None:
+            try:
+                if isinstance(rounds, bool) or int(rounds) > 10 or int(rounds) < 1:
+                    return jsonify({"success": False, "error": "En esta máquina se permiten entre 1 y 10 rondas por ejecución."}), 422
+            except (TypeError, ValueError):
+                return jsonify({"success": False, "error": "Cantidad de rondas inválida."}), 422
         simulation_id = payload.get("simulation_id")
         if not isinstance(simulation_id, str):
             return None
