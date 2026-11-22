@@ -456,6 +456,11 @@
                 <small>{{ $t('step2.interactionBothDesc') }}</small>
               </label>
             </div>
+            <p v-if="oasisOverLimit" class="preference-error" role="status">
+              El expediente tiene {{configuredProfileCount}} perfiles. El motor OASIS solo
+              admite {{oasisLimit}} según la memoria configurada y puede fallar incluso
+              por debajo de ese límite. Seleccioná modo GPT liviano para conservar los perfiles.
+            </p>
             <div class="engine-options" role="radiogroup" aria-label="Motor de simulación">
               <label class="engine-option" :class="{chosen:engineMode==='lightweight'}">
                 <input type="radio" value="lightweight" v-model="engineMode" name="engineMode">
@@ -618,6 +623,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
+import service from '../api'
 import {
   prepareSimulation,
   getPrepareStatus,
@@ -661,6 +667,10 @@ let lastLoggedConfigStage = ''
 // 模拟轮数配置
 const interactionPlatform = ref('parallel')
 const engineMode = ref('oasis')
+const capacityInfo = ref(null)
+const configuredProfileCount = computed(() => simulationConfig.value?.agent_configs?.length || profiles.value.length || 0)
+const oasisLimit = computed(() => capacityInfo.value?.recommended_max_profiles || 45)
+const oasisOverLimit = computed(() => configuredProfileCount.value > oasisLimit.value)
 const autoFinalize = ref(true)
 const savingPreferences = ref(false)
 const settingError = ref('')
@@ -743,6 +753,15 @@ const handleStartSimulation = async () => {
   const rounds = Number(customMaxRounds.value)
   if (!Number.isInteger(rounds) || rounds < 1 || rounds > 10) {
     settingError.value = t('step2.roundsValidation')
+    return
+  }
+  if (engineMode.value === 'oasis' && oasisOverLimit.value) {
+    settingError.value = 'No se puede iniciar OASIS con ' + configuredProfileCount.value
+      + ' perfiles. Seleccioná el modo eficiente con GPT antes de continuar.'
+    return
+  }
+  if (engineMode.value === 'lightweight' && capacityInfo.value?.lightweight_engine_available === false) {
+    settingError.value = 'El modelo GPT todavía no está configurado en el servidor.'
     return
   }
   if (engineMode.value === 'lightweight') autoFinalize.value = true
@@ -1094,6 +1113,10 @@ watch(() => props.systemLogs?.length, () => {
 
 onMounted(async () => {
   if (!props.simulationId) return
+  try {
+    const cap = await service.get('/api/capacity/status')
+    if (cap.success) capacityInfo.value = cap.data
+  } catch (_) { /* Backend remains the authority for capacity. */ }
   try {
     const result = await getExecutionSettings(props.simulationId)
     if (result.success && result.data) {
