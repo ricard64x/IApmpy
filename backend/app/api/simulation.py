@@ -1513,6 +1513,11 @@ def execution_settings(simulation_id: str):
         }), 409
     try:
         settings = save_execution_settings(simulation_id, request.get_json(silent=True) or {})
+        state = SimulationManager().get_simulation(simulation_id)
+        if state is not None:
+            state.enable_twitter = settings["platform"] in ("twitter", "parallel")
+            state.enable_reddit = settings["platform"] in ("reddit", "parallel")
+            SimulationManager()._save_simulation_state(state)
     except (ValueError, TypeError) as error:
         return jsonify({"success": False, "error": str(error)}), 400
     return jsonify({"success": True, "data": settings})
