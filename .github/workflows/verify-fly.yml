@@ -34,9 +34,15 @@ jobs:
           npm run build --prefix frontend
           node --test frontend/tests/projectHistory.test.mjs
       - name: Check Python syntax
-        run: python3 -m compileall -q backend/app backend/wsgi.py
+        run: python3 -m compileall -q backend/app backend/wsgi.py backend/scripts/getangiru_bridge.py backend/scripts/run_lightweight_simulation.py
       - name: Validate lightweight GPT simulation without external calls
         run: python3 -m unittest discover -s tests -p 'test_lightweight_simulation.py' -v
+
+      - name: Test scoped Getangiru adapter and reproducible A/B benchmark
+        run: |
+          python3 -m unittest discover -s tests -p 'test_getangiru_bridge.py' -v
+          python3 -m unittest discover -s tests -p 'test_benchmark_getangiru.py' -v
+          python3 -m unittest discover -s tests -p 'test_decision_quality.py' -v
 
       - name: Validate low-memory OASIS configuration
         run: python3 -m unittest discover -s tests -p 'test_oasis_runtime.py' -v
@@ -70,6 +76,7 @@ jobs:
           docker exec iapmpy-smoke /app/backend/.venv/bin/python -m unittest discover -s tests -p 'test_report_interactions.py' -v
           docker exec iapmpy-smoke /app/backend/.venv/bin/python -m unittest discover -s tests -p 'test_report_localization.py' -v
           docker exec iapmpy-smoke /app/backend/.venv/bin/python -m unittest discover -s tests -p 'test_graph_ingestion_optimizer.py' -v
+          docker exec iapmpy-smoke /app/backend/.venv/bin/python -m unittest discover -s tests -p 'test_efficiency_metrics.py' -v
       - name: Verify installed OASIS 0.2.5 uses lightweight Twitter
         run: |
           docker exec \

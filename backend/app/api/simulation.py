@@ -2939,3 +2939,28 @@ def close_simulation_env():
             "error": str(e),
             "traceback": traceback.format_exc()
         }), 500
+
+
+@simulation_bp.route('/<simulation_id>/efficiency', methods=['GET'])
+def get_efficiency_metrics(simulation_id: str):
+    """Métricas del expediente persistente, sujetas al ACL del propietario.
+
+    La política global de autenticación resuelve /api/simulation/sim_... y
+    devuelve 404 si el analista no es dueño del proyecto. La respuesta nunca
+    contiene prompts, datos de perfiles, memorias ni claves.
+    """
+    from ..services.efficiency_metrics import get_simulation_efficiency
+    try:
+        data = get_simulation_efficiency(simulation_id)
+    except ValueError:
+        return jsonify({"success": False, "error": "Identificador inválido."}), 400
+    except FileNotFoundError:
+        return jsonify({"success": False, "error": "Simulación no disponible."}), 404
+    response = jsonify({"success": True, "data": data})
+    response.headers["Cache-Control"] = "no-store, private"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    if request.args.get("download") == "1":
+        response.headers["Content-Disposition"] = (
+            f'attachment; filename="metricas_{simulation_id}.json"'
+        )
+    return response
