@@ -17,7 +17,7 @@ const screenshots = []
 const geometry = {}
 const success = (data) => ({ success: true, data })
 const json = (route, data) => route.fulfill({ status: 200, contentType: 'application/json; charset=utf-8', body: JSON.stringify(data) })
-const chrome = chromium.executablePath()
+const chrome = process.env.CHROME_BIN || ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium'].find(candidate => fs.existsSync(candidate)) || chromium.executablePath()
 const browserArgs = ['--no-sandbox', '--disable-setuid-sandbox']
 
 async function run() {
