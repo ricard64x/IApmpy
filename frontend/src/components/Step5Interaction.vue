@@ -7,11 +7,14 @@
         <div v-if="reportOutline" class="report-content-wrapper">
           <!-- Report Header -->
           <div class="report-header-block">
+            <p v-if="translationStatus" class="translation-status" role="status">{{ translationStatus }}</p>
+            <p v-if="translationError" class="translation-error" role="alert">{{ translationError }}</p>
+            <button v-if="translationError" class="translation-retry" type="button" @click="refreshSpanishCopy">{{ $t('step4.retryTranslation') }}</button>
             <div class="report-export-toolbar">
               <span>✓ {{ $t('step5.savedAutomatically') }}</span>
-              <button type="button" @click="downloadSavedReport('md')">{{ $t('step5.exportMarkdown') }}</button>
-              <button type="button" @click="downloadSavedReport('html')">{{ $t('step5.exportHtml') }}</button>
-              <button type="button" @click="printSavedReport">{{ $t('step5.exportPdf') }}</button>
+              <button type="button" :disabled="translationBusy" @click="downloadSavedReport('md')">{{ $t('step5.exportMarkdown') }}</button>
+              <button type="button" :disabled="translationBusy" @click="downloadSavedReport('html')">{{ $t('step5.exportHtml') }}</button>
+              <button type="button" :disabled="translationBusy" @click="printSavedReport">{{ $t('step5.exportPdf') }}</button>
             </div>
             <div class="report-meta">
               <span class="report-tag">{{ $t('step5.savedReportLabel') }}</span>
@@ -369,6 +372,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getReport, getAgentLog, getSavedReportSections, createReportInteraction, getReportInteractions, reportExportUrl } from '../api/report'
 import { getSimulationProfilesRealtime } from '../api/simulation'
+import { ensureSpanishReport, containsChinese } from '../utils/reportSpanish'
 
 const { t } = useI18n()
 
@@ -403,6 +407,9 @@ const surveyQuestion = ref('')
 const surveyResults = ref([])
 const isSurveying = ref(false)
 const surveyError = ref('')
+const translationBusy = ref(false)
+const translationStatus = ref('')
+const translationError = ref('')
 
 // Report Data
 const reportOutline = ref(null)
@@ -762,6 +769,27 @@ const downloadSavedReport = (format) => {
 }
 const printSavedReport = () => window.print()
 
+const refreshSpanishCopy = async () => {
+  if (!props.reportId || !reportOutline.value || translationBusy.value) return
+  if (!containsChinese(reportOutline.value) && !Object.values(generatedSections.value).some(containsChinese)) return
+  translationBusy.value = true
+  translationError.value = ''
+  try {
+    const result = await ensureSpanishReport(props.reportId, reportOutline.value, generatedSections.value,
+      (done,total) => {
+        translationStatus.value = t('step4.translatingProgress', { done, total })
+      })
+    reportOutline.value = result.outline
+    generatedSections.value = result.sections
+    translationStatus.value = t('step4.translationSaved')
+  } catch (error) {
+    translationError.value = error.message || t('step4.translationFailed')
+    translationStatus.value = ''
+  } finally {
+    translationBusy.value = false
+  }
+}
+
 // Load Report Data
 const loadReportData = async () => {
   if (!props.reportId) return
@@ -784,6 +812,7 @@ const loadReportData = async () => {
       if (!reportOutline.value || !Object.keys(generatedSections.value).length) {
         await loadAgentLogs()
       }
+      await refreshSpanishCopy()
     }
   } catch (err) {
     addLog(t('log.loadReportFailed', { error: err.message }))
@@ -2504,4 +2533,11 @@ html[lang="en"] .report-header-block .main-title {
 .survey-setup .agents-grid{max-height:230px;overflow-y:auto}
 .survey-submit-btn{position:sticky;bottom:0;z-index:2;box-shadow:0 -4px 10px #16365813}
 @media print{.right-panel,.action-bar,.chat-container,.survey-container,.report-export-toolbar{display:none!important}.left-panel.report-style{width:100%!important;max-width:100%!important;min-width:0!important;overflow:visible!important}.main-split-layout{display:block!important}}
+</style>
+
+<style scoped>
+.translation-status{color:#0a7795;background:#eafafb;padding:9px 12px;font-size:12px;border-radius:9px}
+.translation-error{color:#a23b4a;background:#fff3f3;padding:9px 12px;font-size:12px;border-radius:9px}
+.translation-retry{background:#096d92;color:#fff;border:0;border-radius:8px;padding:9px;font-size:12px;cursor:pointer}
+.report-export-toolbar button:disabled{opacity:.45;cursor:not-allowed}
 </style>
