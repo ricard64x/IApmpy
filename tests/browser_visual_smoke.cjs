@@ -97,6 +97,17 @@ async function run() {
       'Mobile top header overlaps language and navigation')
     await page.screenshot({path: path.join(DIR, '02e-progreso-movil.png'), fullPage: true})
     screenshots.push('02e-progreso-movil.png')
+    await page.locator('.view-switcher .switch-btn').first().click()
+    const mobileGraph = await page.locator('.panel-wrapper.left').boundingBox()
+    assert(mobileGraph && mobileGraph.width >= 375 &&
+      mobileGraph.x + mobileGraph.width <= 391, 'Mobile graph must take full width when selected')
+    assert.equal(await page.locator('.panel-wrapper.right').evaluate(e => getComputedStyle(e).display),
+      'none', 'Mobile graph view must not leave workbench squeezed alongside')
+    await page.screenshot({path: path.join(DIR, '02f-grafo-movil.png'), fullPage: true})
+    screenshots.push('02f-grafo-movil.png')
+    await page.locator('.view-switcher .switch-btn').last().click()
+    assert.equal(await page.locator('.panel-wrapper.left').evaluate(e => getComputedStyle(e).display),
+      'none', 'Switching back to workbench must hide graph')
     await page.setViewportSize({width: 1440, height: 900})
 
     await page.goto(BASE + '/workspace', {waitUntil: 'domcontentloaded'})
