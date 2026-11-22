@@ -167,9 +167,12 @@ const handleNextStep = (params = {}) => {
     params: { simulationId: currentSimulationId.value }
   }
   
-  // 如果有自定义轮数，通过 query 参数传递
-  if (params.maxRounds) {
-    routeParams.query = { maxRounds: params.maxRounds }
+  // The persisted backend settings are authoritative. Query parameters keep
+  // the user's selection visible across refresh and navigation.
+  routeParams.query = {
+    maxRounds: params.maxRounds || 10,
+    platform: params.platform || 'parallel',
+    autoFinalize: params.autoFinalize !== false ? '1' : '0'
   }
   
   // 跳转到 Step 3 页面
