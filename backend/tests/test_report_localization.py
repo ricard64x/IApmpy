@@ -58,6 +58,22 @@ class LocalizationTests(unittest.TestCase):
         self.assertIn("Primera sección", saved)
         self.assertIn("El escenario plantea opiniones", saved)
 
+    def test_legacy_outline_does_not_embed_untranslated_chinese_chapter_bodies(self):
+        """Real saved reports embed Chinese section content inside the outline."""
+        self.outline["sections"][0]["content"] = "模拟分析来自虚拟参与者。"
+        result = mod.translate_saved_part(self.report_id, "outline")
+        translated = result["outline"]
+        self.assertEqual(translated["sections"][0]["title"], "Primera sección")
+        self.assertEqual(translated["sections"][0]["content"], "")
+        self.assertNotRegex(
+            __import__("json").dumps(translated, ensure_ascii=False),
+            mod._CJK,
+        )
+        self.assertEqual(
+            self.outline["sections"][0]["content"],
+            "模拟分析来自虚拟参与者。",
+        )
+
     def test_invalid_part_rejected(self):
         for part in ("../meta", "section_0", "section_99", "unknown"):
             with self.subTest(part=part), self.assertRaises(ValueError):
