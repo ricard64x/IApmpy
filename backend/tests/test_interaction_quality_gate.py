@@ -29,6 +29,20 @@ class InteractionQualityGateTests(unittest.TestCase):
             self.assertFalse(m["interaction_quality"]["valid_multiagent_interaction"])
             self.assertEqual(file.read_text(encoding="utf-8"), original)
 
+    def test_agent_zero_and_target_zero_are_not_dropped(self):
+        rows = [
+            {"agent_id": 0, "platform": "reddit", "action_type": "CREATE_POST"},
+            {"agent_id": 1, "platform": "reddit", "action_type": "CREATE_COMMENT",
+             "action_args": {"target_agent_id": 0}},
+            {"agent_id": 0, "platform": "reddit", "action_type": "CREATE_COMMENT",
+             "action_args": {"target_agent_id": 1}},
+        ]
+        m = summarize(rows, source="reddit")
+        self.assertEqual(m["active_participants"], 2)
+        self.assertEqual(m["recorded_interaction_pairs"], 2)
+        self.assertEqual(m["cross_agent_messages"], 2)
+        self.assertEqual(m["interaction_quality"]["status"], "acceptable")
+
     def test_replies_must_target_an_actual_different_agent(self):
         rows = [
             {"agent_id": 1, "action_type": "CREATE_POST"},
