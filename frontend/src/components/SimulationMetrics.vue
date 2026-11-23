@@ -8,7 +8,7 @@
     <template v-if="data">
       <p class="notice">Son personajes y decisiones <strong>simulados</strong>, no personas o conversaciones reales. Las fechas corresponden a registros de ejecución, no al calendario ficticio del escenario.</p>
       <div v-if="data.partial" class="alert">Muestra parcial: el registro superó el límite de lectura segura.</div>
-      <section v-if="data.interaction_quality" class="quality-card"
+      <section v-if="data.interaction_quality && data.interaction_quality.status!=='not_applicable'" class="quality-card"
         :class="{ 'quality-warning': !data.interaction_quality.valid_multiagent_interaction }"
         :role="data.interaction_quality.valid_multiagent_interaction ? 'status' : 'alert'"
         aria-label="Calidad de interacción">
