@@ -1575,6 +1575,66 @@ def execution_settings(simulation_id: str):
 
 # ============== 模拟运行控制接口 ==============
 
+@simulation_bp.post('/<simulation_id>/fork')
+def fork_simulation_version(simulation_id):
+    """Copy prepared profiles to an independent ID without copying any run log."""
+    import shutil
+    import uuid
+    from pathlib import Path
+    from ..config import Config
+    from ..services.simulation_execution import get_execution_settings, save_execution_settings
+    manager = SimulationManager()
+    original = manager.get_simulation(simulation_id)
+    if original is None:
+        return jsonify({"success": False,"error":"Simulación original no disponible."}),404
+    source = Path(Config.UPLOAD_FOLDER)/"simulations"/simulation_id
+    required = ("simulation_config.json",)
+    prepared = ("simulation_config.json","reddit_profiles.json","twitter_profiles.csv")
+    if not all((source/item).is_file() for item in required):
+        return jsonify({"success": False,"error":"La simulación original no tiene configuración preparada."}),409
+    if not any((source/item).is_file() for item in prepared[1:]):
+        return jsonify({"success": False,"error":"La simulación original no tiene perfiles preparados."}),409
+    # The existing authorization middleware checks the source simulation path;
+    # the new run belongs to the exact same project and never inherits logs.
+    newer = manager.create_simulation(
+        original.project_id, original.graph_id,
+        enable_twitter=original.enable_twitter, enable_reddit=original.enable_reddit)
+    destination = Path(Config.UPLOAD_FOLDER)/"simulations"/newer.simulation_id
+    try:
+        for filename in prepared:
+            path=source/filename
+            if path.is_file():
+                shutil.copyfile(path,destination/filename)
+        new_settings = get_execution_settings(simulation_id)
+        # The newest version defaults to the richer mode but is still editable.
+        new_settings["interaction_mode"]="dialogue"
+        save_execution_settings(newer.simulation_id,new_settings)
+        (destination/"version_origin.json").write_text(json.dumps({
+            "parent_simulation_id":simulation_id,
+            "created_at":datetime.now().isoformat(),
+            "kind":"configuration_version",
+        }),encoding="utf-8")
+        newer.status=SimulationStatus.READY
+        newer.profiles_generated=True
+        newer.config_generated=True
+        newer.profiles_count=original.profiles_count
+        newer.entities_count=original.entities_count
+        manager._save_simulation_state(newer)
+    except (OSError,ValueError,TypeError):
+        logger.exception("Unable to fork prepared simulation version")
+        newer.status=SimulationStatus.FAILED
+        newer.error="No fue posible preparar la versión independiente."
+        manager._save_simulation_state(newer)
+        return jsonify({"success":False,"error":"No fue posible crear una nueva versión."}),503
+    return jsonify({"success":True,"data":{
+        "simulation_id":newer.simulation_id,
+        "parent_simulation_id":simulation_id,
+        "project_id":newer.project_id,
+        "status":"ready",
+        "source_preserved":True,
+    }}),201
+
+
 @simulation_bp.route('/start', methods=['POST'])
 def start_simulation():
     """
