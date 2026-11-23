@@ -28,12 +28,17 @@
       </section>
 
       <div class="number-grid">
-        <div class="number-card"><strong>{{ number(data.active_participants) }}</strong><span>Participantes activos</span><small>Personajes con al menos una acción guardada.</small></div>
+        <div class="number-card"><strong>{{ number(data.active_participants) }}</strong><span>Participantes activos</span><small>{{ data.population?.selected_participants!=null ? 'De '+number(data.population.selected_participants)+' perfiles seleccionados' : 'Personajes con al menos una acción guardada' }}.</small></div>
         <div class="number-card"><strong>{{ number(data.message_actions) }}</strong><span>Mensajes registrados</span><small>Publicaciones y respuestas; no son mensajes reales.</small></div>
         <div class="number-card"><strong>{{ number(data.cross_agent_messages || 0) }}</strong><span>Respuestas entre perfiles</span><small>Mensajes dirigidos a otro participante identificable.</small></div>
         <div class="number-card"><strong>{{ number(data.recorded_interaction_pairs || 0) }}</strong><span>Relaciones dirigidas</span><small>Pares emisor → destinatario con evidencia.</small></div>
       </div>
 
+      <p v-if="data.population?.synthetic_additions > 0" class="population-note">
+        De los {{ number(data.population.selected_participants) }} perfiles configurados,
+        {{ number(data.population.synthetic_additions) }} son roles hipotéticos adicionales solicitados para el escenario.
+        No fueron detectados en el grafo ni representan personas reales.
+      </p>
       <div class="hub-tabs" role="tablist" aria-label="Explorar resultados">
         <button v-for="item in tabs" :key="item.id" type="button" role="tab"
           :aria-selected="tab===item.id" :class="{active:tab===item.id}"
@@ -435,6 +440,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .question-actions button{border:1px solid #bad2e0;background:#fff;color:#155d82;border-radius:9px;padding:9px 12px;font-size:11px;font-weight:750}
 .question-actions button:disabled{opacity:.5;cursor:not-allowed}
 .provenance,.after-report,.sample-warning{font-size:10px;color:#6b8397;line-height:1.6;margin:15px 0 0}
+.population-note{font-size:11px;color:#566982;background:#f6f8fc;border:1px solid #dbe2ed;padding:11px;border-radius:9px;line-height:1.6}
 .sample-warning{color:#9b6224;background:#fff8ea;border:1px solid #ecd3a2;padding:10px;border-radius:8px}
 .after-report{background:#f8fafb;padding:10px;border:1px solid #e1e9ed;border-radius:8px}
 .error{padding:12px;border:1px solid #d99595;background:#fff0ee;border-radius:8px;color:#9e3939;margin:15px 0}
