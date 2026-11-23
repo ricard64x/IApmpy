@@ -47,7 +47,7 @@ def context_for_local_qwen(messages):
         return None
     citations=[]
     for title,url,summary,published in rows:
-        clean=lambda s,n:re.sub(r"[\\x00-\\x1f]+"," ",str(s or ""))[:n]
+        clean=lambda s,n:re.sub(r"[\x00-\x1f]+"," ",str(s or ""))[:n]
         citations.append("- Título: "+clean(title,180)+" | Fecha publicada: "+clean(published,50)
                          +" | Fuente: "+clean(url,350)+" | Extracto: "+clean(summary,280))
     return (
