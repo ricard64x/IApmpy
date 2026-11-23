@@ -219,18 +219,18 @@
       </div>
       
       <!-- 加载状态 -->
-      <div v-else-if="loading" class="graph-state">
+      <div v-else-if="displayMode==='entities' && loading" class="graph-state">
         <div class="loading-spinner"></div>
         <p>{{ $t('graph.graphDataLoading') }}</p>
       </div>
       
       <!-- 等待/空状态 -->
-      <div v-else-if="idle" class="graph-state" role="status">
+      <div v-else-if="displayMode==='entities' && idle" class="graph-state" role="status">
         <div class="empty-icon">❖</div>
         <p class="empty-text">{{ idleMessage || 'Sin procesamiento activo. Cargá documentos para preparar el grafo.' }}</p>
       </div>
 
-      <div v-else class="graph-state">
+      <div v-else-if="displayMode==='entities'" class="graph-state">
         <div class="empty-icon">❖</div>
         <p class="empty-text">{{ $t('graph.waitingOntology') }}</p>
       </div>
