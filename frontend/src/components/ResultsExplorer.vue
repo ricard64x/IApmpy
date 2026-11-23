@@ -85,7 +85,7 @@
             <div v-if="rounds.length" class="chart-rows">
               <button type="button" v-for="r in rounds.slice(0,12)" :key="r.round"
                 @click="showRound(r.round)">
-                <span>Ronda {{ r.round }}</span>
+                <span>{{ roundLabel(r.round) }}</span>
                 <span class="bar-track"><i :style="{width:barWidth(r.count,rounds)+'%'}"></i></span>
                 <strong>{{ r.count }}</strong>
               </button>
@@ -146,7 +146,7 @@
             <select v-model="selectedPerson"><option value="all">Todos</option><option v-for="p in people" :key="p.id" :value="p.id">{{ p.name }}</option></select>
           </label>
           <label>Ronda
-            <select v-model="selectedRound"><option value="all">Todas</option><option v-for="r in rounds" :key="r.round" :value="String(r.round)">Ronda {{ r.round }}</option></select>
+            <select v-model="selectedRound"><option value="all">Todas</option><option v-for="r in rounds" :key="r.round" :value="String(r.round)">{{ roundLabel(r.round) }}</option></select>
           </label>
           <label>Espacio
             <select v-model="selectedPlatform"><option value="all">Todos</option><option v-for="p in platforms" :key="p.platform" :value="p.platform">{{ platformLabel(p.platform) }}</option></select>
@@ -164,7 +164,7 @@
             <header><span class="avatar small">{{ m.participant?.charAt(0) || 'P' }}</span>
               <strong>{{ m.participant }}</strong>
               <span class="pill">{{ platformLabel(m.platform) }}</span>
-              <span class="pill">Ronda {{ m.round ?? '—' }}</span></header>
+              <span class="pill">{{ roundLabel(m.round) }}</span></header>
             <p v-if="m.target_id!=null" class="reply-label">↳ Responde a <strong>{{ agentName(m.target_id) }}</strong></p>
             <p class="excerpt">{{ m.excerpt }}</p>
             <footer>{{ messageType(m.type) }} · {{ m.timestamp ? formatDate(m.timestamp) : 'Sin fecha registrada' }}
@@ -190,7 +190,7 @@
             </div></div><p v-if="!data.by_type?.length" class="empty">No hay acciones.</p>
           </article>
         </div>
-        <article class="panel"><h3>Histograma horario</h3><p class="helper">Distribución de los eventos por hora de ejecución (UTC del registro).</p>
+        <article class="panel"><h3>Histograma horario</h3><p class="helper">Distribución de los eventos por hora según la zona horaria guardada en cada registro.</p>
           <div class="hour-chart" role="img" aria-label="Número de acciones registradas en cada hora">
             <div v-for="r in data.by_hour||[]" :key="r.hour" :title="r.hour+':00 — '+r.count+' acciones'">
               <span :style="{height:Math.max(2,barWidth(r.count,data.by_hour))+'%'}"></span>
@@ -255,6 +255,7 @@ const tabs=[
   {id:'talk',label:'Conversaciones',icon:'▤'},
   {id:'activity',label:'Actividad',icon:'▥'}
 ]
+const roundLabel=value=>(value==null||Number(value)===0) ? 'Sin ronda definida' : 'Ronda '+value
 const number=value=>Number(value||0).toLocaleString('es-PY')
 const percent=value=>Number(value||0).toLocaleString('es-PY',{maximumFractionDigits:1})+' %'
 const people=computed(()=>data.value?.participants||[])
