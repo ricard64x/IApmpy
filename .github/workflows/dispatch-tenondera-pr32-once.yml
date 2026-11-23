@@ -1,0 +1,48 @@
+name: One-time dispatch of validated Tenondera PR32
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/dispatch-tenondera-pr32-once.yml
+permissions:
+  contents: read
+  actions: write
+jobs:
+  request-protected-deploy:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      github.event.head_commit.message == 'chore: one-time dispatch of verified Tenondera PR32'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Require completed successful production CI on this exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TARGET: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=0
+          for i in $(seq 1 65); do
+            status="$(gh api "repos/${REPO}/actions/runs?head_sha=${TARGET}&per_page=30" --jq '.workflow_runs | map(select(.name == "Verify IApmpy Fly deployment" and .event == "push")) | .[0].conclusion // "pending"')"
+            echo "Verification status: $status"
+            case "$status" in
+              success) ok=1; break ;;
+              failure|cancelled|timed_out|action_required) exit 1 ;;
+            esac
+            sleep 20
+          done
+          test "$ok" = 1
+      - name: Dispatch existing protected Fly.io production workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TARGET: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          current="$(gh api "repos/$REPO/branches/main" --jq '.commit.sha')"
+          test "$current" = "$TARGET"
+          gh workflow run deploy-fly.yml --ref main
+          echo "Protected deployment workflow dispatched. No bypass of production environment."
