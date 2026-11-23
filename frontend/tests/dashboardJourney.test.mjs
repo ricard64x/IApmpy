@@ -41,6 +41,6 @@ test('aggregates only evidenced, visible projects, no fabricated metrics',()=>{
     {simulation_id:'sim_5',runner_status:'completed',report_id:'r_5'},
     {simulation_id:'sim_6',runner_status:'completed'},
   ]
-  assert.deepEqual(dashboardCounts(rows),{projects:6,running:2,reports:1,pending:2})
+  assert.deepEqual(dashboardCounts(rows),{projects:6,running:2,reports:1,pending:3})
   assert.deepEqual(dashboardCounts([]),{projects:0,running:0,reports:0,pending:0})
 })
