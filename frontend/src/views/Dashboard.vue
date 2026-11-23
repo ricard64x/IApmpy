@@ -4,7 +4,7 @@
     <section class="stat-grid">
       <article class="stat-card"><span class="stat-icon blue">♧</span><div class="stat-label">{{isAdmin?'Usuarios activos':'Mi cuenta'}}</div><strong>{{isAdmin?users.filter(u=>u.active).length:1}}</strong><span class="stat-foot">{{isAdmin?'Usuarios habilitados':'Acceso personal'}}</span></article>
       <article class="stat-card"><span class="stat-icon teal">◈</span><div class="stat-label">Perfiles de acceso</div><strong>{{isAdmin?3:1}}</strong><span class="stat-foot">{{isAdmin?'Administrador · Analista · Investigador':roleLabel}}</span></article>
-      <article class="stat-card"><span class="stat-icon purple">▷</span><div class="stat-label">{{isAdmin?'Proyectos y simulaciones':'Mis proyectos'}}</div><strong>{{visibleHistory.length}}</strong><span class="stat-foot">Historial guardado en disco persistente</span></article>
+      <article class="stat-card"><span class="stat-icon purple">▷</span><div class="stat-label">{{isAdmin?'Proyectos y simulaciones':'Mis proyectos'}}</div><strong>{{visibleHistory.length}}</strong><span class="stat-foot">Proyectos recuperables y ejecuciones históricas</span></article>
       <article class="stat-card"><span class="stat-icon green">▣</span><div class="stat-label">Memoria asignada</div><strong>{{capacity?.machine_memory_mb||'—'}} <small>MB</small></strong><span class="stat-foot">Servidor de Tenonderã</span></article>
     </section>
 
@@ -47,7 +47,7 @@
         <div class="table-top"><div><h2>{{isAdmin?'Proyectos y simulaciones guardados':'Mis proyectos y simulaciones'}}</h2><p>Se muestran desde que se cargan los documentos, aunque la simulación todavía no haya comenzado.</p></div><button class="text-btn" @click="loadData">↻ Actualizar</button></div>
         <div v-if="isAdmin&&users.length" class="owner-filter"><label for="owner-filter">Filtrar por usuario</label><select id="owner-filter" v-model="selectedOwner"><option value="">Todos</option><option v-for="p in users" :key="p.id" :value="p.id">{{p.name}}</option></select></div>
         <p v-if="historyError" class="history-error" role="alert">{{historyError}}</p>
-        <div class="simulation-list"><div v-for="item in visibleHistory.slice(0,20)" :key="item.simulation_id || item.project_id" class="simulation-item">
+        <div class="simulation-list"><div v-for="item in visibleHistory" :key="item.simulation_id || item.project_id" class="simulation-item">
           <div class="simulation-icon">{{statusClass(item)==='failed'?'⚠':'◇'}}</div>
           <div class="simulation-info">
             <strong>{{item.project_name || brief(item.simulation_requirement) || 'Escenario sin título'}}</strong>
@@ -167,4 +167,23 @@ onMounted(loadData)
 .account-password{border:1px solid #c8e0eb;border-radius:10px;background:#fff;color:#145679;font-size:12px;font-weight:750;padding:10px 13px;cursor:pointer}
 .account-password:hover{background:#eef8fc}
 @media(max-width:680px){.top-strip{flex-wrap:wrap}.account-actions{width:100%}.account-actions button{flex:1}}
+
+/* Keep the dashboard inside its shell at common laptop and mobile widths. */
+.stat-grid,.middle-grid,.bottom-grid,.panel,.simulation-list{min-width:0;max-width:100%}
+.panel{overflow-wrap:anywhere}
+.simulations-panel,.users-panel{min-width:0}
+.simulation-item{min-width:0;flex-wrap:wrap}
+.simulation-info{min-width:min(190px,100%);overflow-wrap:anywhere}
+.run-pill{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.owner-filter{flex-wrap:wrap}
+.owner-filter select{max-width:100%;min-width:0}
+@media(max-width:900px){
+  .stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .middle-grid,.bottom-grid{grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:480px){
+  .stat-grid,.tier-row{grid-template-columns:minmax(0,1fr)}
+  .simulation-item{align-items:flex-start}
+  .run-pill{order:3}
+}
 </style>

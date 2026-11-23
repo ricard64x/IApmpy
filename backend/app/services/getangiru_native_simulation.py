@@ -202,6 +202,16 @@ class NativeSimStore:
                             (project_id,)).fetchone()
         return dict(row) if row else None
 
+    def list_project_runs(self, project_id: str, limit: int = 50) -> list[dict]:
+        """Read-only, bounded audit history; never resets previous runs."""
+        limit = max(1, min(int(limit), 100))
+        with closing(self._connect()) as c:
+            rows = c.execute(
+                "SELECT id FROM runs WHERE project_id=? ORDER BY started_at DESC, id DESC LIMIT ?",
+                (project_id, limit),
+            ).fetchall()
+        return [self.public(row["id"], include_actions=False) for row in rows]
+
     def _update(self, ident: str, **values):
         columns = {"state","phase","plan_json","report_json","mode_effective","error_code"}
         if not values or any(k not in columns for k in values):

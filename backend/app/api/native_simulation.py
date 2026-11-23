@@ -151,6 +151,15 @@ def latest(project_id):
     return jsonify({"success":True,"data":_store().public(run["id"]) if run else None})
 
 
+@native_sim_bp.get("/project/<project_id>/history")
+def project_history(project_id):
+    project = _project_readable(project_id)
+    if not project:
+        return jsonify({"success": False, "error": "Proyecto no disponible"}), 404
+    runs = _store().list_project_runs(project_id)
+    return jsonify({"success": True, "data": runs})
+
+
 @native_sim_bp.get("/<run_id>")
 def read(run_id):
     owned=_get_owned_run(run_id)
