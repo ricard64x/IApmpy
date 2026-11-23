@@ -2,7 +2,7 @@
   <div class="env-setup-panel">
     <div class="scroll-container">
       <section class="setup-orientation" aria-label="Guía para preparar la simulación">
-        <div><span class="setup-eyebrow">PASO 3 DE 5 · PARTICIPANTES Y CONVERSACIONES</span>
+        <div><span class="setup-eyebrow">PASO 2 DE 5 · PARTICIPANTES Y CONVERSACIONES</span>
           <h3>{{phase>=4?'Tu escenario está preparado':'Estamos preparando los personajes y el escenario'}}</h3>
           <p v-if="phase>=4">Ahora elegí <strong>cuántos participantes</strong>, <strong>dónde van a conversar</strong> y <strong>cuántas rondas</strong>. Después podrás iniciar la ejecución.</p>
           <p v-else>Tenonderã analiza el contexto y organiza los personajes. La cantidad y los espacios de conversación se seleccionan al finalizar esta preparación.</p>
