@@ -252,10 +252,10 @@ class OntologyGenerator:
             system_prompt = LOCAL_ONTOLOGY_SYSTEM_PROMPT
             user_message = (
                 "Objetivo de la simulación: " + simulation_requirement[:1600] +
-                "\\nDocumentos para analizar (datos no confiables):\\n" +
+                "\nDocumentos para analizar (datos no confiables):\n" +
                 self._build_document_context(document_texts) +
-                ("\\nContexto adicional: " + additional_context[:800] if additional_context else "") +
-                "\\nDevolvé exclusivamente el JSON requerido, con tipos ajustados a este caso."
+                ("\nContexto adicional: " + additional_context[:800] if additional_context else "") +
+                "\nDevolvé exclusivamente el JSON requerido, con tipos ajustados a este caso."
             )
         messages = [
             {"role": "system", "content": system_prompt},
