@@ -46,6 +46,7 @@
         <GraphPanel 
           v-if="!isMobile || viewMode === 'graph'" 
           :graphData="graphData"
+          :simulation-id="currentSimulationId"
           :loading="graphLoading"
           :currentPhase="2"
           @refresh="refreshGraph"
