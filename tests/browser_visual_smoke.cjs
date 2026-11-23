@@ -269,7 +269,8 @@ async function run() {
     await detail.waitFor({timeout:12000})
     const detailBox = await detail.boundingBox()
     assert(detailBox && detailBox.width>=370 && detailBox.x>=0 &&
-      detailBox.x+detailBox.width<=391,'Mobile node detail must be full width')
+      detailBox.x+detailBox.width<=391 && detailBox.y<=1 && detailBox.height>=824,
+      'Mobile node detail must cover the entire viewport, not remain a narrow side overlay')
     assert((await detail.innerText()).includes('Consultmed'),'Mobile detail must show the full entity name')
     const readable = await page.locator('.detail-content').boundingBox()
     assert(readable && readable.width>=350,'Mobile detail is unreadably narrow')
