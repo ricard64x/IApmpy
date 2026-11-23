@@ -82,6 +82,8 @@ def create_app(config_class=Config):
     app.register_blueprint(report_bp, url_prefix='/api/report')
     from .api.getangiru_bridge import getangiru_bp
     app.register_blueprint(getangiru_bp)
+    from .api.native_simulation import native_sim_bp
+    app.register_blueprint(native_sim_bp, url_prefix='/api/native-simulation')
     
     # 健康检查
     @app.route('/health')
