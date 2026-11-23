@@ -14,6 +14,7 @@ import threading
 import time
 import uuid
 from contextlib import closing
+from functools import lru_cache
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -388,5 +389,11 @@ class NativeSimStore:
             c.commit()
 
 
+@lru_cache(maxsize=4)
+def _shared_sim_store(database_path: str):
+    """Construct schema only once per worker, avoiding DDL on status polling."""
+    return NativeSimStore(database_path)
+
+
 def default_native_sim_store(upload_root):
-    return NativeSimStore(Path(upload_root)/"getangiru"/"simulations.sqlite3")
+    return _shared_sim_store(str((Path(upload_root)/"getangiru"/"simulations.sqlite3").resolve()))
