@@ -74,3 +74,24 @@ export function getProject(projectId) {
     method: 'get'
   })
 }
+
+/** Fast durable submission: the LLM runs after the server has returned an ID. */
+export function submitOntology(formData) {
+  return service({
+    url:'/api/graph/ontology/submit',method:'post',data:formData,
+    timeout:90000,headers:{'Content-Type':'multipart/form-data'}
+  })
+}
+/** Read state on the persistent volume, after refresh or network reconnection. */
+export function getOntologyStatus(projectId) {
+  return service.get('/api/graph/project/'+encodeURIComponent(projectId)+'/ontology-status',
+                     {timeout:12000})
+}
+export function retryOntology(projectId) {
+  return service.post('/api/graph/project/'+encodeURIComponent(projectId)+'/ontology-retry')
+}
+
+/** Resolve accepted upload after the HTTP response was lost; no file reupload. */
+export function lookupOntologyReceipt(key) {
+  return service.get('/api/graph/ontology/receipt/'+encodeURIComponent(key),{timeout:12000})
+}

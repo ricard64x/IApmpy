@@ -85,6 +85,10 @@ def create_app(config_class=Config):
     from .api.native_simulation import native_sim_bp
     app.register_blueprint(native_sim_bp, url_prefix='/api/native-simulation')
     
+    # Resume saved ontology tasks after a web worker restart.
+    from .services.ontology_queue import start_worker
+    start_worker()
+
     # 健康检查
     @app.route('/health')
     def health():

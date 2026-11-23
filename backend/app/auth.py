@@ -303,11 +303,11 @@ def install_auth(app):
         if any(not resource_authorized(kind, ident) for kind, ident in refs):
             return jsonify({"success": False, "error": "Recurso no disponible para tu usuario."}), 404
         allowed_without_object = {
-            "graph/ontology/generate","graph/capabilities","graph/project/list","simulation/list",
+            "graph/ontology/generate","graph/ontology/submit","graph/capabilities","graph/project/list","simulation/list",
             "simulation/history","report/list","capacity/status",
             "native-simulation/capabilities","native-simulation/public-cve",
         }
-        if not refs and path not in allowed_without_object:
+        if not refs and path not in allowed_without_object and not path.startswith('graph/ontology/receipt/'):
             # Tasks overview and script internals are administrator-only.
             return jsonify({"success": False, "error": "Acceso restringido."}), 403
 

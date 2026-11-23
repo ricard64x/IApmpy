@@ -8,6 +8,7 @@ const state = reactive({
   files: [],
   simulationRequirement: '',
   projectName: '',
+  submissionKey: '',
   isPending: false
 })
 
@@ -15,6 +16,8 @@ export function setPendingUpload(files, requirement, name = '') {
   state.files = files
   state.simulationRequirement = requirement
   state.projectName = name
+  state.submissionKey = crypto.randomUUID().replace(/-/g, '')
+  try { sessionStorage.setItem('tenondera-pending-upload-key',state.submissionKey) } catch (_error) { /* storage may be blocked in embedded browsers */ }
   state.isPending = true
 }
 
@@ -23,6 +26,7 @@ export function getPendingUpload() {
     files: state.files,
     simulationRequirement: state.simulationRequirement,
     projectName: state.projectName,
+    submissionKey: state.submissionKey,
     isPending: state.isPending
   }
 }
@@ -31,6 +35,8 @@ export function clearPendingUpload() {
   state.files = []
   state.simulationRequirement = ''
   state.projectName = ''
+  state.submissionKey = ''
+  try { sessionStorage.removeItem('tenondera-pending-upload-key') } catch (_error) {}
   state.isPending = false
 }
 
