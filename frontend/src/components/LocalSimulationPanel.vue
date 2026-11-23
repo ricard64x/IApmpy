@@ -27,6 +27,29 @@
         a proveedores externos. La búsqueda en Internet permanece desactivada.
       </p>
       <div v-if="error" class="local-sim-error" role="alert">{{ error }}</div>
+      <div class="local-public-research">
+        <p><strong>Consulta pública de vulnerabilidades (opcional)</strong></p>
+        <p class="local-sim-note">
+          Solo envía identificadores CVE al catálogo público de CISA.
+          Nunca envía documentos internos. No realiza búsquedas automáticas.
+        </p>
+        <div v-if="researchEnabled" class="local-sim-controls">
+          <input v-model="cves" placeholder="Ej.: CVE-2024-3400" aria-label="Identificadores CVE" />
+          <button type="button" :disabled="busyResearch || !cves.trim()" @click="searchPublic">
+            {{ busyResearch ? 'Consultando fuente pública…' : 'Consultar CISA KEV' }}
+          </button>
+        </div>
+        <p v-else class="local-sim-note">Búsqueda externa bloqueada por configuración de seguridad.</p>
+        <div v-if="researchError" class="local-sim-error" role="alert">{{ researchError }}</div>
+        <div v-if="researchResult" class="local-sim-info">
+          Catálogo: {{ researchResult.catalog_version || 'versión no indicada' }}.
+          <p v-for="entry in researchResult.entries" :key="entry.cve">
+            <strong>{{ entry.cve }}</strong> —
+            {{ entry.listed_in_kev ? 'Figura en CISA KEV' : 'No figura en esta edición del catálogo (no significa que sea seguro)' }}.
+            {{ entry.product || '' }}
+          </p>
+        </div>
+      </div>
 
       <div v-if="result" class="local-sim-results" role="status">
         <div class="local-sim-status">
@@ -103,6 +126,11 @@ const result = ref(null)
 const error = ref('')
 const busy = ref(false)
 const showActions = ref(false)
+const researchEnabled = ref(false)
+const busyResearch = ref(false)
+const researchError = ref('')
+const researchResult = ref(null)
+const cves = ref('')
 let timer = null
 let requestNumber = 0
 
@@ -115,6 +143,25 @@ const statusLabel = computed(() => ({
 const reportHref = computed(() => result.value?.simulation_id
   ? '/api/native-simulation/'+encodeURIComponent(result.value.simulation_id)+'/report.md' : '#')
 
+async function loadCapabilities() {
+  try {
+    const r = await service.get('/api/native-simulation/capabilities')
+    researchEnabled.value = r?.data?.external_research_enabled === true
+  } catch (_e) { researchEnabled.value = false }
+}
+async function searchPublic() {
+  if (!researchEnabled.value || busyResearch.value) return
+  busyResearch.value = true
+  researchError.value = ''
+  researchResult.value = null
+  try {
+    const ids = [...new Set(cves.value.toUpperCase().split(/[\s,;]+/).filter(Boolean))]
+    const response = await service.post('/api/native-simulation/public-cve', { cves: ids })
+    researchResult.value = response.data
+  } catch (e) {
+    researchError.value = e.message || 'No se pudo consultar la fuente pública'
+  } finally { busyResearch.value = false }
+}
 async function loadLatest() {
   const current = ++requestNumber
   if (!props.graphReady) return
@@ -185,7 +232,7 @@ watch(() => props.projectId, () => {
   loadLatest()
 })
 watch(() => props.graphReady, enabled => {if (enabled)loadLatest()})
-onMounted(loadLatest)
+onMounted(() => {loadCapabilities();loadLatest()})
 onUnmounted(() => {requestNumber++;if(timer)clearInterval(timer)})
 </script>
 
@@ -197,7 +244,8 @@ onUnmounted(() => {requestNumber++;if(timer)clearInterval(timer)})
 .local-sim-info,.local-sim-error{margin:12px 0;padding:9px 10px;border-radius:7px;background:#fff6ef;color:#7e3b23}
 .local-sim-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px}
 .local-sim-controls label{font-weight:600}
-.local-sim-controls select{min-width:220px;max-width:100%;padding:9px 8px;border:1px solid #abbeca;border-radius:7px;background:#fff;color:#263c4b;flex:1}
+.local-sim-controls select,.local-sim-controls input{min-width:220px;max-width:100%;padding:9px 8px;border:1px solid #abbeca;border-radius:7px;background:#fff;color:#263c4b;flex:1}
+.local-public-research{margin-top:14px;padding-top:10px;border-top:1px solid #dce4eb}
 .local-sim-panel button{padding:9px 12px;border:0;border-radius:7px;background:#244e67;color:#fff;cursor:pointer}
 .local-sim-panel button.secondary{background:#fff;color:#244e67;border:1px solid #9bb2c0}
 .local-sim-panel button:disabled{opacity:.55;cursor:not-allowed}
