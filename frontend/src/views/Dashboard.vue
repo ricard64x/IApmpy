@@ -43,8 +43,8 @@
           </div>
           <div class="engine-card legacy">
             <div class="engine-head"><strong>Motor social completo</strong><span>Experimental</span></div>
-            <div class="engine-number">{{capacity?.recommended_max_profiles??'—'}} <small>límite conservador</small></div>
-            <p>Puede consumir mucha memoria incluso con pocos participantes. No agrega personajes fuera de los perfiles detectados.</p>
+            <div class="engine-number">Hasta 12 <small>perfiles detectados en el selector</small></div>
+            <p>Además del selector, el servidor fija un techo de admisión de {{capacity?.recommended_max_profiles??'—'}} según su memoria. Puede fallar aun con pocos participantes.</p>
           </div>
         </div>
         <p class="capacity-explain">Los límites no garantizan estabilidad. La cantidad activa por ronda y el consumo real son distintos de la población total. La selección definitiva se hace en <strong>Preparar entorno</strong>.</p>
