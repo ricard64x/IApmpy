@@ -131,7 +131,7 @@ def render_executive_html(markdown: str, metrics: dict, report_id: str):
         + ('<div class="reply-record">Respondió a ' + _e(m.get("recipient")) + '</div>'
            if m.get("recipient") else '<div class="reply-record">Publicación inicial</div>')
         + "<p>" + _e(m.get("content")) + "</p></article>"
-        for m in (archive.get("messages") or [])[:250]
+        for m in (archive.get("messages") or [])[:600]
     )
     disclaimer = (
         "Datos sintéticos conservados de la ejecución. Los personajes no representan "
