@@ -63,7 +63,7 @@ def public_cve_lookup():
     if os.getenv("GETANGIRU_PUBLIC_RESEARCH_ENABLED","false").lower()!="true":
         return jsonify({"success":False,"error":"Consultas externas deshabilitadas por política"}),403
     data=request.get_json(silent=True) or {}
-    if set(data.keys())!={"cves"}:
+    if not isinstance(data,dict) or set(data.keys())!={"cves"}:
         return jsonify({"success":False,"error":"Solo se permiten identificadores CVE explícitos"}),422
     from ..services.getangiru_public_research import lookup_public_cves
     try:
@@ -78,6 +78,8 @@ def public_cve_lookup():
 @native_sim_bp.post("/start")
 def start():
     data = request.get_json(silent=True) or {}
+    if not isinstance(data,dict):
+        return jsonify({"success":False,"error":"Cuerpo JSON inválido"}),400
     project_id = data.get("project_id")
     if not isinstance(project_id,str) or not PROJECT_RE.fullmatch(project_id):
         return jsonify({"success":False,"error":"Proyecto inválido"}),400
@@ -163,6 +165,8 @@ def submit_feedback(run_id):
     if not owned:
         return jsonify({"success":False,"error":"Simulación no disponible"}),404
     data=request.get_json(silent=True) or {}
+    if not isinstance(data,dict):
+        return jsonify({"success":False,"error":"Cuerpo JSON inválido"}),400
     try:
         _store().feedback(run_id,actor_uuid=data.get("actor_uuid",""),
                          phase=data.get("phase"),verdict=data.get("verdict",""),
