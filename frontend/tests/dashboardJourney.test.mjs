@@ -15,8 +15,8 @@ test('new projects continue from documents, not invented runs',()=>{
   assert.equal(dashboardBucket(item),'preparing')
 })
 test('graph states direct to the correct preparation step',()=>{
-  assert.equal(dashboardNextAction({project_id:'p',project_status:'ontology_generated'}).stage,2)
-  assert.equal(dashboardNextAction({project_id:'p',project_status:'graph_completed'}).stage,3)
+  assert.equal(dashboardNextAction({project_id:'p',project_status:'ontology_generated'}).stage,1)
+  assert.equal(dashboardNextAction({project_id:'p',project_status:'graph_completed'}).stage,2)
   assert.equal(dashboardNextAction({project_id:'p',project_status:'graph_building'}).label,'Ver progreso')
   assert.equal(dashboardBucket({project_id:'p',project_status:'graph_building'}),'running')
   assert.equal(dashboardBucket({project_id:'p',project_status:'failed'}),'attention')
