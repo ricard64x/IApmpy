@@ -117,6 +117,7 @@ def start():
     except ValueError:
         return jsonify({"success":False,"error":"Se alcanzó el límite de ejecuciones de este proyecto; archivá los resultados."}),429
     def worker():
+        model=None
         try:
             model=LLMClient() if mode=="hybrid" else None
             if model is not None:
@@ -125,8 +126,12 @@ def start():
             sim_store.execute(run["id"],graph,objective,llm=model)
         except Exception as exc:
             # Error codes only, never leak evidence or model prompts.
-            if sim_store.get(run["id"])["state"] in ("queued","running"):
+            state=sim_store.get(run["id"])
+            if state and state["state"] in ("queued","running"):
                 sim_store._update(run["id"],state="failed",error_code=type(exc).__name__[:64])
+        finally:
+            if model is not None:
+                model.client.close()
     threading.Thread(target=worker,daemon=True,
                      name="native-sim-"+run["id"][-6:]).start()
     return jsonify({"success":True,"data":{
