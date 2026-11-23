@@ -49,7 +49,7 @@ class LocalOntologyTests(unittest.TestCase):
             self.assertGreaterEqual(len(result["edge_types"]), 4)
             self.assertEqual(1, len(fake.calls))
             call = fake.calls[0]
-            self.assertEqual(2900, call["max_tokens"])
+            self.assertEqual(2100, call["max_tokens"])
             self.assertEqual(1, call["max_attempts"])
             self.assertLess(len(call["messages"][1]["content"]), 13500)
             self.assertIn("Devuelve", call["messages"][0]["content"].replace("Debes devolver", "Devuelve"))
