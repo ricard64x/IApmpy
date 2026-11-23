@@ -115,11 +115,11 @@ class LocalOntologyTests(unittest.TestCase):
             {"tipo": name, "origen": "SecurityTeam", "destino": "RiskTeam"}
             for name in ("REPORTS_TO", "COORDINATES_WITH", "SUPPORTS", "AUDITS")
         ]}
-        partial = "[\\n" + json.dumps(valid) + ", {\\n  \\"relaciones\\": ["
+        partial = "[" + json.dumps(valid) + ', {"relaciones": ['
         rows = _decode(partial, "relaciones")
         self.assertEqual(4, len(rows))
         with self.assertRaises(LLMResponseError):
-            _decode("[{\\\"relaciones\\\":[{\\\"tipo\\\":\\\"AUDITS\\\"}", "relaciones")
+            _decode('[{"relaciones":[{"tipo":"AUDITS"}', "relaciones")
 
     def test_reject_local_incomplete_schema(self):
         with patch.dict(os.environ, {"LLM_LOCAL_INFERENCE": "true"}):
