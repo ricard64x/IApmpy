@@ -192,7 +192,12 @@ class LLMClient:
         if max_attempts < 1:
             raise ValueError("max_attempts must be at least 1")
 
-        response_format: Optional[Dict[str, str]] = {"type": "json_object"}
+        # llama.cpp grammar-based JSON mode may stall drastically on nested,
+        # long schema outputs on a CPU. Local mode relies instead on a tight
+        # JSON-only prompt plus strict parser/schema checks; no guessed repair.
+        response_format: Optional[Dict[str, str]] = (
+            None if local_inference_requested() else {"type": "json_object"}
+        )
         request_max_tokens = max_tokens
         last_error: Optional[LLMResponseError] = None
 
