@@ -55,7 +55,7 @@
             <p><strong>Escenario:</strong> {{ selected.report?.scenario_goal || 'Resultado todavía no disponible' }}</p>
             <p v-if="selected.report"><strong>Decisiones simuladas:</strong> {{ selected.report.actions }} · <strong>Cobertura de evidencias:</strong> {{ selected.report.evidence_coverage_pct }}%</p>
             <SimulationMetrics :native-run-id="selected.simulation_id" />
-            <p v-if="selected.instructions"><strong>Indicaciones de la versión:</strong>            <p v-if="selected.instructions"><strong>Indicaciones de la versión:</strong> {{ selected.instructions }}</p>
+            <p v-if="selected.instructions"><strong>Indicaciones de la versión:</strong> {{ selected.instructions }}</p>
             <a v-if="selected.report" :href="'/api/native-simulation/'+encodeURIComponent(selected.simulation_id)+'/report.md'">Descargar informe guardado (.md)</a>
           </template>
           <p v-if="dialogError" class="error" role="alert">{{ dialogError }}</p>
