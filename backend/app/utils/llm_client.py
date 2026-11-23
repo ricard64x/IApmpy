@@ -10,6 +10,7 @@ from typing import Optional, Dict, Any, List
 from openai import OpenAI
 
 from ..config import Config
+from .local_model import local_inference_requested, LOCAL_LLM_BASE_URL
 from .openai_chat_compat import create_chat_completion, extract_chat_completion_text
 
 
@@ -100,7 +101,10 @@ class LLMClient:
         self.api_key = api_key or Config.LLM_API_KEY
         self.base_url = base_url or Config.LLM_BASE_URL
         self.model = model or Config.LLM_MODEL_NAME
-        
+
+        if local_inference_requested() and self.base_url.rstrip("/") != LOCAL_LLM_BASE_URL:
+            raise ValueError("El modo de inferencia local prohíbe conexiones a modelos externos.")
+
         if not self.api_key:
             raise ValueError("LLM_API_KEY 未配置")
         
