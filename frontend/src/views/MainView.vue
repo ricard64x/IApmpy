@@ -45,7 +45,14 @@
       @focus-workbench="viewMode = 'workbench'"
     />
 
-    <section v-if="ontologyJob && ['queued','running'].includes(ontologyJob.state)" class="workflow-attention" role="status">
+    <section v-if="currentProjectId === 'new' && error && sessionStorageReceiptAvailable" class="workflow-attention workflow-error" role="status">
+      <div><strong>📱 Posible interrupción de la carga</strong><p>Es posible que el servidor ya la haya recibido. Verificá antes de volver a subir los archivos.</p></div>
+      <div class="workflow-attention-actions">
+        <button @click="checkPreviousUpload">Comprobar recepción</button>
+        <button class="secondary" @click="router.push({name:'Dashboard'})">Mis proyectos</button>
+      </div>
+    </section>
+        <section v-if="ontologyJob && ['queued','running'].includes(ontologyJob.state)" class="workflow-attention" role="status">
       <div>
         <strong>📁 Documentos guardados · {{ ontologyJob.phase }}</strong>
         <p>El análisis continúa en el servidor. Podés cambiar de red, cerrar el celular y volver a este proyecto sin perder la carga.</p>
@@ -163,7 +170,7 @@ import GraphPanel from '../components/GraphPanel.vue'
 import BuildProgressBanner from '../components/BuildProgressBanner.vue'
 import Step1GraphBuild from '../components/Step1GraphBuild.vue'
 import Step2EnvSetup from '../components/Step2EnvSetup.vue'
-import { submitOntology, getOntologyStatus, retryOntology, getProject, buildGraph, getTaskStatus, getProjectBuildStatus, getGraphData, getProcessingCapabilities } from '../api/graph'
+import { submitOntology, getOntologyStatus, lookupOntologyReceipt, retryOntology, getProject, buildGraph, getTaskStatus, getProjectBuildStatus, getGraphData, getProcessingCapabilities } from '../api/graph'
 import { projectRequiresAction, projectActionMessage } from '../utils/projectWorkflow'
 import { getPendingUpload, clearPendingUpload } from '../store/pendingUpload'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
@@ -192,6 +199,7 @@ const loading = ref(false)
 const graphLoading = ref(false)
 const ontologyJob = ref(null)
 const retryOntologyBusy = ref(false)
+const sessionStorageReceiptAvailable = computed(() => !!sessionStorage.getItem('tenondera-pending-upload-key'))
 let ontologyPollTimer = null
 const error = ref('')
 const projectData = ref(null)
@@ -326,7 +334,10 @@ const initProject = async () => {
     // Non-critical: project status still comes from durable storage.
   }
   if (currentProjectId.value === 'new') {
-    await handleNewProject()
+    const previousKey = sessionStorage.getItem('tenondera-pending-upload-key')
+    if (!previousKey || !(await recoverAcceptedUpload(previousKey))) {
+      await handleNewProject()
+    }
   } else {
     await loadProject()
   }
@@ -394,6 +405,29 @@ const retrySavedOntology = async () => {
     retryOntologyBusy.value = false
   }
 }
+const recoverAcceptedUpload = async (key) => {
+  if (!key) return false
+  try {
+    const received=await lookupOntologyReceipt(key)
+    if (!received.success || !received.data?.project_id) return false
+    const id=received.data.project_id
+    currentProjectId.value=id
+    clearPendingUpload()
+    await router.replace({name:'Process',params:{projectId:id}})
+    error.value=''
+    addLog('Recepción confirmada después de interrupción: '+id)
+    startOntologyJobPolling(id)
+    return true
+  } catch (_error) {
+    return false
+  }
+}
+const checkPreviousUpload = async () => {
+  const key = sessionStorage.getItem('tenondera-pending-upload-key')
+  if (!key || !(await recoverAcceptedUpload(key))) {
+    error.value='Todavía no se confirmó el envío. Si conservás los archivos seleccionados, podés intentar nuevamente.'
+  }
+}
 const handleNewProject = async () => {
   const pending = getPendingUpload()
   if (!pending.isPending || pending.files.length === 0) {
@@ -422,6 +456,8 @@ const handleNewProject = async () => {
     addLog('Proyecto persistido: ' + res.data.project_id + '. La IA continuará en segundo plano.')
     startOntologyJobPolling(res.data.project_id)
   } catch (err) {
+    // A successful server response can be lost after the upload is already committed.
+    if (await recoverAcceptedUpload(pending.submissionKey)) return
     // No client-side deletion: the server could already have saved the upload.
     error.value = err.code === 'ERR_NETWORK' || err.message === 'Network Error'
       ? 'Se interrumpió la conexión durante la carga. Revisá Mis proyectos; si no aparece, reintentá desde los archivos pendientes.'
