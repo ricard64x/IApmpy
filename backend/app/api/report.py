@@ -63,12 +63,20 @@ def _synthetic_gpt_evidence(simulation_id: str) -> str:
             message = args.get("content", "")
             if not isinstance(message, str) or not message.strip():
                 continue
+            from ..services.character_interaction_graph import character_alias
+            room_labels = {
+                "plaza":"Plaza","foro":"Foro abierto",
+                "profesional":"Comunidad profesional",
+                "grupos":"Grupo social","videos":"Comentarios a videos"
+            }
+            room = room_labels.get(event.get("social_space"), name)
+            author = character_alias(event.get("agent_id"))
+            directed = event.get("action_type") == "CREATE_COMMENT" and args.get("target_agent_id") is not None
+            recipient = character_alias(args.get("target_agent_id")) if directed else None
             evidence.append(
-                f"- Ronda {int(event.get('round') or 0)}, {name}, "
-                f"participante ficticio {event.get('agent_id')}" +
-                (f" responde explícitamente a {args.get('target_agent_id')}" if
-                 event.get("action_type") == "CREATE_COMMENT" and
-                 args.get("target_agent_id") is not None else " publica") +
+                f"- Ronda {int(event.get('round') or 0)}, {room}, "
+                f"{author}" +
+                (f" responde a {recipient}" if recipient else " publica") +
                 f": {message[:320]}"
             )
     if not evidence:
