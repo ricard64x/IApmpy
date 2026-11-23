@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from backend.scripts.run_lightweight_simulation import execute
+from scripts.run_lightweight_simulation import execute
 
 class ConversationalBatchTests(unittest.TestCase):
     def setUp(self):
@@ -32,7 +32,7 @@ class ConversationalBatchTests(unittest.TestCase):
 
     def test_dialogue_one_llm_call_per_batch_and_provenance(self):
         (self.root/"execution_settings.json").write_text('{"interaction_mode":"dialogue"}')
-        with patch("backend.scripts.run_lightweight_simulation.GetangiruBridge") as bridge:
+        with patch("scripts.run_lightweight_simulation.GetangiruBridge") as bridge:
             bridge.return_value.mode="off"
             bridge.return_value.search.return_value={"items":[],"status":"off"}
             result=execute(self.cfg,"reddit",3,request_fn=self.model)
@@ -58,7 +58,7 @@ class ConversationalBatchTests(unittest.TestCase):
         self.assertEqual(len([r for r in rows if r.get("event_type")=="round_end"]),3)
 
     def test_legacy_posts_remain_independent(self):
-        with patch("backend.scripts.run_lightweight_simulation.GetangiruBridge") as bridge:
+        with patch("scripts.run_lightweight_simulation.GetangiruBridge") as bridge:
             bridge.return_value.mode="off"
             bridge.return_value.search.return_value={"items":[],"status":"off"}
             result=execute(self.cfg,"parallel",3,request_fn=self.model)
@@ -70,7 +70,7 @@ class ConversationalBatchTests(unittest.TestCase):
 
     def test_parallel_dialogue_never_crosses_platforms(self):
         (self.root/"execution_settings.json").write_text('{"interaction_mode":"dialogue"}')
-        with patch("backend.scripts.run_lightweight_simulation.GetangiruBridge") as bridge:
+        with patch("scripts.run_lightweight_simulation.GetangiruBridge") as bridge:
             bridge.return_value.mode="off"
             bridge.return_value.search.return_value={"items":[],"status":"off"}
             result=execute(self.cfg,"parallel",3,request_fn=self.model)
