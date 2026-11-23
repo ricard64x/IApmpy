@@ -1752,6 +1752,32 @@ def start_simulation():
                 "error": t('api.simulationNotFound', id=simulation_id)
             }), 404
 
+        # Enforce the interactive minimum on the server, not only in Vue.
+        # Read prepared identities before any force/restart path can mutate logs.
+        if engine_mode == "lightweight" and saved_settings.get("interaction_mode") == "dialogue":
+            from pathlib import Path
+            from scripts.run_lightweight_simulation import _read_profile_data
+            if max_rounds < 2:
+                return jsonify({"success":False,
+                    "error":"La simulación conversacional requiere al menos 2 rondas."}),422
+            prepared_dir = Path(Config.UPLOAD_FOLDER) / "simulations" / simulation_id
+            try:
+                eligible = _read_profile_data(prepared_dir)
+                with (prepared_dir / "simulation_config.json").open(encoding="utf-8") as f:
+                    cfg = json.load(f)
+                clock = cfg.get("time_config") or {}
+                total_minutes = max(1, int(clock.get("total_simulation_hours") or 72)) * 60
+                minutes_per_round = max(1, int(clock.get("minutes_per_round") or 30))
+            except (ValueError, TypeError, OSError) as error:
+                return jsonify({"success":False,
+                    "error":"No hay perfiles o configuración preparados para una conversación válida."}),422
+            if len(eligible) < 2:
+                return jsonify({"success":False,
+                    "error":"La simulación requiere al menos 2 participantes activos para generar interacción válida."}),422
+            if total_minutes // minutes_per_round < 2:
+                return jsonify({"success":False,
+                    "error":"La duración del escenario debe permitir al menos 2 rondas efectivas."}),422
+
         force_restarted = False
         
         # 智能处理状态：如果准备工作已完成，允许重新启动
