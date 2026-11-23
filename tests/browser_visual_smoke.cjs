@@ -284,6 +284,57 @@ async function run() {
       'Mobile results must not share a column with the graph')
     await page.setViewportSize({width:1440,height:900})
 
+    // A completed case with only two original profiles must allow the user to
+    // request ten participants without first deciphering the OASIS limit.
+    let chosenFork = null
+    await page.route('**/api/capacity/status',route=>json(route,success({
+      machine_memory_mb:2048,lightweight_engine_available:true,
+      lightweight_max_profiles:120,recommended_max_profiles:45,
+    })))
+    await page.route('**/api/simulation/sim_visualqa/execution-settings',route=>json(route,success({
+      platform:'parallel',engine_mode:'oasis',interaction_mode:'posts',
+      auto_finalize:true,max_rounds:10,locked:true,has_saved_settings:true,
+    })))
+    await page.route('**/api/simulation/sim_visualqa/population',route=>json(route,success({
+      detected_profiles:2,selected_participants:2,synthetic_additions:0,
+      max_lightweight:120,max_oasis:2,maximum_for_engine:2,locked:true,
+    })))
+    await page.route('**/api/simulation/sim_visualqa/config/realtime',route=>json(route,success({
+      status:'completed',config_generated:true,
+      config:{
+        simulation_id:simId,agent_configs:[{agent_id:0},{agent_id:1}],
+        time_config:{total_simulation_hours:72,minutes_per_round:30,
+          agents_per_hour_min:1,agents_per_hour_max:2},
+        event_config:{initial_posts:[]}
+      },
+      summary:{total_agents:2,simulation_hours:72,initial_posts_count:0}
+    })))
+    await page.route('**/api/simulation/sim_visualqa/fork',async route=>{
+      chosenFork=JSON.parse(route.request().postData()||'{}')
+      return json(route,success({
+        simulation_id:'sim_visualqa_new_version',
+        parent_simulation_id:simId,selected_participants:chosenFork.participants_count,
+        synthetic_additions:Math.max(0,chosenFork.participants_count-2),
+        status:'ready'
+      }))
+    })
+    await page.goto(BASE + '/simulation/' + simId,{waitUntil:'domcontentloaded'})
+    await page.getByText('¿Cuántos participantes querés simular?').waitFor({timeout:20000})
+    assert((await page.locator('.population-control').innerText()).includes('2 es el mínimo'),
+      'Participant minimum must be distinguishable from the maximum')
+    await page.locator('.participant-preset').filter({hasText:/^10$/}).click()
+    assert.equal(await page.locator('#participant-target').inputValue(),'10')
+    assert((await page.locator('.population-control').innerText()).includes('8 participantes adicionales'),
+      'The synthetic-versus-detected profile breakdown must be understandable')
+    assert(await page.locator('.engine-option.chosen').filter({hasText:'Modo eficiente'}).isVisible(),
+      'Selecting ten profiles should automatically enable available efficient mode')
+    await page.screenshot({path:path.join(DIR,'03d-elegir-10-participantes.png'),fullPage:true})
+    screenshots.push('03d-elegir-10-participantes.png')
+    await page.getByRole('button',{name:/Crear nueva versión editable/}).click()
+    await page.waitForURL(url=>url.pathname.includes('sim_visualqa_new_version'),{timeout:12000})
+    assert(chosenFork && chosenFork.participants_count===10,'Fork must persist 10 participants')
+    assert(chosenFork.settings.engine_mode==='lightweight',
+      'Fork must save efficient mode when requesting more profiles than detected')
     await page.goto(BASE + '/interaction/' + reportId, { waitUntil: 'domcontentloaded' })
     await page.locator('.report-content-wrapper .main-title').waitFor({ timeout: 25000 })
     await page.locator('.action-bar-tabs .survey-pill').waitFor({ timeout: 20000 })
