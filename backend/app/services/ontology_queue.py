@@ -173,6 +173,27 @@ def execute(project_id,owner):
         stopped.set()
         pulse.join(timeout=2)
 
+
+def retry(project_id):
+    """Queue a failed job again without replacing its uploaded evidence."""
+    from ..models.project import ProjectManager,ProjectStatus
+    project=ProjectManager.get_project(project_id)
+    if not project or project.ontology or not ProjectManager.get_project_files(project_id):
+        return None
+    now=int(time.time())
+    with connect() as db:
+        changed=db.execute("""UPDATE ontology_jobs SET state='queued',
+          attempts=0,lease_until=0,lease_owner=NULL,phase='Reintento solicitado',
+          error=NULL,updated_at=? WHERE project_id=? AND state='failed'""",
+          (now,project_id))
+        if changed.rowcount!=1:
+            return None
+    project.status=ProjectStatus.CREATED
+    project.error=None
+    ProjectManager.save_project(project)
+    start_worker()
+    return status(project_id)
+
 def worker_loop():
     while True:
         try:
