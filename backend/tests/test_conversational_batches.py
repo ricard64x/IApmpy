@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 from scripts.run_lightweight_simulation import execute
+from test_character_conversation_graph import ConversationGraphTests  # regression suite included in CI discover
 
 class ConversationalBatchTests(unittest.TestCase):
     def setUp(self):
