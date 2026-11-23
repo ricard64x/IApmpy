@@ -194,9 +194,53 @@ async function run() {
       return json(route, success(record))
     })
 
+    // Synthetic metrics fixture validates the explainable visual layer in Chromium.
+    await page.route('**/api/report/report_visualqa/metrics', route => json(route, success({
+      source:'registros de prueba', metric_basis:'actividad sintética persistida',
+      total_actions:6, message_actions:5, active_participants:2,
+      recorded_interaction_pairs:2, cross_agent_messages:2, available:true,partial:false,
+      last_event:'2026-11-23T12:04:00Z',
+      interaction_quality:{
+        status:'acceptable',label:'Interacción aceptable',issues:[],
+        valid_multiagent_interaction:true,maximum_action_share_percent:66.7,
+        diversity:'media'
+      },
+      population:{detected_profiles:2,selected_participants:2,synthetic_additions:0},
+      participants:[
+        {id:'0',name:'Comerciante de prueba',actions:4,messages:3},
+        {id:'1',name:'Estudiante de prueba',actions:2,messages:2}
+      ],
+      interactions:[{from:'0',to:'1',count:1},{from:'1',to:'0',count:1}],
+      by_round:[{round:'1',count:2},{round:'2',count:4}],
+      by_day:[{date:'2026-11-23',count:6}],
+      by_hour:Array.from({length:24},(_,hour)=>({hour:String(hour).padStart(2,'0'),count:hour===12?6:0})),
+      by_type:[{type:'CREATE_POST',count:3},{type:'CREATE_COMMENT',count:2}],
+      by_platform:[{platform:'reddit',count:3},{platform:'twitter',count:3}],
+      messages:[
+        {participant:'Comerciante de prueba',participant_id:'0',platform:'reddit',
+          round:1,type:'CREATE_POST',excerpt:'Los costos del proveedor deben ser claros.',
+          timestamp:'2026-11-23T12:01:00Z',target_id:null,synthetic:true},
+        {participant:'Estudiante de prueba',participant_id:'1',platform:'reddit',
+          round:2,type:'CREATE_COMMENT',excerpt:'Respondería con una propuesta más transparente.',
+          timestamp:'2026-11-23T12:02:00Z',target_id:'0',synthetic:true}
+      ],
+      followups:{available:false},messages_sample_limit:250,messages_sample_truncated:false
+    })))
     await page.goto(BASE + '/interaction/' + reportId, { waitUntil: 'domcontentloaded' })
     await page.locator('.report-content-wrapper .main-title').waitFor({ timeout: 25000 })
     await page.locator('.action-bar-tabs .survey-pill').waitFor({ timeout: 20000 })
+    // Verify that a client can explain numbers and drill down to actual sample records.
+    await page.getByRole('heading',{name:'Entendé lo que ocurrió en la simulación'}).waitFor({timeout:20000})
+    assert((await page.locator('.results-hub').innerText()).includes('Respuestas entre perfiles'))
+    await page.locator('.results-hub [role="tab"]').filter({hasText:'Conversaciones'}).click()
+    await page.locator('.results-hub .conversation-card').first().waitFor({timeout:12000})
+    await page.locator('.results-hub input[type="search"]').fill('proveedor')
+    assert.equal(await page.locator('.results-hub .conversation-card').count(),1)
+    assert((await page.locator('.results-hub .conversation-card').first().innerText()).includes('costos del proveedor'))
+    await page.screenshot({path:path.join(DIR,'03b-centro-resultados-filtrado.png'),fullPage:true})
+    screenshots.push('03b-centro-resultados-filtrado.png')
+    await page.locator('.results-hub [role="tab"]').filter({hasText:'Resumen'}).click()
+
     await page.locator('.agent-dropdown').waitFor({ timeout: 20000 })
     const text = await page.locator('.interaction-panel').innerText()
     assert(text.includes('Informe sintético de prueba visual'))
