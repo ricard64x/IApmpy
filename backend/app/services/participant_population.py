@@ -179,6 +179,7 @@ def resize_population(directory: Path, requested: int, engine_mode: str) -> dict
         configs.append(cfg)
         manifest.append({"agent_id": index, "origin": origin, "name": name})
     config = json.loads(json.dumps(base["config"], ensure_ascii=False))
+    config["simulation_id"] = directory.name
     config["agent_configs"] = configs
     # Initial events may not refer to identities excluded by the user.
     events = config.get("event_config")
