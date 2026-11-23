@@ -569,6 +569,28 @@ def _local_graph_store():
     return default_store(Config.UPLOAD_FOLDER)
 
 
+def _local_graph_memory_sources(project_id: str) -> list[dict]:
+    """Only accepted signed memories for this exact project, bounded and sorted.
+
+    If a mirror exists but is unreadable, fail rather than silently omitting
+    context and displaying an apparently complete graph.
+    """
+    from pathlib import Path
+    from urllib.parse import quote
+    db_file = Path(Config.UPLOAD_FOLDER) / "getangiru" / "mirror.sqlite3"
+    if not db_file.is_file():
+        return []
+    from contextlib import closing
+    target = "file:" + quote(str(db_file.resolve())) + "?mode=ro"
+    with closing(sqlite3.connect(target, uri=True, timeout=3)) as con:
+        rows = con.execute("""
+            SELECT episode_id,content FROM received
+            WHERE project_id=? ORDER BY inserted_at DESC,episode_id DESC LIMIT 32
+        """, (project_id,)).fetchall()
+    return [{"source_id": "memory:" + str(eid), "content": str(content)[:4000]}
+            for eid, content in reversed(rows)]
+
+
 def _build_getangiru_local():
     """Bounded, deterministic native graph build. No Zep/network/model calls."""
     payload = request.get_json(silent=True) or {}
@@ -595,24 +617,18 @@ def _build_getangiru_local():
         return jsonify({"success": False, "error": "No hay texto extraído para construir el grafo"}), 422
     store = _local_graph_store()
     gid = store.graph_id("tenondera", project_id)
-    if project.status == ProjectStatus.GRAPH_COMPLETED and project.graph_id == gid and not force:
-        try:
-            prior = store.read(gid, tenant="tenondera", project_id=project_id)
-            return jsonify({"success": True, "data": {
-                "project_id": project_id, "graph_id": gid, "task_id": project.graph_build_task_id,
-                "reused": True, "node_count": prior["node_count"], "edge_count": prior["edge_count"],
-                "backend": "getangiru_local", "message": "Grafo ya construido"
-            }})
-        except KeyError:
-            pass  # Rebuild if the DB was restored without the graph.
-
+    # Always inspect the content digest: Getangiru may have delivered new
+    # signed memories after the graph was first built. Unchanged input is a
+    # cheap idempotent hit; changed input is rebuilt transactionally.
     tasks = TaskManager()
     task_id = tasks.create_task("getangiru_local_graph", metadata={"project_id": project_id})
     tasks.update_task(task_id, status=TaskStatus.PROCESSING, progress=10,
                       message="Extrayendo actores con respaldo documental")
     try:
+        memories = _local_graph_memory_sources(project_id)
         result = store.build(tenant="tenondera", project_id=project_id,
-                             ontology=project.ontology, source_text=source)
+                             ontology=project.ontology, source_text=source,
+                             extra_sources=memories)
         if result["node_count"] == 0:
             tasks.fail_task(task_id, "No hay actores explícitos")
             return jsonify({"success": False,
@@ -632,7 +648,9 @@ def _build_getangiru_local():
         return jsonify({"success": True, "data": {
             "project_id": project_id, "graph_id": result["graph_id"], "task_id": task_id,
             "reused": True, "node_count": result["node_count"], "edge_count": result["edge_count"],
-            "backend": "getangiru_local", "message": "Grafo local construido y persistido"
+            "backend": "getangiru_local", "memory_sources": len(memories),
+            "input_unchanged": result["reused"],
+            "message": "Grafo local construido y persistido"
         }})
     except (ValueError, OSError, sqlite3.Error) as exc:
         logger.warning("Local graph build failed (%s)", type(exc).__name__)
