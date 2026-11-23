@@ -55,6 +55,23 @@ class LocalOntologyTests(unittest.TestCase):
             self.assertIn("Devuelve", call["messages"][0]["content"].replace("Debes devolver", "Devuelve"))
             self.assertIn("datos no confiables", call["messages"][1]["content"])
 
+    def test_fast_local_prompt_minimal_schema_and_fallbacks(self):
+        data = valid_ontology()
+        data["entity_types"] = data["entity_types"][:8]
+        data["edge_types"] = data["edge_types"][:4]
+        with patch.dict(os.environ, {"LLM_LOCAL_INFERENCE": "true", "LLM_LOCAL_FAST_MODE": "true"}):
+            fake = FakeClient(data)
+            ontology = OntologyGenerator(llm_client=fake).generate(
+                ["El equipo de seguridad coordina la respuesta con el banco y proveedor."],
+                simulation_requirement="Coordinar respuesta a incidente ficticio"
+            )
+        self.assertEqual(10, len(ontology["entity_types"]))
+        self.assertEqual(4, len(ontology["edge_types"]))
+        self.assertEqual("Person", ontology["entity_types"][-2]["name"])
+        self.assertEqual("Organization", ontology["entity_types"][-1]["name"])
+        self.assertEqual(1200, fake.calls[0]["max_tokens"])
+        self.assertIn("exactamente 8", fake.calls[0]["messages"][0]["content"])
+
     def test_reject_local_incomplete_schema(self):
         with patch.dict(os.environ, {"LLM_LOCAL_INFERENCE": "true"}):
             fake = FakeClient({"entity_types": [{"name": "Company"}], "edge_types": []})
