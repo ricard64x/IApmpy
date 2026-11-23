@@ -133,6 +133,13 @@ class LLMClient:
     ) -> Any:
         """Send one raw Chat Completions request through the compatibility layer."""
 
+        # Every local Qwen completion receives fresh, locally cached public
+        # context when a relevant topic exists. No outbound lookup here.
+        if local_inference_requested():
+            from .public_context import context_for_local_qwen
+            research = context_for_local_qwen(messages)
+            if research:
+                messages = [{"role": "system", "content": research}, *messages]
         return create_chat_completion(
             self.client,
             model=self.model,

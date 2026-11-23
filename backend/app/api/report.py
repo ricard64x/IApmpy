@@ -535,6 +535,25 @@ def get_generate_status():
 
 # ============== 报告获取接口 ==============
 
+@report_bp.route('/<report_id>/metrics', methods=['GET'])
+def report_simulation_metrics(report_id: str):
+    """Structured visualizations derived from this saved report's execution."""
+    from ..services.simulation_metrics import legacy_metrics
+    report = ReportManager.get_report(report_id)
+    if report is None:
+        return jsonify({"success":False,"error":"Informe no disponible"}),404
+    simulation_id = report.simulation_id
+    if SimulationManager().get_simulation(simulation_id) is None:
+        return jsonify({"success":False,"error":"Simulación no disponible"}),404
+    base = os.path.join(SimulationRunner.RUN_STATE_DIR,simulation_id)
+    from ..services.simulation_metrics import followup_metrics
+    data=legacy_metrics(simulation_id,base)
+    data["followups"]=followup_metrics(
+        os.path.join(ReportManager.REPORTS_DIR,report_id,"interacciones.jsonl"),
+        simulation_id)
+    return jsonify({"success":True,"data":data})
+
+
 @report_bp.route('/<report_id>', methods=['GET'])
 def get_report(report_id: str):
     """
@@ -900,6 +919,50 @@ def export_persisted_report(report_id: str):
                         "error": "Para exportar en español, primero traducí todos los capítulos desde el informe.",
                     }), 409
                 markdown = localized
+        # Enrich exports on demand; never mutate the original saved report.
+        from ..services.simulation_metrics import legacy_metrics, followup_metrics
+        metrics = legacy_metrics(report.simulation_id,
+            os.path.join(SimulationRunner.RUN_STATE_DIR,report.simulation_id))
+        metrics["followups"]=followup_metrics(
+            os.path.join(ReportManager.REPORTS_DIR,report_id,"interacciones.jsonl"),
+            report.simulation_id)
+        metrics_lines = [
+            "", "## Estadísticas de interacciones y actividad simulada", "",
+            "**Alcance:** eventos sintéticos guardados; fechas de ejecución, no fechas del escenario.",
+            f"- Agentes participantes: {metrics['active_participants']}",
+            f"- Acciones: {metrics['total_actions']}",
+            f"- Publicaciones/comentarios registrados: {metrics['message_actions']}",
+            f"- Relaciones con destinatario explícito: {metrics['recorded_interaction_pairs']}",
+            f"- Primer evento: {metrics['first_event'] or 'No registrado'}",
+            f"- Último evento: {metrics['last_event'] or 'No registrado'}", "",
+            "### Actividad por día",
+            "| Fecha | Acciones |", "|---|---:|",
+        ] + [f"| {r['date']} | {r['count']} |" for r in metrics["by_day"]] + [
+            "", "### Actividad por hora", "| Hora | Acciones |", "|---|---:|",
+        ] + [f"| {r['hour']}:00 | {r['count']} |" for r in metrics["by_hour"]] + [
+            "", "### Acciones por ronda", "| Ronda | Acciones |", "|---|---:|",
+        ] + [f"| {r['round']} | {r['count']} |" for r in metrics["by_round"]] + [
+            "", "### Agentes que participaron", "| Agente sintético | ID | Acciones | Mensajes |",
+            "|---|---|---:|---:|",
+        ] + [f"| {r['name'].replace('|','/')} | {r['id']} | {r['actions']} | {r['messages']} |"
+             for r in metrics["participants"]] + [
+            "", "### Tipos de acción", "| Acción | Conteo |", "|---|---:|",
+        ] + [f"| {r['type']} | {r['count']} |" for r in metrics["by_type"]] + [
+            "", "### Interacciones con destinatario registrado",
+            "| Emisor | Destinatario | Conteo |", "|---|---|---:|",
+        ] + [f"| {r['from']} | {r['to']} | {r['count']} |" for r in metrics["interactions"]]
+        if metrics["partial"]:
+            metrics_lines += ["", "**Advertencia:** conteo parcial por límite de lectura segura."]
+        follow=metrics["followups"]
+        metrics_lines += [
+            "", "## Conversaciones y encuestas posteriores al informe (separadas)", "",
+            f"- Turnos de chat posteriores: {follow['chat_turns']}",
+            f"- Encuestas posteriores: {follow['surveys']}",
+            f"- Respuestas sintéticas a encuestas: {follow['survey_answers']}",
+            f"- Respuestas dirigidas a participantes: {follow['participant_turns']}",
+            "| Fecha | Interacciones posteriores |", "|---|---:|",
+        ] + [f"| {item['date']} | {item['count']} |" for item in follow['by_day']]
+        markdown += "\n" + "\n".join(metrics_lines) + "\n"
         if fmt == 'md':
             payload = markdown.encode('utf-8')
             mime, ext = "text/markdown", "md"
@@ -913,6 +976,7 @@ def export_persisted_report(report_id: str):
                 "created_at": report.created_at,
                 "completed_at": report.completed_at,
                 "content_markdown": markdown,
+                "simulation_metrics": metrics,
                 "source_note": "Escenario sintético; no es una encuesta real.",
             }, ensure_ascii=False, indent=2).encode('utf-8')
             mime, ext = "application/json", "json"

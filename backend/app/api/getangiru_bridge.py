@@ -180,3 +180,60 @@ def local_search(project_id):
         ).fetchall()
     return jsonify({"success": True, "mode": "local_text", "items": [dict(row) for row in rows],
                     "provider_calls": 0})
+
+# A second, public-only namespace. No research content is ever inserted into
+# private project memory without an explicit user workflow.
+_PUBLIC_TOPICS = {"fraude","vulnerabilidad","ia","paraguay","social"}
+_SOURCE_HOSTS = {"www.cisa.gov","news.google.com","mastodon.social"}
+
+@getangiru_bp.post("/__getangiru/public-source")
+def ingest_public_source():
+    """Signed, bounded and idempotent public citations sent by Getangiru."""
+    from urllib.parse import urlsplit
+    raw=request.get_data(cache=False)
+    error=_check_signature(raw)
+    if error is not None:
+        return error
+    try:
+        payload=json.loads(raw)
+    except (ValueError,UnicodeDecodeError):
+        return jsonify({"success":False,"error":"JSON inválido"}),400
+    if not isinstance(payload,dict) or set(payload)!={"items"}:
+        return jsonify({"success":False,"error":"Formato inválido"}),422
+    rows=payload["items"]
+    if not isinstance(rows,list) or not 1<=len(rows)<=6:
+        return jsonify({"success":False,"error":"Lote público inválido"}),422
+    clean=[]
+    for entry in rows:
+        if not isinstance(entry,dict) or set(entry)!={"id","source","url","title","summary","published","topic"}:
+            return jsonify({"success":False,"error":"Campos públicos inválidos"}),422
+        url=entry["url"]
+        if not isinstance(url,str) or len(url)>850:
+            return jsonify({"success":False,"error":"URL inválida"}),422
+        parts=urlsplit(url)
+        if (parts.scheme!="https" or parts.hostname not in _SOURCE_HOSTS or parts.username
+            or parts.password or parts.port or parts.fragment):
+            return jsonify({"success":False,"error":"Origen no autorizado"}),422
+        identifier=hashlib.sha256(url.encode()).hexdigest()
+        if entry["id"]!=identifier:
+            return jsonify({"success":False,"error":"ID de origen inválido"}),422
+        if entry["topic"] not in _PUBLIC_TOPICS:
+            return jsonify({"success":False,"error":"Tema inválido"}),422
+        if any(not isinstance(entry[k],str) for k in ("source","title","summary","published")):
+            return jsonify({"success":False,"error":"Campos de texto inválidos"}),422
+        if not (8<=len(entry["title"])<=240 and len(entry["summary"])<=480 and len(entry["published"])<=100 and len(entry["source"])<=50):
+            return jsonify({"success":False,"error":"Límite de texto excedido"}),422
+        clean.append((identifier,entry["source"],url,entry["title"],entry["summary"],
+                      entry["published"],entry["topic"],int(time.time())))
+    path=Path(Config.UPLOAD_FOLDER)/"getangiru"/"public-context.sqlite3"
+    path.parent.mkdir(parents=True,exist_ok=True,mode=0o700)
+    with sqlite3.connect(str(path),timeout=10) as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS public_sources(
+          id TEXT PRIMARY KEY,source TEXT,url TEXT,title TEXT,summary TEXT,
+          published TEXT,topic TEXT,received_at INTEGER)""")
+        conn.executemany("""INSERT INTO public_sources VALUES(?,?,?,?,?,?,?,?)
+          ON CONFLICT(id) DO NOTHING""",clean)
+        conn.execute("DELETE FROM public_sources WHERE received_at<?",(int(time.time())-90*86400,))
+        conn.commit()
+    os.chmod(path,0o600)
+    return jsonify({"success":True,"received":len(clean)}),201
