@@ -35,6 +35,23 @@ class LocalModelReadinessTests(unittest.TestCase):
             self.assertFalse(c.json['data']['ontology_enabled'])
             self.assertEqual('offline', c.json['data']['ontology_model_status'])
 
+    def test_local_json_output_is_checked_without_cpu_grammar_mode(self):
+        from types import SimpleNamespace
+        fake_response = SimpleNamespace(choices=[SimpleNamespace(
+            finish_reason="stop",
+            message=SimpleNamespace(content='{"entity_types":[],"edge_types":[]}')
+        )])
+        with patch.dict('os.environ', {'LLM_LOCAL_INFERENCE': 'true'}), \
+             patch('app.utils.llm_client.OpenAI') as fake_sdk:
+            fake_sdk.return_value.chat.completions.create.return_value = fake_response
+            client = LLMClient(api_key="test-key",
+                               base_url="http://127.0.0.1:18080/v1", model="qwen3-4b-local")
+            result = client.chat_json([{"role": "user", "content": "JSON"}], max_attempts=1)
+            self.assertEqual([], result["entity_types"])
+            kwargs = fake_sdk.return_value.chat.completions.create.call_args.kwargs
+            self.assertNotIn("response_format", kwargs)
+            self.assertEqual("qwen3-4b-local", kwargs["model"])
+
     def test_no_nonloopback_inference_in_local_mode(self):
         with patch.dict('os.environ', {'LLM_LOCAL_INFERENCE': 'true'}), \
              patch.object(Config, 'LLM_API_KEY', 'key'), \
