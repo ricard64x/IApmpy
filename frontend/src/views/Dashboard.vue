@@ -263,4 +263,71 @@ onMounted(loadData)
   .simulation-item{align-items:flex-start}
   .run-pill{order:3}
 }
+
+/* Guided scenario dashboard: act first, inspect technical capacity second. */
+.dashboard-hero{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(200px,.6fr);gap:18px;align-items:stretch;padding:clamp(20px,3vw,32px);background:linear-gradient(118deg,#093a70 0%,#075c7e 68%,#087c83 100%);border-radius:20px;color:#fff;margin:0 0 17px;box-shadow:0 12px 28px #154c811a}
+.hero-copy{min-width:0}
+.hero-eyebrow,.hero-side-kicker{font-size:10px;letter-spacing:.15em;color:#92e8e3;font-weight:850}
+.dashboard-hero h2{font-size:clamp(23px,2.9vw,34px);line-height:1.2;letter-spacing:-.035em;margin:9px 0 12px}
+.dashboard-hero p{font-size:13px;line-height:1.65;color:#d7eff6;max-width:690px;margin:0 0 12px}
+.dashboard-hero .hero-project{font-weight:800;font-size:15px;color:white;margin-bottom:6px;overflow-wrap:anywhere}
+.hero-buttons{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+.hero-buttons button{min-height:47px;border-radius:11px;padding:10px 17px;font-size:13px;font-weight:850;cursor:pointer}
+.hero-primary{border:1px solid #fff;background:white;color:#104875}
+.hero-secondary{border:1px solid #ffffff6e;background:#ffffff12;color:#fff}
+.hero-buttons button:hover{filter:brightness(.95)}
+.hero-buttons button:focus-visible,.project-filters button:focus-visible,.next-action:focus-visible{outline:3px solid #7cf2e4;outline-offset:2px}
+.hero-side{display:flex;flex-direction:column;justify-content:center;border-left:1px solid #ffffff38;padding:15px 5px 15px 22px;min-width:0}
+.hero-side strong{font-size:48px;line-height:1.1;letter-spacing:-.06em;margin-top:8px}
+.hero-side strong small{font-size:17px;color:#a9dce7}
+.hero-side>span:not(.hero-side-kicker){font-size:14px;font-weight:800}
+.hero-side p{font-size:11px;margin-top:12px;margin-bottom:0}
+.stat-grid{margin-top:22px}
+.engine-comparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;margin:17px 0}
+.engine-card{border:1px solid #bfe1e8;background:#f0fafb;border-radius:14px;padding:15px;min-width:0}
+.engine-card.legacy{background:#f8fafc;border-color:#e1eaf2}
+.engine-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.engine-head strong{font-size:13px;color:#174e67}
+.engine-head span{font-size:10px;color:#777d94;border:1px solid #d3e1e7;background:#fff;padding:5px 7px;border-radius:100px}
+.engine-head .enabled{color:#11714c;background:#e1f8e9}
+.engine-head .unavailable{color:#a45130;background:#fff3eb}
+.engine-number{font-size:32px;letter-spacing:-.05em;font-weight:850;color:#145b7b;margin:11px 0 7px}
+.engine-number small{font-size:11px;color:#617e91;letter-spacing:0;font-weight:600}
+.engine-card p{line-height:1.55;color:#5b7589;margin:0}
+.panel .capacity-explain{font-size:11px;color:#516e84;line-height:1.65;padding:10px 12px;border-left:3px solid #0b9ca5;background:#f1f8fc;margin:0}
+.capacity-loading{padding:10px;color:#9d6538;font-size:11px;background:#fff5ea;border-radius:9px;margin-top:10px}
+.capacity-loading button{border:0;background:transparent;font-weight:750;color:#176d92;text-decoration:underline;cursor:pointer}
+.project-filters{margin-top:18px;display:grid;gap:12px}
+.project-search{border:1px solid #d9e7ed;border-radius:10px;background:#fff;display:flex;gap:9px;align-items:center;padding:8px 12px;max-width:100%}
+.project-search span{font-size:23px;color:#59829a}
+.project-search input{border:0;outline:0;width:100%;min-width:0;font:inherit;font-size:13px;color:#23475d}
+.filter-tabs{display:flex;gap:7px;overflow-x:auto;padding:2px 0 7px;scrollbar-width:thin}
+.filter-tabs button{border:1px solid #d8e6ee;background:#f8fbfd;color:#41677d;border-radius:999px;white-space:nowrap;min-height:38px;padding:8px 12px;font-size:11px;font-weight:750;cursor:pointer}
+.filter-tabs button.active{background:#115d82;border-color:#115d82;color:#fff}
+.simulation-item{gap:12px;padding:15px}
+.simulation-info strong{font-size:13px}
+.simulation-info .next-hint{margin:8px 0 0;font-size:11px;color:#4d7189;line-height:1.55}
+.next-hint b{color:#185c7e}
+.simulation-actions{display:flex;flex-wrap:wrap;gap:9px;align-items:center;width:100%;border-top:1px solid #edf2f7;padding-top:11px}
+.next-action{border:1px solid #0c7394;background:#0d7092;color:#fff;border-radius:9px;padding:9px 13px;font:800 12px system-ui,sans-serif;cursor:pointer;min-height:40px}
+.next-action:hover{background:#085a79}
+.simulation-actions .text-btn{min-height:38px;padding:8px}
+.clear-filters{background:#ebf7f9;border:1px solid #bad9e2;padding:10px 14px;border-radius:10px;font-weight:750;color:#145e7a;cursor:pointer}
+@media(max-width:980px){.dashboard-hero{grid-template-columns:1fr}.hero-side{border-left:0;border-top:1px solid #ffffff38;padding:14px 0 0}.hero-side strong{font-size:35px}}
+@media(max-width:620px){
+ .dashboard-hero{padding:19px}
+ .hero-buttons{display:grid}
+ .hero-buttons button{width:100%}
+ .engine-comparison{grid-template-columns:1fr}
+ .project-filters{gap:10px}
+ .simulation-actions{display:grid;grid-template-columns:1fr 1fr}
+ .simulation-actions .next-action{grid-column:1/-1}
+ .simulation-item{display:grid;grid-template-columns:38px minmax(0,1fr)}
+ .simulation-info{min-width:0}
+ .run-pill{grid-column:2;justify-self:start}
+ .simulation-actions{grid-column:1/-1}
+ .top-strip{flex-wrap:wrap}
+ .account-actions{display:flex;flex-wrap:wrap;gap:10px}
+}
+
 </style>
