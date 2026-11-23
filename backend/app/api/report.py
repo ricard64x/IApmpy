@@ -567,6 +567,12 @@ def report_simulation_metrics(report_id: str):
     base = os.path.join(SimulationRunner.RUN_STATE_DIR,simulation_id)
     from ..services.simulation_metrics import followup_metrics
     data=legacy_metrics(simulation_id,base)
+    try:
+        from pathlib import Path
+        from ..services.participant_population import population_status
+        data["population"] = population_status(Path(base), "lightweight")
+    except (ValueError, TypeError, OSError):
+        data["population"] = None  # Historical runs may not have prepared profiles.
     data["followups"]=followup_metrics(
         os.path.join(ReportManager.REPORTS_DIR,report_id,"interacciones.jsonl"),
         simulation_id)
