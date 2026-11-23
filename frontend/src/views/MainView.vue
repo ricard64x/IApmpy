@@ -45,6 +45,28 @@
       @focus-workbench="viewMode = 'workbench'"
     />
 
+    <section v-if="projectNeedsAttention" class="workflow-attention" role="status">
+      <div>
+        <strong>Este proyecto no está procesando</strong>
+        <p>{{ projectActionMessage(projectData) }}</p>
+        <p v-if="capabilities && !capabilities.ontology_enabled" class="workflow-capability">
+          El modelo de IA para analizar documentos no está configurado en esta instancia.
+          Getangiru sí puede consultar la memoria local, pero no generar la ontología.
+        </p>
+        <p v-if="capabilities && !capabilities.graph_enabled" class="workflow-capability">
+          La construcción del grafo también requiere configurar su proveedor.
+        </p>
+      </div>
+      <div class="workflow-attention-actions">
+        <button @click="router.push({ name: 'Home' })">Preparar nuevo análisis</button>
+        <button class="secondary" @click="router.push({ name: 'Dashboard' })">Mis proyectos</button>
+      </div>
+    </section>
+    <section v-else-if="error" class="workflow-attention workflow-error" role="alert">
+      <div><strong>El proceso no pudo continuar</strong><p>{{ error }}</p></div>
+      <button @click="router.push({ name: 'Home' })">Volver a cargar documentos</button>
+    </section>
+
     <!-- Main Content Area -->
     <main class="content-area">
       <!-- Left Panel: Graph -->
@@ -53,6 +75,7 @@
           :graphData="graphData"
           :loading="graphLoading"
           :currentPhase="currentPhase"
+          :idle="projectNeedsAttention"
           @refresh="refreshGraph"
           @toggle-maximize="toggleMaximize('graph')"
         />
@@ -95,7 +118,8 @@ import GraphPanel from '../components/GraphPanel.vue'
 import BuildProgressBanner from '../components/BuildProgressBanner.vue'
 import Step1GraphBuild from '../components/Step1GraphBuild.vue'
 import Step2EnvSetup from '../components/Step2EnvSetup.vue'
-import { generateOntology, getProject, buildGraph, getTaskStatus, getProjectBuildStatus, getGraphData } from '../api/graph'
+import { generateOntology, getProject, buildGraph, getTaskStatus, getProjectBuildStatus, getGraphData, getProcessingCapabilities } from '../api/graph'
+import { projectRequiresAction, projectActionMessage } from '../utils/projectWorkflow'
 import { getPendingUpload, clearPendingUpload } from '../store/pendingUpload'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 
@@ -123,6 +147,8 @@ const loading = ref(false)
 const graphLoading = ref(false)
 const error = ref('')
 const projectData = ref(null)
+const capabilities = ref(null)
+const projectNeedsAttention = computed(() => projectRequiresAction(projectData.value))
 const graphData = ref(null)
 const currentPhase = ref(-1) // -1: Upload, 0: Ontology, 1: Build, 2: Complete
 const ontologyProgress = ref(null)
@@ -155,12 +181,14 @@ const rightPanelStyle = computed(() => {
 
 // --- Status Computed ---
 const statusClass = computed(() => {
+  if (projectNeedsAttention.value) return 'waiting'
   if (error.value) return 'error'
   if (currentPhase.value >= 2) return 'completed'
   return 'processing'
 })
 
 const statusText = computed(() => {
+  if (projectNeedsAttention.value) return 'Pendiente de preparación'
   if (error.value) return t('common.error')
   if (currentPhase.value >= 2) return t('common.ready')
   if (currentPhase.value === 1) return t('main.statusBuildingGraph')
@@ -210,6 +238,12 @@ const handleGoBack = () => {
 
 const initProject = async () => {
   addLog('Project view initialized.')
+  try {
+    const response = await getProcessingCapabilities()
+    if (response.success && response.data) capabilities.value = response.data
+  } catch (_e) {
+    // Non-critical: project status still comes from durable storage.
+  }
   if (currentProjectId.value === 'new') {
     await handleNewProject()
   } else {
@@ -225,6 +259,11 @@ const handleNewProject = async () => {
     return
   }
   
+  if (capabilities.value?.ontology_enabled === false) {
+    error.value = 'Esta instancia no tiene un modelo de IA configurado para analizar documentos. Getangiru puede recuperar memoria local, pero no generar ontologías.'
+    addLog('Generación no iniciada: falta configurar el motor de IA.')
+    return
+  }
   try {
     loading.value = true
     currentPhase.value = 0
@@ -266,6 +305,9 @@ const loadProject = async () => {
       projectData.value = res.data
       updatePhaseByStatus(res.data.status)
       addLog(`Project loaded. Status: ${res.data.status}`)
+      if (projectRequiresAction(res.data)) {
+        addLog('No existe una tarea activa de generación; el expediente queda pendiente.')
+      }
       
       if (res.data.status === 'ontology_generated' && !res.data.graph_id) {
         await startBuildGraph()
@@ -296,11 +338,14 @@ const loadProject = async () => {
 
 const updatePhaseByStatus = (status) => {
   switch (status) {
-    case 'created':
+    case 'created': currentPhase.value = -1; break;
     case 'ontology_generated': currentPhase.value = 0; break;
     case 'graph_building': currentPhase.value = 1; break;
     case 'graph_completed': currentPhase.value = 2; break;
-    case 'failed': error.value = 'Project failed'; break;
+    case 'failed':
+      currentPhase.value = -1
+      error.value = projectData.value?.error || 'El análisis anterior no se completó.'
+      break;
   }
 }
 
@@ -655,10 +700,33 @@ onUnmounted(() => {
 }
 
 .status-indicator.processing .dot { background: #FF5722; animation: pulse 1s infinite; }
+.status-indicator.waiting .dot { background: #B7791F; animation: none; }
 .status-indicator.completed .dot { background: #4CAF50; }
 .status-indicator.error .dot { background: #F44336; }
 
 @keyframes pulse { 50% { opacity: 0.5; } }
+
+/* Persistent project states must not be presented as running tasks. */
+.workflow-attention {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 14px 24px;
+  background: #fffaf0;
+  border-bottom: 1px solid #ead7a8;
+  color: #44351c;
+  font-size: 13px;
+}
+.workflow-attention strong { font-size: 15px; }
+.workflow-attention p { margin: 6px 0; line-height: 1.45; max-width: 800px; }
+.workflow-attention .workflow-capability { color: #745325; }
+.workflow-attention-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.workflow-attention button { border: none; background: #244b66; color: white; border-radius: 7px; padding: 9px 13px; cursor: pointer; }
+.workflow-attention button.secondary { color: #244b66; background: white; border: 1px solid #a3b1bf; }
+.workflow-error { background: #fff4f3; border-color: #dfb8b4; }
+@media (max-width: 720px) { .workflow-attention { align-items: stretch; padding: 12px; } }
 
 /* Content */
 .content-area {

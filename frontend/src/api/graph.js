@@ -1,5 +1,10 @@
 import service from './index'
 
+/** No secrets exposed; indicates which processing stages can actually run. */
+export function getProcessingCapabilities() {
+  return service.get('/api/graph/capabilities', { timeout: 10000 })
+}
+
 /**
  * 生成本体（上传文档和模拟需求）
  * @param {Object} data - 包含files, simulation_requirement, project_name等
