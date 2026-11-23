@@ -49,7 +49,7 @@ class MetricsAndLearningTests(unittest.TestCase):
                      {"agent_id":2,"agent_name":"Actor de prueba","answer":"Respuesta simulada"},
                      {"agent_id":3,"agent_name":"Otro actor","answer":"Respuesta simulada"}]},
             ]
-            file.write_text("\\n".join(json.dumps(x) for x in events))
+            file.write_text("\n".join(json.dumps(x) for x in events))
             stats=followup_metrics(file,"sim_123")
             self.assertEqual(stats["chat_turns"],1)
             self.assertEqual(stats["surveys"],1)
