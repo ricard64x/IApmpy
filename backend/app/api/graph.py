@@ -5,6 +5,7 @@
 
 import os
 import re
+import sqlite3
 import traceback
 import threading
 from contextlib import ExitStack, nullcontext
@@ -89,6 +90,14 @@ def _delete_cloud_graph_if_present(graph_id: str | None) -> None:
                 f"Graph {graph_id} is in use by active consumer(s): "
                 f"{', '.join(active_simulations)}"
             )
+        if graph_id.startswith("gtg_"):
+            projects = ProjectManager.find_projects_by_graph_id(graph_id)
+            if not projects:
+                return
+            store = _local_graph_store()
+            for item in projects:
+                store.delete(graph_id, tenant="tenondera", project_id=item.project_id)
+            return
         try:
             GraphBuilderService(api_key=Config.ZEP_API_KEY).delete_graph(graph_id)
         except NotFoundError:
@@ -344,7 +353,9 @@ def get_processing_capabilities():
             "ontology_enabled": local_inference_ready(),
             "ontology_backend": "local" if local_inference_requested() else "external",
             "ontology_model_status": ontology_model_status(),
-            "graph_enabled": bool(Config.ZEP_API_KEY),
+            "graph_enabled": _local_graph_enabled() or bool(Config.ZEP_API_KEY),
+            "graph_backend": "getangiru_local" if _local_graph_enabled() else ("zep" if Config.ZEP_API_KEY else "none"),
+            "simulation_enabled": bool(Config.ZEP_API_KEY) and not _local_graph_enabled(),
             "memory_local_enabled": os.environ.get("GETANGIRU_MIRROR_ENABLED", "false").lower() == "true",
         }
     })
@@ -548,12 +559,116 @@ def generate_ontology():
 
 # ============== 接口2：构建图谱 ==============
 
+
+def _local_graph_enabled() -> bool:
+    return os.environ.get("GETANGIRU_GRAPH_LOCAL_ENABLED", "false").lower() == "true"
+
+
+def _local_graph_store():
+    from ..services.getangiru_graph_engine import default_store
+    return default_store(Config.UPLOAD_FOLDER)
+
+
+def _local_graph_memory_sources(project_id: str) -> list[dict]:
+    """Only accepted signed memories for this exact project, bounded and sorted.
+
+    If a mirror exists but is unreadable, fail rather than silently omitting
+    context and displaying an apparently complete graph.
+    """
+    from pathlib import Path
+    from urllib.parse import quote
+    db_file = Path(Config.UPLOAD_FOLDER) / "getangiru" / "mirror.sqlite3"
+    if not db_file.is_file():
+        return []
+    from contextlib import closing
+    target = "file:" + quote(str(db_file.resolve())) + "?mode=ro"
+    with closing(sqlite3.connect(target, uri=True, timeout=3)) as con:
+        rows = con.execute("""
+            SELECT episode_id,content FROM received
+            WHERE project_id=? ORDER BY inserted_at DESC,episode_id DESC LIMIT 32
+        """, (project_id,)).fetchall()
+    return [{"source_id": "memory:" + str(eid), "content": str(content)[:4000]}
+            for eid, content in reversed(rows)]
+
+
+def _build_getangiru_local():
+    """Bounded, deterministic native graph build. No Zep/network/model calls."""
+    payload = request.get_json(silent=True) or {}
+    project_id = payload.get("project_id")
+    if not isinstance(project_id, str) or not re.fullmatch(r"proj_[a-f0-9]{12}", project_id):
+        return jsonify({"success": False, "error": "Identificador de proyecto inválido"}), 400
+    force = payload.get("force", False)
+    if not isinstance(force, bool):
+        return jsonify({"success": False, "error": "force debe ser booleano"}), 400
+    project = ProjectManager.get_project(project_id)
+    if project is None:
+        return jsonify({"success": False, "error": "Proyecto no encontrado"}), 404
+    if not project.ontology:
+        return jsonify({"success": False, "error": "Primero debe generar la ontología"}), 409
+    if _project_has_active_build(project):
+        return jsonify({"success": False, "error": "Ya existe una tarea de grafo activa"}), 409
+    if project.graph_id and not project.graph_id.startswith("gtg_"):
+        return jsonify({"success": False, "error": "Proyecto conectado a otro motor; migración manual requerida"}), 409
+    if project.graph_id and _active_graph_consumers(project.graph_id):
+        return jsonify({"success": False, "error": "El grafo tiene consumidores activos; no puede reconstruirse"}), 409
+
+    source = ProjectManager.get_extracted_text(project_id)
+    if not source:
+        return jsonify({"success": False, "error": "No hay texto extraído para construir el grafo"}), 422
+    store = _local_graph_store()
+    gid = store.graph_id("tenondera", project_id)
+    # Always inspect the content digest: Getangiru may have delivered new
+    # signed memories after the graph was first built. Unchanged input is a
+    # cheap idempotent hit; changed input is rebuilt transactionally.
+    tasks = TaskManager()
+    task_id = tasks.create_task("getangiru_local_graph", metadata={"project_id": project_id})
+    tasks.update_task(task_id, status=TaskStatus.PROCESSING, progress=10,
+                      message="Extrayendo actores con respaldo documental")
+    try:
+        memories = _local_graph_memory_sources(project_id)
+        result = store.build(tenant="tenondera", project_id=project_id,
+                             ontology=project.ontology, source_text=source,
+                             extra_sources=memories)
+        if result["node_count"] == 0:
+            tasks.fail_task(task_id, "No hay actores explícitos")
+            return jsonify({"success": False,
+                            "error": "No se encontraron actores respaldados en el documento"}), 422
+        project.graph_id = result["graph_id"]
+        project.graph_build_task_id = task_id
+        project.zep_batch_id = None
+        project.zep_batch_operation_id = None
+        project.status = ProjectStatus.GRAPH_COMPLETED
+        project.error = None
+        ProjectManager.save_project(project)
+        tasks.complete_task(task_id, {
+            "project_id": project_id, "graph_id": result["graph_id"],
+            "node_count": result["node_count"], "edge_count": result["edge_count"],
+            "backend": "getangiru_local", "external_provider_calls": 0,
+        })
+        return jsonify({"success": True, "data": {
+            "project_id": project_id, "graph_id": result["graph_id"], "task_id": task_id,
+            "reused": True, "node_count": result["node_count"], "edge_count": result["edge_count"],
+            "backend": "getangiru_local", "memory_sources": len(memories),
+            "input_unchanged": result["reused"],
+            "message": "Grafo local construido y persistido"
+        }})
+    except (ValueError, OSError, sqlite3.Error) as exc:
+        logger.warning("Local graph build failed (%s)", type(exc).__name__)
+        tasks.fail_task(task_id, type(exc).__name__)
+        return jsonify({"success": False, "error": "Falló la construcción del grafo local"}), 422
+
+
 @graph_bp.route('/build', methods=['POST'])
 def build_graph():
     """Serialize build claims for the same project within this process."""
 
     data = request.get_json(silent=True) or {}
     project_id = data.get("project_id")
+    if _local_graph_enabled():
+        if not project_id:
+            return jsonify({"success": False, "error": "Debe indicar project_id"}), 400
+        with _project_build_lock(str(project_id)):
+            return _build_getangiru_local()
     if not project_id:
         return _build_graph_impl()
     with _project_build_lock(project_id):
@@ -1024,14 +1139,16 @@ def get_graph_data(graph_id: str):
     获取图谱数据（节点和边）
     """
     try:
-        if not Config.ZEP_API_KEY:
-            return jsonify({
-                "success": False,
-                "error": t('api.zepApiKeyMissing')
-            }), 500
-        
-        builder = GraphBuilderService(api_key=Config.ZEP_API_KEY)
-        graph_data = builder.get_graph_data(graph_id)
+        if graph_id.startswith("gtg_"):
+            projects = ProjectManager.find_projects_by_graph_id(graph_id)
+            if not projects:
+                return jsonify({"success": False, "error": "Grafo no encontrado"}), 404
+            graph_data = _local_graph_store().read(
+                graph_id, tenant="tenondera", project_id=projects[0].project_id)
+        else:
+            if not Config.ZEP_API_KEY:
+                return jsonify({"success": False, "error": t('api.zepApiKeyMissing')}), 503
+            graph_data = GraphBuilderService(api_key=Config.ZEP_API_KEY).get_graph_data(graph_id)
         
         return jsonify({
             "success": True,
@@ -1052,7 +1169,7 @@ def delete_graph(graph_id: str):
     删除Zep图谱
     """
     try:
-        if not Config.ZEP_API_KEY:
+        if not Config.ZEP_API_KEY and not graph_id.startswith("gtg_"):
             return jsonify({
                 "success": False,
                 "error": t('api.zepApiKeyMissing')

@@ -72,6 +72,20 @@
         <button @click="router.push({ name: 'Dashboard' })">Mis proyectos</button>
       </div>
     </section>
+    <section v-else-if="localGraphAwaitingSimulation" class="workflow-attention" role="status">
+      <div>
+        <strong>Grafo Getangiru construido localmente</strong>
+        <p>Las entidades y co-menciones verificables están guardadas y pueden visualizarse.
+        Las relaciones de la ontología son propuestas, no hechos comprobados.</p>
+        <p>La simulación integral requiere adaptar los agentes que todavía dependen de Zep.
+        No se ejecutarán contra un proveedor externo sin autorización.</p>
+      </div>
+      <div class="workflow-attention-actions">
+        <button :disabled="graphRefreshBusy" @click="refreshLocalGraph">
+          {{ graphRefreshBusy ? 'Actualizando memoria y grafo…' : 'Actualizar grafo con memorias Getangiru' }}
+        </button>
+      </div>
+    </section>
     <section v-else-if="error" class="workflow-attention workflow-error" role="alert">
       <div><strong>El proceso no pudo continuar</strong><p>{{ error }}</p></div>
       <button @click="router.push({ name: 'Home' })">Volver a cargar documentos</button>
@@ -103,6 +117,8 @@
           :buildProgress="buildProgress"
           :graphData="graphData"
           :systemLogs="systemLogs"
+          :simulation-enabled="capabilities?.simulation_enabled !== false"
+          :graph-local-mode="capabilities?.graph_backend === 'getangiru_local'"
           @next-step="handleNextStep"
         />
         <!-- Step 2: 环境搭建 -->
@@ -160,6 +176,11 @@ const error = ref('')
 const projectData = ref(null)
 const capabilities = ref(null)
 const projectNeedsAttention = computed(() => projectRequiresAction(projectData.value))
+const graphRefreshBusy = ref(false)
+const localGraphAwaitingSimulation = computed(() => (
+  !error.value && projectData.value?.status === 'graph_completed'
+  && capabilities.value?.graph_backend === 'getangiru_local'
+))
 const graphPendingConfiguration = computed(() => (
   projectData.value?.status === 'ontology_generated'
   && !projectData.value?.graph_id
@@ -435,6 +456,17 @@ const startBuildGraph = async () => {
   } catch (err) {
     error.value = err.message
     addLog(`Exception in startBuildGraph: ${err.message}`)
+  }
+}
+
+const refreshLocalGraph = async () => {
+  if (graphRefreshBusy.value || !currentProjectId.value) return
+  graphRefreshBusy.value = true
+  error.value = ''
+  try {
+    await startBuildGraph()
+  } finally {
+    graphRefreshBusy.value = false
   }
 }
 

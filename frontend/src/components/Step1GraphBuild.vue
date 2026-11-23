@@ -110,7 +110,7 @@
         <div class="card-header">
           <div class="step-info">
             <span class="step-num">02</span>
-            <span class="step-title">{{ $t('step1.graphRagBuild') }}</span>
+            <span class="step-title">{{ graphLocalMode ? 'Grafo local Getangiru' : $t('step1.graphRagBuild') }}</span>
           </div>
           <div class="step-status">
             <span v-if="currentPhase === 2" class="badge success">{{ $t('step1.ontologyCompleted') }}</span>
@@ -123,7 +123,9 @@
         <div class="card-content">
           <p class="api-note">POST /api/graph/build</p>
           <p class="description">
-            {{ $t('step1.graphRagDesc') }}
+            {{ graphLocalMode
+              ? 'Construye actores respaldados por el texto y conexiones de co-mención. Las relaciones propuestas no se presentan como hechos demostrados.'
+              : $t('step1.graphRagDesc') }}
           </p>
           <p v-if="currentPhase === 1 && buildProgress?.message"
              class="graph-live-progress" role="status">
@@ -180,11 +182,11 @@
           <p class="description">{{ $t('step1.buildCompleteDesc') }}</p>
           <button 
             class="action-btn" 
-            :disabled="currentPhase !== 2 || creatingSimulation"
+            :disabled="currentPhase !== 2 || creatingSimulation || !simulationEnabled"
             @click="handleEnterEnvSetup"
           >
             <span v-if="creatingSimulation" class="spinner-sm"></span>
-            {{ creatingSimulation ? $t('step1.creating') : $t('step1.enterEnvSetup') + ' ➝' }}
+            {{ !simulationEnabled ? 'Simulación integral pendiente de compatibilidad' : (creatingSimulation ? $t('step1.creating') : $t('step1.enterEnvSetup') + ' ➝') }}
           </button>
         </div>
       </div>
@@ -223,6 +225,8 @@ const { t } = useI18n()
 
 const props = defineProps({
   currentPhase: { type: Number, default: 0 },
+  simulationEnabled: { type: Boolean, default: true },
+  graphLocalMode: { type: Boolean, default: false },
   projectData: Object,
   ontologyProgress: Object,
   buildProgress: Object,
