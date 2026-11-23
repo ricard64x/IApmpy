@@ -20,7 +20,7 @@ def project_display_name(name=None, requirement=None, files=None, project_id=Non
     raw = str(name or "").strip()
     if raw and raw.lower() not in ("unnamed project", "proyecto sin título", "untitled project"):
         return raw[:100]
-    context = str(requirement or "").strip().splitlines()[0].strip()
+    context = next(iter(str(requirement or "").strip().splitlines()), "").strip()
     context = re.sub(r"\s+", " ", context).strip(" .:;-")
     if len(context) >= 8:
         return context[:72] + ("…" if len(context) > 72 else "")
