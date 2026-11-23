@@ -38,7 +38,7 @@ class FakeClient:
 
 class LocalOntologyTests(unittest.TestCase):
     def test_bounded_local_prompt_with_valid_relationships(self):
-        with patch.dict(os.environ, {"LLM_LOCAL_INFERENCE": "true"}):
+        with patch.dict(os.environ, {"LLM_LOCAL_INFERENCE": "true", "LLM_LOCAL_FAST_MODE": "false"}):
             fake = FakeClient(valid_ontology())
             gen = OntologyGenerator(llm_client=fake)
             result = gen.generate(
@@ -122,7 +122,7 @@ class LocalOntologyTests(unittest.TestCase):
             _decode('[{"relaciones":[{"tipo":"AUDITS"}', "relaciones")
 
     def test_reject_local_incomplete_schema(self):
-        with patch.dict(os.environ, {"LLM_LOCAL_INFERENCE": "true"}):
+        with patch.dict(os.environ, {"LLM_LOCAL_INFERENCE": "true", "LLM_LOCAL_FAST_MODE": "false"}):
             fake = FakeClient({"entity_types": [{"name": "Company"}], "edge_types": []})
             gen = OntologyGenerator(llm_client=fake)
             with self.assertRaises(LLMResponseError):
