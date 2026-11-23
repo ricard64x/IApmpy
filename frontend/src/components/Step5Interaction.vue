@@ -408,6 +408,7 @@ const showToolsDetail = ref(false)
 
 // Chat State
 const chatInput = ref('')
+onMounted(applySuggestedQuestion)
 const chatHistory = ref([])
 const chatHistoryCache = ref({}) // 缓存所有对话记录: { 'report_agent': [], 'agent_0': [], 'agent_1': [], ... }
 const isSending = ref(false)
