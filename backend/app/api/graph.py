@@ -26,6 +26,7 @@ from ..services.simulation_manager import SimulationManager
 from ..services.simulation_runner import SimulationRunner, RunnerStatus
 from ..services.zep_graph_memory_updater import ZepGraphMemoryManager
 from ..utils.llm_client import LLMResponseError
+from ..utils.local_model import local_inference_requested, local_inference_ready, ontology_model_status
 
 # 获取日志器
 logger = get_logger('mirofish.api')
@@ -340,7 +341,9 @@ def get_processing_capabilities():
     return jsonify({
         "success": True,
         "data": {
-            "ontology_enabled": bool(Config.LLM_API_KEY),
+            "ontology_enabled": local_inference_ready(),
+            "ontology_backend": "local" if local_inference_requested() else "external",
+            "ontology_model_status": ontology_model_status(),
             "graph_enabled": bool(Config.ZEP_API_KEY),
             "memory_local_enabled": os.environ.get("GETANGIRU_MIRROR_ENABLED", "false").lower() == "true",
         }
@@ -386,6 +389,12 @@ def generate_ontology():
                 "success": False,
                 "error": "No hay un modelo de IA configurado para generar la ontología en este entorno. La memoria local funciona, pero el análisis de documentos está deshabilitado.",
                 "code": "ONTOLOGY_PROVIDER_NOT_CONFIGURED",
+            }), 503
+        if local_inference_requested() and not local_inference_ready():
+            return jsonify({
+                "success": False,
+                "error": "El modelo de inferencia local no está disponible. No se inició el análisis ni se creó un proyecto.",
+                "code": "LOCAL_ONTOLOGY_MODEL_UNAVAILABLE",
             }), 503
 
         # 获取参数

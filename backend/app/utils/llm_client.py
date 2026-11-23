@@ -10,6 +10,7 @@ from typing import Optional, Dict, Any, List
 from openai import OpenAI
 
 from ..config import Config
+from .local_model import local_inference_requested, LOCAL_LLM_BASE_URL
 from .openai_chat_compat import create_chat_completion, extract_chat_completion_text
 
 
@@ -100,14 +101,27 @@ class LLMClient:
         self.api_key = api_key or Config.LLM_API_KEY
         self.base_url = base_url or Config.LLM_BASE_URL
         self.model = model or Config.LLM_MODEL_NAME
-        
+
+        if local_inference_requested() and self.base_url.rstrip("/") != LOCAL_LLM_BASE_URL:
+            raise ValueError("El modo de inferencia local prohíbe conexiones a modelos externos.")
+
         if not self.api_key:
             raise ValueError("LLM_API_KEY 未配置")
         
-        self.client = OpenAI(
-            api_key=self.api_key,
-            base_url=self.base_url
-        )
+        if self.base_url.rstrip("/") == "http://127.0.0.1:18080/v1":
+            # One bounded CPU inference; never retry a costly offline task
+            # automatically. The caller controls response validation.
+            self.client = OpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url,
+                timeout=300.0,
+                max_retries=0,
+            )
+        else:
+            self.client = OpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url,
+            )
 
     def _create_completion(
         self,
@@ -178,7 +192,12 @@ class LLMClient:
         if max_attempts < 1:
             raise ValueError("max_attempts must be at least 1")
 
-        response_format: Optional[Dict[str, str]] = {"type": "json_object"}
+        # llama.cpp grammar-based JSON mode may stall drastically on nested,
+        # long schema outputs on a CPU. Local mode relies instead on a tight
+        # JSON-only prompt plus strict parser/schema checks; no guessed repair.
+        response_format: Optional[Dict[str, str]] = (
+            None if local_inference_requested() else {"type": "json_object"}
+        )
         request_max_tokens = max_tokens
         last_error: Optional[LLMResponseError] = None
 

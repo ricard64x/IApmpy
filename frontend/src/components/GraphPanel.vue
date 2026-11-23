@@ -209,7 +209,7 @@
       <!-- 等待/空状态 -->
       <div v-else-if="idle" class="graph-state" role="status">
         <div class="empty-icon">❖</div>
-        <p class="empty-text">Sin procesamiento activo. Cargá documentos para preparar el grafo.</p>
+        <p class="empty-text">{{ idleMessage || 'Sin procesamiento activo. Cargá documentos para preparar el grafo.' }}</p>
       </div>
 
       <div v-else class="graph-state">
@@ -251,6 +251,7 @@ const props = defineProps({
   loading: Boolean,
   currentPhase: Number,
   idle: Boolean,
+  idleMessage: { type: String, default: '' },
   isSimulating: Boolean
 })
 
