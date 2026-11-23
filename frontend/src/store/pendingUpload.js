@@ -17,6 +17,7 @@ export function setPendingUpload(files, requirement, name = '') {
   state.simulationRequirement = requirement
   state.projectName = name
   state.submissionKey = crypto.randomUUID().replace(/-/g, '')
+  sessionStorage.setItem('tenondera-pending-upload-key',state.submissionKey)
   state.isPending = true
 }
 
@@ -35,6 +36,7 @@ export function clearPendingUpload() {
   state.simulationRequirement = ''
   state.projectName = ''
   state.submissionKey = ''
+  sessionStorage.removeItem('tenondera-pending-upload-key')
   state.isPending = false
 }
 
