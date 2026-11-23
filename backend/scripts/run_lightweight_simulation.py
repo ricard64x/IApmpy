@@ -28,8 +28,12 @@ from pathlib import Path
 try:
     from getangiru_bridge import GetangiruBridge, render_untrusted_memory
 except ModuleNotFoundError:
-    # CI may import the runner as a module from the repository root.
-    from backend.scripts.getangiru_bridge import GetangiruBridge, render_untrusted_memory
+    try:
+        # Docker runs the test suite from /app/backend.
+        from scripts.getangiru_bridge import GetangiruBridge, render_untrusted_memory
+    except ModuleNotFoundError:
+        # Repository-root direct imports also remain supported.
+        from backend.scripts.getangiru_bridge import GetangiruBridge, render_untrusted_memory
 
 _STOP = False
 MAX_PEOPLE = 120
