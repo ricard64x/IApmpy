@@ -11,6 +11,8 @@ primary_region = "ams"
   APP_BASIC_AUTH_USER = "admin"
   LLM_BASE_URL = "https://api.openai.com/v1"
   LLM_MODEL_NAME = "gpt-4o-mini"
+  # Used only for loopback Qwen; no public context is sent to an external LLM.
+  GETANGIRU_PUBLIC_CONTEXT_ENABLED = "true"
   # Prevent TwHIN-BERT from loading locally into this 2 GiB VM.
   # random = no local recommendation model; twitter / twhin-bert need more RAM.
   OASIS_TWITTER_RECSYS = "random"
