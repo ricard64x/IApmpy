@@ -11,7 +11,7 @@ from graph_store import GetangiruGraphStore, GraphScopeError
 
 class RebuildInput(BaseModel):
     ontology: dict
-    max_episodes: int = Field(default=60, ge=1, le=100)
+    max_episodes: int = Field(default=60, ge=1, le=64)
 
 
 def create_graph_router(*, require_tenant, valid_space, db, data_dir):
@@ -30,10 +30,15 @@ def create_graph_router(*, require_tenant, valid_space, db, data_dir):
             if not rows:
                 raise HTTPException(422, "No existe evidencia para construir el grafo")
             chunks = list(reversed(rows))
-            content = "\n".join(r["content"] for r in chunks)
+            first = chunks[0]
+            sources = [
+                {"source_id": "episode:" + str(row["id"]), "content": row["content"]}
+                for row in chunks[1:]
+            ]
             result = store.build(
                 tenant=tenant, project_id=space, ontology=request.ontology,
-                source_text=content, source_id="getangiru-episodes",
+                source_text=first["content"], source_id="episode:" + str(first["id"]),
+                extra_sources=sources,
             )
             return {"graph_id": result["graph_id"], "node_count": result["node_count"],
                     "edge_count": result["edge_count"],
