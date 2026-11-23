@@ -51,6 +51,7 @@
       <!-- Right Panel: Step2 环境搭建 -->
       <div class="panel-wrapper right" :style="rightPanelStyle">
         <Step2EnvSetup
+          :key="currentSimulationId"
           :simulationId="currentSimulationId"
           :projectData="projectData"
           :graphData="graphData"
@@ -67,7 +68,7 @@
 
 <script setup>
 import TenonderaBrand from '../components/TenonderaBrand.vue'
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import GraphPanel from '../components/GraphPanel.vue'
 import Step2EnvSetup from '../components/Step2EnvSetup.vue'
@@ -294,6 +295,15 @@ const refreshGraph = () => {
     loadGraph(projectData.value.graph_id)
   }
 }
+
+watch(() => route.params.simulationId, id => {
+  if (!id || id === currentSimulationId.value) return
+  currentSimulationId.value = id
+  projectData.value = null
+  graphData.value = null
+  systemLogs.value = []
+  loadSimulationData()
+})
 
 onMounted(async () => {
   addLog(t('log.simViewInit'))
