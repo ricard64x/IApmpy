@@ -193,3 +193,7 @@ export const interviewAgents = (data) => {
 export const getSimulationHistory = (limit = 20) => {
   return service.get('/api/simulation/history', { params: { limit } })
 }
+
+/** Clone a ready simulation into a new configuration version, retaining history. */
+export const forkSimulationVersion = simulationId =>
+  service.post('/api/simulation/'+encodeURIComponent(simulationId)+'/fork',{})
