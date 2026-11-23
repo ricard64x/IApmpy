@@ -39,11 +39,11 @@ class ConversationalBatchTests(unittest.TestCase):
         rows=self.events("reddit")
         posts=[r for r in rows if r.get("action_type")=="CREATE_POST"]
         replies=[r for r in rows if r.get("action_type")=="CREATE_COMMENT"]
-        self.assertEqual(result["actions"],6)
-        self.assertEqual(result["replies"],4)
-        self.assertEqual(result["model_batches"],3)
+        self.assertEqual(result["actions"],12)
+        self.assertEqual(result["replies"],10)
+        self.assertEqual(result["model_batches"],5)
         self.assertEqual(len(posts),2)
-        self.assertEqual(len(replies),4)
+        self.assertEqual(len(replies),10)
         self.assertFalse("conversacion_sintetica_previa_no_confiable" in self.observed[0])
         self.assertTrue("conversacion_sintetica_previa_no_confiable" in self.observed[1])
         for row in replies:
@@ -74,8 +74,8 @@ class ConversationalBatchTests(unittest.TestCase):
             bridge.return_value.mode="off"
             bridge.return_value.search.return_value={"items":[],"status":"off"}
             result=execute(self.cfg,"parallel",3,request_fn=self.model)
-        self.assertEqual(result["actions"],6)
-        self.assertEqual(result["replies"],4)
+        self.assertEqual(result["actions"],12)
+        self.assertEqual(result["replies"],8)
         for platform in ("twitter","reddit"):
             entries=self.events(platform)
             for row in entries:
