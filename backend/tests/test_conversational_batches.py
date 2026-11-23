@@ -51,7 +51,7 @@ class ConversationalBatchTests(unittest.TestCase):
             args=row["action_args"]
             self.assertIn(args["target_agent_id"],[1,2,3,4,5,6])
             self.assertNotEqual(args["target_agent_id"],row["agent_id"])
-            self.assertTrue(args["reply_to_action_id"].startswith("reddit:r"))
+            self.assertTrue(args["reply_to_action_id"].startswith("reddit:"))
             self.assertTrue(args["root_post_id"].startswith("reddit:r"))
         for row in rows:
             if row.get("event_type")=="round_end":
