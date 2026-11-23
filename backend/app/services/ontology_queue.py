@@ -12,6 +12,7 @@ import sqlite3
 import threading
 import time
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 from ..config import Config
 
@@ -25,6 +26,7 @@ _PROJECT_PATTERN=__import__("re").compile(r"^proj_[a-f0-9]{12}$")
 def db_path():
     return Path(Config.UPLOAD_FOLDER)/"ontology_jobs"/"jobs.sqlite3"
 
+@contextmanager
 def connect():
     path=db_path()
     path.parent.mkdir(parents=True,exist_ok=True,mode=0o700)
@@ -48,7 +50,11 @@ def connect():
     )""")
     connection.execute("CREATE INDEX IF NOT EXISTS ontology_pending ON ontology_jobs(state,lease_until)")
     os.chmod(path,0o600)
-    return connection
+    try:
+        with connection:
+            yield connection
+    finally:
+        connection.close()
 
 def find_submission(owner_id,key):
     with connect() as db:
