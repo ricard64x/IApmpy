@@ -41,6 +41,26 @@ async function run() {
     await page.screenshot({ path: path.join(DIR, '02-dashboard-desktop.png'), fullPage: true })
     screenshots.push('02-dashboard-desktop.png')
 
+    // The first-run screen must prioritize action over a long introduction on phones.
+    await page.setViewportSize({width:390,height:844})
+    await page.goto(BASE + '/workspace', {waitUntil:'domcontentloaded'})
+    await page.getByText('Paso 1 · Definí el escenario').waitFor({timeout:12000})
+    const formRect = await page.locator('.workspace-form').boundingBox()
+    const guideRect = await page.locator('.workspace-intro').boundingBox()
+    assert(formRect && guideRect && formRect.y < guideRect.y,
+      'Mobile creation form must come before the long orientation guide')
+    assert(await page.getByRole('button',{name:'Seleccionar documentos de referencia'}).isVisible())
+    await page.locator('.upload-area input[type=file]').setInputFiles({
+      name:'caso-de-prueba.md',mimeType:'text/markdown',
+      buffer:Buffer.from('# Caso de prueba de experiencia\nEscenario hipotético.')
+    })
+    await page.locator('#sim-goal').fill('Explorar cómo dialogan distintos personajes sobre una decisión hipotética.')
+    assert(await page.getByRole('button',{name:/Guardar documentos y preparar el mapa/}).isEnabled())
+    await page.screenshot({path:path.join(DIR,'02a-crear-escenario-movil.png'),fullPage:true})
+    screenshots.push('02a-crear-escenario-movil.png')
+    await page.setViewportSize({width:1440,height:900})
+    await page.goto(BASE + '/', {waitUntil:'domcontentloaded'})
+
     // Any authenticated administrator can rotate credentials after the initial
     // required change. Never submit real passwords in browser QA.
     const passwordButton = page.getByRole('button', {name: 'Cambiar mi contraseña'})
