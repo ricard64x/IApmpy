@@ -77,6 +77,7 @@ jobs:
           docker exec iapmpy-smoke /app/backend/.venv/bin/python -m unittest discover -s tests -p 'test_report_localization.py' -v
           docker exec iapmpy-smoke /app/backend/.venv/bin/python -m unittest discover -s tests -p 'test_graph_ingestion_optimizer.py' -v
           docker exec iapmpy-smoke /app/backend/.venv/bin/python -m unittest discover -s tests -p 'test_getangiru_*.py' -v
+          docker exec iapmpy-smoke /app/backend/.venv/bin/python -m unittest discover -s tests -p 'test_local_*.py' -v
           python3 -m unittest discover -s tests -p 'test_getangiru_local.py' -v
           python3 -m unittest discover -s tests -p 'test_getangiru_worker.py' -v
           docker exec iapmpy-smoke /app/backend/.venv/bin/python -m unittest discover -s tests -p 'test_efficiency_metrics.py' -v
