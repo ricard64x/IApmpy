@@ -300,7 +300,8 @@ async function run() {
     await page.locator('.character-network .character-node').first().waitFor({timeout:12000})
     const networkText=await page.locator('.character-network').innerText()
     assert(networkText.includes('personajes') || networkText.includes('participantes'))
-    await page.locator('.character-network .character-node').first().click({force:true})
+    // Tap the actual visible circle, not the empty bounding box of an SVG <g>.
+    await page.locator('.character-network .character-node circle').first().click()
     const characterDetail=page.getByRole('dialog',{name:'Participante de la escena'})
     await characterDetail.waitFor({timeout:12000})
     assert((await characterDetail.innerText()).includes('Analista financiero') ||
