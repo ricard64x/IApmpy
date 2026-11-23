@@ -1,5 +1,5 @@
 <template>
-  <div class="main-view">
+  <div class="main-view mobile-workspace" :class="{ 'view-graph': viewMode === 'graph' }">
     <!-- Header -->
     <header class="app-header">
       <div class="header-left">
@@ -11,11 +11,15 @@
           <button 
             v-for="mode in ['graph', 'split', 'workbench']" 
             :key="mode"
+            type="button"
+            :data-mode="mode"
+            :aria-pressed="viewMode === mode"
             class="switch-btn"
             :class="{ active: viewMode === mode }"
-            @click="viewMode = mode"
+            @click="setViewMode(mode)"
           >
-            {{ { graph: $t('main.layoutGraph'), split: $t('main.layoutSplit'), workbench: $t('main.layoutWorkbench') }[mode] }}
+            <span class="desktop-label">{{ { graph: $t('main.layoutGraph'), split: $t('main.layoutSplit'), workbench: $t('main.layoutWorkbench') }[mode] }}</span>
+            <span class="mobile-label">{{ mode === 'graph' ? '◉ Grafo' : mode === 'workbench' ? '▤ Progreso' : 'Vista dividida' }}</span>
           </button>
         </div>
       </div>
@@ -40,7 +44,7 @@
       <!-- Left Panel: Graph -->
       <div class="panel-wrapper left" :style="leftPanelStyle">
         <GraphPanel
-          v-if="viewMode !== 'workbench'"
+          v-if="viewMode !== 'workbench' && (!isMobile || viewMode === 'graph')"
           :graphData="graphData"
           :loading="graphLoading"
           :currentPhase="3"
@@ -73,6 +77,7 @@
 
 <script setup>
 import TenonderaBrand from '../components/TenonderaBrand.vue'
+import { useResponsiveWorkbench } from '../composables/useResponsiveWorkbench'
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import GraphPanel from '../components/GraphPanel.vue'
@@ -93,7 +98,7 @@ const props = defineProps({
 
 // Layout State
 // Prefer a small-memory progress view: do not render a giant graph on start.
-const viewMode = ref('workbench')
+const {viewMode, isMobile, setViewMode, toggleMaximize} = useResponsiveWorkbench('workbench')
 
 // Data State
 const currentSimulationId = ref(route.params.simulationId)
@@ -151,13 +156,7 @@ const updateStatus = (status) => {
 }
 
 // --- Layout Methods ---
-const toggleMaximize = (target) => {
-  if (viewMode.value === target) {
-    viewMode.value = 'split'
-  } else {
-    viewMode.value = target
-  }
-}
+// Shared mobile/desktop maximize behavior is provided by useResponsiveWorkbench.
 
 const handleGoBack = async () => {
   // 在返回 Step 2 之前，先关闭正在运行的模拟

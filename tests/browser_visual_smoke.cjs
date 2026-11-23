@@ -172,7 +172,28 @@ async function run() {
       ]
     })))
     await page.route('**/api/simulation/sim_visualqa', route => json(route, success({
-      simulation_id: simId, status: 'completed', project_id: null
+      simulation_id: simId, status: 'completed', project_id: 'proj_visual_graph'
+    })))
+    // Isolated graph fixture with long, real-world-like entity descriptions.
+    // Never load a user's private report or project in visual QA.
+    await page.route('**/api/graph/project/proj_visual_graph', route => json(route, success({
+      project_id: 'proj_visual_graph', status: 'graph_completed',
+      graph_id: 'graph_visualqa', name: 'Proyecto de prueba visual',
+    })))
+    await page.route('**/api/graph/data/graph_visualqa', route => json(route, success({
+      nodes: [
+        {uuid:'node_company',name:'LM Consultmed',labels:['Organization'],
+          summary:'Organización ficticia dedicada a la consultoría clínica, con planificación de espacios accesibles y servicios profesionales.',
+          attributes:{country:'Paraguay',sector:'Consultoría clínica',
+            description:'Diseño de espacios accesibles y funcionales para instituciones de salud.'}},
+        {uuid:'node_architect',name:'Andrea Quevedo',labels:['Person'],
+          attributes:{country:'Paraguay',profession:'Arquitectura'}}
+      ],
+      edges:[{
+        uuid:'link_company_architect',
+        source_node_uuid:'node_company',target_node_uuid:'node_architect',
+        name:'COLLABORATES_WITH',fact:'Colaboración ficticia en proyectos de accesibilidad.'
+      }]
     })))
     await page.route('**/api/report/interactions**', async route => {
       if (route.request().method() === 'GET') return json(route, success({ records }))
@@ -226,6 +247,43 @@ async function run() {
       ],
       followups:{available:false},messages_sample_limit:250,messages_sample_truncated:false
     })))
+    // Validate mobile graph *and* full-width node details at realistic phone width.
+    await page.setViewportSize({width:390,height:844})
+    await page.goto(BASE + '/report/' + reportId, {waitUntil:'domcontentloaded'})
+    await page.locator('.view-switcher .switch-btn[data-mode="graph"]').click()
+    const graphCanvas = page.locator('.graph-panel .graph-svg')
+    await graphCanvas.waitFor({timeout:18000})
+    const canvasBox = await graphCanvas.boundingBox()
+    assert(canvasBox && canvasBox.width>=370 && canvasBox.x>=0 &&
+      canvasBox.x+canvasBox.width<=391,'Mobile graph must fill the available viewport')
+    assert.equal(await page.locator('.panel-wrapper.right').evaluate(e=>getComputedStyle(e).display),'none',
+      'Mobile graph cannot display an adjacent desktop column')
+    const legend = page.locator('.graph-legend .legend-toggle')
+    await legend.waitFor({timeout:18000})
+    await legend.click()
+    assert.equal(await legend.getAttribute('aria-expanded'),'true')
+    const nodeCircle = page.locator('.graph-panel .nodes circle').first()
+    await nodeCircle.waitFor({timeout:18000})
+    await nodeCircle.click({force:true})
+    const detail = page.getByRole('dialog',{name:/Detalle de/})
+    await detail.waitFor({timeout:12000})
+    const detailBox = await detail.boundingBox()
+    assert(detailBox && detailBox.width>=370 && detailBox.x>=0 &&
+      detailBox.x+detailBox.width<=391 && detailBox.y<=1 && detailBox.height>=824,
+      'Mobile node detail must cover the entire viewport, not remain a narrow side overlay')
+    assert((await detail.innerText()).includes('Consultmed'),'Mobile detail must show the full entity name')
+    const readable = await page.locator('.detail-content').boundingBox()
+    assert(readable && readable.width>=350,'Mobile detail is unreadably narrow')
+    assert(await page.locator('.detail-panel .mobile-back-button').isVisible())
+    await page.screenshot({path:path.join(DIR,'03c-detalle-grafo-movil.png'),fullPage:true})
+    screenshots.push('03c-detalle-grafo-movil.png')
+    await page.locator('.detail-panel .mobile-back-button').click()
+    assert.equal(await page.locator('.detail-panel').count(),0,'Returning to graph must close details')
+    await page.locator('.view-switcher .switch-btn[data-mode="workbench"]').click()
+    assert.equal(await page.locator('.panel-wrapper.left').evaluate(e=>getComputedStyle(e).display),'none',
+      'Mobile results must not share a column with the graph')
+    await page.setViewportSize({width:1440,height:900})
+
     await page.goto(BASE + '/interaction/' + reportId, { waitUntil: 'domcontentloaded' })
     await page.locator('.report-content-wrapper .main-title').waitFor({ timeout: 25000 })
     await page.locator('.action-bar-tabs .survey-pill').waitFor({ timeout: 20000 })

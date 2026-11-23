@@ -1,14 +1,14 @@
 <template>
-  <div class="graph-panel">
+  <div class="graph-panel" :class="{ 'mobile-detail-open': isMobileGraph && selectedItem }">
     <div class="panel-header">
       <span class="panel-title">{{ $t('graph.panelTitle') }}</span>
       <!-- 顶部工具栏 (Internal Top Right) -->
       <div class="header-tools">
-        <button class="tool-btn" @click="$emit('refresh')" :disabled="loading" :title="$t('graph.refreshGraph')">
+        <button type="button" class="tool-btn" @click="$emit('refresh')" :disabled="loading" :aria-label="$t('graph.refreshGraph')" :title="$t('graph.refreshGraph')">
           <span class="icon-refresh" :class="{ 'spinning': loading }">↻</span>
           <span class="btn-text">{{ $t('graph.refreshLabel') }}</span>
         </button>
-        <button class="tool-btn" @click="$emit('toggle-maximize')" :title="$t('graph.toggleMaximize')">
+        <button type="button" class="tool-btn maximize-tool" @click="$emit('toggle-maximize')" :title="$t('graph.toggleMaximize')">
           <span class="icon-maximize">⛶</span>
         </button>
       </div>
@@ -17,7 +17,8 @@
     <div class="graph-container" ref="graphContainer">
       <!-- 图谱可视化 -->
       <div v-if="graphData" class="graph-view">
-        <svg ref="graphSvg" class="graph-svg"></svg>
+        <svg ref="graphSvg" class="graph-svg" role="img" aria-label="Grafo de relaciones. Tocá un elemento para ver su ficha."></svg>
+        <p v-if="isMobileGraph && !selectedItem" class="mobile-graph-hint">Tocá un círculo para ver sus detalles. Separá dos dedos para acercar.</p>
         
         <!-- 构建中/模拟中提示 -->
         <div v-if="currentPhase === 1 || isSimulating" class="graph-building-hint">
@@ -49,13 +50,16 @@
         </div>
         
         <!-- 节点/边详情面板 -->
-        <div v-if="selectedItem" class="detail-panel">
+        <div v-if="selectedItem" class="detail-panel" :role="isMobileGraph ? 'dialog' : undefined" :aria-modal="isMobileGraph ? 'true' : undefined" :aria-label="selectedItem.type === 'node' ? 'Detalle de ' + selectedItem.data.name : 'Detalle de relación'">
           <div class="detail-panel-header">
-            <span class="detail-title">{{ selectedItem.type === 'node' ? $t('graph.nodeDetails') : $t('graph.relationship') }}</span>
+            <div class="detail-header-label">
+              <span class="detail-title">{{ selectedItem.type === 'node' ? $t('graph.nodeDetails') : $t('graph.relationship') }}</span>
+              <strong v-if="isMobileGraph" class="detail-mobile-name">{{ selectedItem.type === 'node' ? selectedItem.data.name : (selectedItem.data.source_name || 'Relación') }}</strong>
+            </div>
             <span v-if="selectedItem.type === 'node'" class="detail-type-badge" :style="{ background: selectedItem.color, color: '#fff' }">
               {{ friendlyGraphType(selectedItem.entityType) }}
             </span>
-            <button class="detail-close" @click="closeDetailPanel">×</button>
+            <button type="button" class="detail-close" @click="closeDetailPanel" aria-label="Cerrar detalle y volver al grafo">×</button>
           </div>
           
           <!-- 节点详情 -->
@@ -64,7 +68,7 @@
               <span class="detail-label">{{ $t('graph.detailsName') }}:</span>
               <span class="detail-value">{{ selectedItem.data.name }}</span>
             </div>
-            <div class="detail-row">
+            <div v-if="!isMobileGraph || showTechnicalDetails" class="detail-row technical-row">
               <span class="detail-label">{{ $t('graph.detailsId') }}:</span>
               <span class="detail-value uuid-text">{{ selectedItem.data.uuid }}</span>
             </div>
@@ -160,7 +164,7 @@
                 {{ selectedItem.data.source_name }} → {{ friendlyGraphType(selectedItem.data.name || 'RELATED_TO') }} → {{ selectedItem.data.target_name }}
               </div>
               
-              <div class="detail-row">
+              <div v-if="!isMobileGraph || showTechnicalDetails" class="detail-row technical-row">
                 <span class="detail-label">{{ $t('graph.detailsId') }}:</span>
                 <span class="detail-value uuid-text">{{ selectedItem.data.uuid }}</span>
               </div>
@@ -197,6 +201,12 @@
               </div>
             </template>
           </div>
+          <footer v-if="isMobileGraph" class="mobile-detail-footer">
+            <button type="button" class="mobile-back-button" @click="closeDetailPanel">← Volver al grafo</button>
+            <button type="button" class="mobile-technical-button" @click="showTechnicalDetails = !showTechnicalDetails" :aria-pressed="showTechnicalDetails">
+              {{ showTechnicalDetails ? 'Ocultar datos técnicos' : 'Datos técnicos' }}
+            </button>
+          </footer>
         </div>
       </div>
       
@@ -219,9 +229,12 @@
     </div>
 
     <!-- 底部图例 (Bottom Left) -->
-    <div v-if="graphData && entityTypes.length" class="graph-legend">
+    <div v-if="graphData && entityTypes.length" class="graph-legend" :class="{ 'legend-expanded': legendExpanded }">
+      <button type="button" class="legend-toggle" @click="legendExpanded = !legendExpanded" :aria-expanded="legendExpanded">
+        Tipos de elementos <span aria-hidden="true">{{ legendExpanded ? '⌄' : '⌃' }}</span>
+      </button>
       <span class="legend-title">{{ $t('graph.entityTypesLabel') }}</span>
-      <div class="legend-items">
+      <div v-show="!isMobileGraph || legendExpanded" class="legend-items">
         <div class="legend-item" v-for="type in entityTypes" :key="type.name">
           <span class="legend-dot" :style="{ background: type.color }"></span>
           <span class="legend-label">{{ friendlyGraphType(type.name) }}</span>
@@ -235,7 +248,7 @@
         <input type="checkbox" v-model="showEdgeLabels" />
         <span class="slider"></span>
       </label>
-      <span class="toggle-label">{{ $t('graph.edgeLabelsLabel') }}</span>
+      <span class="toggle-label">{{ isMobileGraph ? 'Etiquetas' : $t('graph.edgeLabelsLabel') }}</span>
     </div>
   </div>
 </template>
@@ -260,7 +273,19 @@ const emit = defineEmits(['refresh', 'toggle-maximize'])
 const graphContainer = ref(null)
 const graphSvg = ref(null)
 const selectedItem = ref(null)
-const showEdgeLabels = ref(true) // 默认显示边标签
+const showEdgeLabels = ref(true)
+const isMobileGraph = ref(false)
+const legendExpanded = ref(false)
+const showTechnicalDetails = ref(false)
+let mobileMediaQuery = null
+const updateMobileGraph = () => {
+  const nextMobile = Boolean(mobileMediaQuery?.matches)
+  if (nextMobile === isMobileGraph.value) return
+  isMobileGraph.value = nextMobile
+  showEdgeLabels.value = !nextMobile
+  legendExpanded.value = false
+  nextTick(renderGraph)
+}
 const expandedSelfLoops = ref(new Set()) // 展开的自环项
 const showSimulationFinishedHint = ref(false) // 模拟结束后的提示
 const wasSimulating = ref(false) // 追踪之前是否在模拟中
@@ -342,6 +367,7 @@ const formatDateTime = (dateStr) => {
 
 const closeDetailPanel = () => {
   selectedItem.value = null
+  showTechnicalDetails.value = false
   expandedSelfLoops.value = new Set() // 重置展开状态
 }
 
@@ -358,8 +384,9 @@ const renderGraph = () => {
   }
   
   const container = graphContainer.value
-  const width = container.clientWidth
-  const height = container.clientHeight
+  const width = container?.clientWidth || 0
+  const height = container?.clientHeight || 0
+  if (width < 24 || height < 24) return
   
   const svg = d3.select(graphSvg.value)
     .attr('width', width)
@@ -501,13 +528,15 @@ const renderGraph = () => {
       const edgeCount = d.pairTotal || 1
       return baseDistance + (edgeCount - 1) * 50
     }))
-    .force('charge', d3.forceManyBody().strength(-400))
+    .force('charge', d3.forceManyBody().strength(isMobileGraph.value ? -260 : -400))
     .force('center', d3.forceCenter(width / 2, height / 2))
     .force('collide', d3.forceCollide(50))
     // 添加向中心的引力，让独立的节点群聚集到中心区域
     .force('x', d3.forceX(width / 2).strength(0.04))
     .force('y', d3.forceY(height / 2).strength(0.04))
   
+  // Settle mobile layouts sooner, reducing unnecessary force ticks.
+  if (isMobileGraph.value) simulation.alphaDecay(0.065)
   currentSimulation = simulation
 
   const g = svg.append('g')
@@ -678,8 +707,11 @@ const renderGraph = () => {
   const node = nodeGroup.selectAll('circle')
     .data(nodes)
     .enter().append('circle')
-    .attr('r', 10)
+    .attr('r', isMobileGraph.value ? 18 : 10)
     .attr('fill', d => getColor(d.type))
+    .attr('tabindex', 0)
+    .attr('role', 'button')
+    .attr('aria-label', d => 'Ver detalles de ' + d.name)
     .attr('stroke', '#fff')
     .attr('stroke-width', 2.5)
     .style('cursor', 'pointer')
@@ -749,11 +781,23 @@ const renderGraph = () => {
       }
     })
 
+  if (isMobileGraph.value) node.on('.drag', null)
+
+  // Keyboard and screen reader users can select the same graph nodes.
+  node.on('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      event.currentTarget.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    }
+  })
+
   // Node Labels
   const nodeLabels = nodeGroup.selectAll('text')
     .data(nodes)
     .enter().append('text')
-    .text(d => d.name.length > 8 ? d.name.substring(0, 8) + '…' : d.name)
+    .text(d => d.name.length > (isMobileGraph.value ? 11 : 8)
+      ? d.name.substring(0, isMobileGraph.value ? 11 : 8) + '…' : d.name)
+    .style('display', isMobileGraph.value && nodes.length > 18 ? 'none' : null)
     .attr('font-size', '11px')
     .attr('fill', '#333')
     .attr('font-weight', '500')
@@ -821,16 +865,32 @@ watch(showEdgeLabels, (newVal) => {
   }
 })
 
+let resizeFrame = null
 const handleResize = () => {
-  nextTick(renderGraph)
+  if (resizeFrame !== null) return
+  resizeFrame = window.requestAnimationFrame(() => {
+    resizeFrame = null
+    nextTick(renderGraph)
+  })
 }
-
+const onGraphKeydown = (event) => {
+  if (event.key === 'Escape' && selectedItem.value) closeDetailPanel()
+}
 onMounted(() => {
+  mobileMediaQuery = window.matchMedia('(max-width: 767px)')
+  isMobileGraph.value = mobileMediaQuery.matches
+  showEdgeLabels.value = !isMobileGraph.value
+  mobileMediaQuery.addEventListener?.('change', updateMobileGraph)
   window.addEventListener('resize', handleResize)
+  window.addEventListener('keydown', onGraphKeydown)
+  nextTick(renderGraph)
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
+  window.removeEventListener('keydown', onGraphKeydown)
+  mobileMediaQuery?.removeEventListener?.('change', updateMobileGraph)
+  if (resizeFrame !== null) window.cancelAnimationFrame(resizeFrame)
   if (currentSimulation) {
     currentSimulation.stop()
   }
@@ -1443,5 +1503,305 @@ input:checked + .slider:before {
 .episode-tag.small {
   padding: 3px 6px;
   font-size: 9px;
+}
+
+/* Graph details are read-first on phones. Desktop keeps the familiar side card. */
+.legend-toggle, .mobile-detail-footer, .mobile-graph-hint, .detail-mobile-name { display: none; }
+@media (max-width: 767px) {
+  .graph-panel {
+    background-color: #f7fafc;
+    background-image: radial-gradient(#d5e3ed 1.05px, transparent 1.05px);
+    background-size: 26px 26px;
+  }
+  .graph-panel .panel-header {
+    padding: 12px 13px;
+    min-height: 62px;
+    background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(255,255,255,.82) 80%, rgba(255,255,255,0));
+    align-items: flex-start;
+  }
+  .graph-panel .panel-title {
+    font: 750 13px/1.4 system-ui, sans-serif;
+    max-width: 170px;
+    color: #193f5c;
+    padding-top: 9px;
+  }
+  .graph-panel .header-tools { gap: 7px; }
+  .graph-panel .tool-btn {
+    min-width: 44px; min-height: 44px;
+    border: 1px solid #d4e3ec;
+    border-radius: 12px;
+    background: rgba(255,255,255,.96);
+    color: #235c7d;
+    box-shadow: 0 2px 12px rgba(22,57,86,.07);
+    padding: 8px;
+    font-size: 17px;
+  }
+  .graph-panel .tool-btn .btn-text { display: none; }
+  .graph-panel .maximize-tool { display: none; }
+  .graph-panel .graph-svg { touch-action: none; }
+  .graph-panel .mobile-graph-hint {
+    display: block;
+    position: absolute;
+    z-index: 9;
+    bottom: max(70px, calc(env(safe-area-inset-bottom, 0px) + 70px));
+    left: 50%;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: calc(100% - 30px);
+    text-align: center;
+    border-radius: 999px;
+    padding: 9px 13px;
+    background: rgba(20, 60, 84, .91);
+    color: white;
+    box-shadow: 0 6px 18px rgba(12,42,60,.17);
+    font: 500 11px/1.4 system-ui, sans-serif;
+    pointer-events: none;
+  }
+  .graph-panel .graph-legend {
+    z-index: 12;
+    left: 12px;
+    bottom: max(11px, env(safe-area-inset-bottom, 0px));
+    right: auto;
+    max-width: min(80vw, 260px);
+    padding: 5px 7px;
+    border-radius: 12px;
+    background: rgba(255,255,255,.98);
+    border: 1px solid #d1e0ea;
+    box-shadow: 0 4px 20px rgba(20,54,78,.10);
+  }
+  .graph-panel .legend-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    min-height: 40px;
+    border: 0;
+    padding: 6px 8px;
+    border-radius: 9px;
+    background: transparent;
+    color: #23536f;
+    font: 700 12px/1.35 system-ui, sans-serif;
+    text-align: left;
+    cursor: pointer;
+  }
+  .graph-panel .legend-title { display: none; }
+  .graph-panel .legend-items {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    max-height: 175px;
+    overflow: auto;
+    gap: 9px;
+    padding: 7px 10px 9px;
+  }
+  .graph-panel .legend-label {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-size: 12px;
+  }
+  .graph-panel .edge-labels-toggle {
+    z-index: 12;
+    top: 69px;
+    right: 12px;
+    width: auto;
+    max-width: 150px;
+    padding: 7px 10px;
+    gap: 8px;
+    border: 1px solid #d1e0ea;
+    box-shadow: 0 3px 15px rgba(20,54,78,.09);
+    border-radius: 11px;
+    background: rgba(255,255,255,.96);
+  }
+  .graph-panel .toggle-label { font-size: 11px; font-weight: 650; }
+  .graph-panel .detail-panel {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    background: #fff;
+    box-shadow: none;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 1200;
+    font-family: system-ui, sans-serif;
+  }
+  .graph-panel .detail-panel-header {
+    min-height: 88px;
+    padding: max(15px, env(safe-area-inset-top, 0px)) 19px 14px;
+    background: linear-gradient(135deg, #eef7fc, #fff);
+    border-bottom: 1px solid #e0ebf2;
+    gap: 9px;
+    align-items: center;
+  }
+  .graph-panel .detail-header-label {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1;
+  }
+  .graph-panel .detail-title {
+    color: #537590;
+    font: 700 11px/1.35 system-ui,sans-serif;
+    text-transform: uppercase;
+    letter-spacing: .7px;
+  }
+  .graph-panel .detail-mobile-name {
+    display: block;
+    color: #143e5b;
+    font: 800 clamp(19px, 5vw, 24px)/1.2 system-ui,sans-serif;
+    overflow-wrap: anywhere;
+    letter-spacing: -.4px;
+  }
+  .graph-panel .detail-type-badge {
+    margin: 0 6px 0 0;
+    padding: 5px 9px;
+    font-size: 10px;
+    border-radius: 999px;
+    max-width: 110px;
+    overflow-wrap: anywhere;
+  }
+  .graph-panel .detail-close {
+    width: 44px; height: 44px;
+    flex: 0 0 44px;
+    display: grid; place-items: center;
+    background: #f2f6f9;
+    color: #234c69;
+    font-size: 27px;
+    border: 1px solid #dde8ef;
+    border-radius: 12px;
+    margin: 0;
+  }
+  .graph-panel .detail-content {
+    min-width: 0;
+    padding: 20px 18px 26px;
+    display: block;
+    flex: 1;
+    overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .graph-panel .detail-row {
+    display: grid;
+    grid-template-columns: minmax(0,1fr);
+    gap: 5px;
+    margin: 0 0 15px;
+    padding: 0 0 14px;
+    border-bottom: 1px solid #ecf1f5;
+  }
+  .graph-panel .detail-label {
+    font: 750 11px/1.3 system-ui,sans-serif;
+    color: #688096;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+  }
+  .graph-panel .detail-value {
+    min-width: 0;
+    font: 500 16px/1.6 system-ui,sans-serif;
+    color: #1f3e56;
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
+  .graph-panel .detail-section {
+    border-top: 0;
+    padding-top: 4px;
+    margin-top: 15px;
+    margin-bottom: 22px;
+  }
+  .graph-panel .section-title {
+    font: 800 14px/1.4 system-ui,sans-serif;
+    margin-bottom: 11px;
+    color: #164967;
+  }
+  .graph-panel .properties-list { gap: 8px; }
+  .graph-panel .property-item {
+    display: grid; grid-template-columns: 1fr; gap: 4px;
+    border: 1px solid #e1ebf1;
+    background: #f8fbfd;
+    border-radius: 11px;
+    padding: 11px 12px;
+    min-width: 0;
+  }
+  .graph-panel .property-key {
+    font: 750 11px/1.3 system-ui,sans-serif;
+    text-transform: none;
+    color: #627a91;
+  }
+  .graph-panel .property-value {
+    min-width: 0;
+    font: 500 15px/1.6 system-ui,sans-serif;
+    color: #234257;
+    overflow-wrap: anywhere;
+    word-break: normal;
+    white-space: pre-wrap;
+  }
+  .graph-panel .summary-text,
+  .graph-panel .fact-text {
+    font: 500 16px/1.7 system-ui,sans-serif;
+    color: #28465a;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .graph-panel .label-tag {
+    font-size: 12px;
+    padding: 7px 10px;
+    border-radius: 999px;
+    background: #f0f6f9;
+    color: #285a76;
+  }
+  .graph-panel .mobile-detail-footer {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) auto;
+    gap: 9px;
+    flex: none;
+    padding: 12px 16px max(15px, env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid #e0eaf0;
+    background: #fff;
+    box-shadow: 0 -3px 18px rgba(20,53,79,.05);
+  }
+  .graph-panel .mobile-detail-footer button {
+    min-height: 48px;
+    border-radius: 11px;
+    font: 750 13px/1.2 system-ui,sans-serif;
+    padding: 10px 13px;
+    cursor: pointer;
+  }
+  .graph-panel .mobile-back-button {
+    color: #fff;
+    border: 1px solid #0c6a90;
+    background: #116e94;
+  }
+  .graph-panel .mobile-technical-button {
+    background: #f4f8fb;
+    border: 1px solid #d6e5ed;
+    color: #315a76;
+  }
+  .graph-panel .graph-building-hint {
+    bottom: 110px;
+    max-width: calc(100% - 28px);
+    border-radius: 13px;
+    font-size: 11px;
+    white-space: normal;
+  }
+  .graph-panel .edge-relation-header {
+    font-size: 15px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+  }
+  .graph-panel button:focus-visible,
+  .graph-panel [role="button"]:focus-visible {
+    outline: 3px solid #10a2ba;
+    outline-offset: 2px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .graph-panel * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <div class="main-view" :class="{ 'view-graph': viewMode === 'graph' }">
+  <div class="main-view" :class="{ 'view-graph': viewMode === 'graph', 'mobile-workspace': true }">
     <!-- Header -->
     <header class="app-header">
       <div class="header-left">
@@ -11,11 +11,15 @@
           <button 
             v-for="mode in ['graph', 'split', 'workbench']" 
             :key="mode"
+            type="button"
+            :data-mode="mode"
+            :aria-pressed="viewMode === mode"
             class="switch-btn"
             :class="{ active: viewMode === mode }"
-            @click="viewMode = mode"
+            @click="setViewMode(mode)"
           >
-            {{ { graph: $t('main.layoutGraph'), split: $t('main.layoutSplit'), workbench: $t('main.layoutWorkbench') }[mode] }}
+            <span class="desktop-label">{{ { graph: $t('main.layoutGraph'), split: $t('main.layoutSplit'), workbench: $t('main.layoutWorkbench') }[mode] }}</span>
+            <span class="mobile-label">{{ mode === 'graph' ? '◉ Grafo' : mode === 'workbench' ? '▤ Mi trabajo' : 'Vista dividida' }}</span>
           </button>
         </div>
       </div>
@@ -121,6 +125,7 @@
       <!-- Left Panel: Graph -->
       <div class="panel-wrapper left" :style="leftPanelStyle">
         <GraphPanel 
+          v-if="!isMobile || viewMode === 'graph'" 
           :graphData="graphData"
           :loading="graphLoading"
           :currentPhase="currentPhase"
@@ -163,6 +168,7 @@
 
 <script setup>
 import TenonderaBrand from '../components/TenonderaBrand.vue'
+import { useResponsiveWorkbench } from '../composables/useResponsiveWorkbench'
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -180,7 +186,7 @@ const router = useRouter()
 const { t, tm } = useI18n()
 
 // Layout State
-const viewMode = ref('split') // graph | split | workbench
+const {viewMode, isMobile, setViewMode, toggleMaximize} = useResponsiveWorkbench('split')
 
 // Recalculate the D3 canvas after the user switches from the compact workbench
 // to the full-width graph. A hidden SVG may otherwise retain a zero-size viewBox.
@@ -279,13 +285,7 @@ const addLog = (msg) => {
 }
 
 // --- Layout Methods ---
-const toggleMaximize = (target) => {
-  if (viewMode.value === target) {
-    viewMode.value = 'split'
-  } else {
-    viewMode.value = target
-  }
-}
+// Shared mobile/desktop maximize behavior is provided by useResponsiveWorkbench.
 
 const handleNextStep = (params = {}) => {
   if (currentStep.value < 5) {
@@ -789,12 +789,6 @@ const onVisibilityChange = () => {
   }
 }
 onMounted(() => {
-  // On a narrow screen the split view forces two tiny unusable columns.
-  // Prefer the light, readable workbench; let users open the full-width
-  // graph explicitly from the header.
-  if (window.matchMedia('(max-width: 720px)').matches && viewMode.value === 'split') {
-    viewMode.value = 'workbench'
-  }
   document.addEventListener('visibilitychange', onVisibilityChange)
   initProject()
 })

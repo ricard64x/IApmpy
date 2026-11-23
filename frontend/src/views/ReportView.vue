@@ -1,5 +1,5 @@
 <template>
-  <div class="main-view">
+  <div class="main-view mobile-workspace" :class="{ 'view-graph': viewMode === 'graph' }">
     <!-- Header -->
     <header class="app-header">
       <div class="header-left">
@@ -11,11 +11,15 @@
           <button 
             v-for="mode in ['graph', 'split', 'workbench']" 
             :key="mode"
+            type="button"
+            :data-mode="mode"
+            :aria-pressed="viewMode === mode"
             class="switch-btn"
             :class="{ active: viewMode === mode }"
-            @click="viewMode = mode"
+            @click="setViewMode(mode)"
           >
-            {{ { graph: $t('main.layoutGraph'), split: $t('main.layoutSplit'), workbench: $t('main.layoutWorkbench') }[mode] }}
+            <span class="desktop-label">{{ { graph: $t('main.layoutGraph'), split: $t('main.layoutSplit'), workbench: $t('main.layoutWorkbench') }[mode] }}</span>
+            <span class="mobile-label">{{ mode === 'graph' ? '◉ Grafo' : mode === 'workbench' ? '▤ Resultados' : 'Vista dividida' }}</span>
           </button>
         </div>
       </div>
@@ -40,6 +44,7 @@
       <!-- Left Panel: Graph -->
       <div class="panel-wrapper left" :style="leftPanelStyle">
         <GraphPanel 
+          v-if="!isMobile || viewMode === 'graph'" 
           :graphData="graphData"
           :loading="graphLoading"
           :currentPhase="4"
@@ -66,6 +71,7 @@
 
 <script setup>
 import TenonderaBrand from '../components/TenonderaBrand.vue'
+import { useResponsiveWorkbench } from '../composables/useResponsiveWorkbench'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -86,7 +92,7 @@ const props = defineProps({
 })
 
 // Layout State - 默认切换到工作台视角
-const viewMode = ref('workbench')
+const {viewMode, isMobile, setViewMode, toggleMaximize} = useResponsiveWorkbench('workbench')
 
 // Data State
 const currentReportId = ref(route.params.reportId)
@@ -142,13 +148,7 @@ const updateStatus = (status) => {
 }
 
 // --- Layout Methods ---
-const toggleMaximize = (target) => {
-  if (viewMode.value === target) {
-    viewMode.value = 'split'
-  } else {
-    viewMode.value = target
-  }
-}
+// Shared mobile/desktop maximize behavior is provided by useResponsiveWorkbench.
 
 // --- Data Logic ---
 const loadReportData = async () => {
