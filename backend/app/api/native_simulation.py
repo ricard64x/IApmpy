@@ -114,6 +114,8 @@ def start():
                              source_hash=source_hash)
     except RuntimeError:
         return jsonify({"success":False,"error":"Hay una simulación en ejecución; consultá su progreso."}),409
+    except ValueError:
+        return jsonify({"success":False,"error":"Se alcanzó el límite de ejecuciones de este proyecto; archivá los resultados."}),429
     def worker():
         try:
             model=LLMClient() if mode=="hybrid" else None
