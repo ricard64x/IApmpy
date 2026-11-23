@@ -450,7 +450,8 @@ def generate_ontology():
             }), 400
         
         # 创建项目
-        project = ProjectManager.create_project(name=project_name)
+        from ..models.project import project_display_name
+        project = ProjectManager.create_project(name=project_display_name(project_name, simulation_requirement))
         project.simulation_requirement = simulation_requirement
         logger.info(f"创建项目: {project.project_id}")
         
