@@ -297,6 +297,8 @@ async function run() {
     // The dialogue graph must keep character identities separate from factual entities.
     await page.getByRole('button',{name:'Conversaciones',exact:true}).click()
     await page.getByText('Quién conversó con quién').waitFor({timeout:12000})
+    assert.equal(await page.locator('.graph-panel .graph-state').count(),0,
+      'An empty document-graph state must never overlay the character conversation graph')
     await page.locator('.character-network .character-node').first().waitFor({timeout:12000})
     const networkText=await page.locator('.character-network').innerText()
     assert(networkText.includes('personajes') || networkText.includes('participantes'))
