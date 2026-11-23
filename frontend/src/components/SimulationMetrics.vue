@@ -118,6 +118,7 @@
 import {ref,watch} from 'vue'
 import service from '../api'
 const props=defineProps({reportId:{type:String,default:''},nativeRunId:{type:String,default:''}})
+const emit=defineEmits(['quality-updated'])
 const data=ref(null),loading=ref(false),error=ref('')
 function width(n,values){const max=Math.max(1,...(values||[]).map(v=>Number(v.count)||0));return Math.min(100,Math.round(100*(Number(n)||0)/max))}
 async function load(){
@@ -128,6 +129,7 @@ async function load(){
     const endpoint=props.nativeRunId?'/api/native-simulation/'+encodeURIComponent(id)+'/metrics':'/api/report/'+encodeURIComponent(id)+'/metrics'
     const response=await service.get(endpoint)
     data.value=response.data||null
+    emit('quality-updated', data.value?.interaction_quality || null)
   }catch(e){error.value='No se pudieron cargar las estadísticas: '+(e.message||'Error de conexión')}
   finally{loading.value=false}
 }
