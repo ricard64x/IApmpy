@@ -27,7 +27,7 @@
 
     <section class="stat-grid" aria-label="Resumen de proyectos guardados">
       <article class="stat-card"><span class="stat-icon blue">▤</span><div class="stat-label">Proyectos visibles</div><strong>{{summary.projects}}</strong><span class="stat-foot">Incluye proyectos en preparación</span></article>
-      <article class="stat-card"><span class="stat-icon teal">▶</span><div class="stat-label">Simulaciones en curso</div><strong>{{summary.running}}</strong><span class="stat-foot">Ejecuciones registradas como activas</span></article>
+      <article class="stat-card"><span class="stat-icon teal">▶</span><div class="stat-label">Procesos en curso</div><strong>{{summary.running}}</strong><span class="stat-foot">Análisis del mapa o conversaciones activos</span></article>
       <article class="stat-card"><span class="stat-icon purple">▣</span><div class="stat-label">Con informe guardado</div><strong>{{summary.reports}}</strong><span class="stat-foot">Proyectos con un informe vinculado</span></article>
       <article class="stat-card"><span class="stat-icon green">◇</span><div class="stat-label">Por continuar o revisar</div><strong>{{summary.pending}}</strong><span class="stat-foot">Aún no tienen informe final vinculado</span></article>
     </section>
@@ -51,10 +51,10 @@
       </article>
       <article class="panel resources">
         <div class="panel-heading"><span class="title-icon">▤</span><div><h2>Recursos disponibles</h2><p>Estado actual de la infraestructura</p></div></div>
-        <div class="resource-head"><strong>{{capacity?.memory_used_mb ?? '—'}} MB</strong><span>de {{capacity?.machine_memory_mb||'—'}} MB</span></div>
-        <div class="progress-track"><div :style="{width:memoryPercent+'%'}"></div></div>
-        <p class="resource-tip">Memoria utilizada (estimada). La disponibilidad puede variar durante una simulación.</p>
-        <div class="resource-status" :class="{busy:capacity?.busy}"><span>{{capacity?.busy?'◉':'✓'}}</span>{{capacity?.busy?'Hay una simulación ejecutándose':'No se detecta una simulación activa'}}</div>
+        <div class="resource-head"><strong>{{capacity?.memory_used_mb ?? '—'}} MB</strong><span>de {{capacity?.machine_memory_mb??'—'}} MB</span></div>
+        <div v-if="capacity?.memory_used_mb!=null" class="progress-track" role="progressbar" aria-label="Memoria del servidor utilizada" :aria-valuenow="memoryPercent" aria-valuemin="0" aria-valuemax="100"><div :style="{width:memoryPercent+'%'}"></div></div>
+        <p class="resource-tip">{{capacity?.memory_used_mb!=null?'Consumo observado por el servidor, no memoria reservada para cada personaje.':'El servidor no devolvió un valor de memoria utilizada.'}}</p>
+        <div class="resource-status" :class="{busy:capacity?.busy}"><span>{{capacity?.busy?'◉':capacity?'✓':'?'}}</span>{{!capacity?'Estado de ejecución no confirmado':capacity.busy?'Hay una simulación ejecutándose':'No se detecta una simulación activa'}}</div>
         <p class="resource-tip">{{capacity?.busy?'Podés revisar proyectos e informes, pero no iniciar otra ejecución hasta liberar recursos.':'Solo se ejecuta una simulación a la vez. La capacidad se comprueba nuevamente antes del inicio.'}}</p>
         <div v-if="!capacity" class="capacity-loading">No se pudo confirmar la capacidad en esta lectura. <button type="button" @click="loadData">Reintentar</button></div>
       </article>
