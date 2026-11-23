@@ -90,7 +90,9 @@ def summarize(events, *, source, truncated=False, available=True):
         missing.append("Se requiere al menos 1 par de interacción explícito.")
     if cross_messages < 2:
         missing.append("Se requieren al menos 2 respuestas dirigidas entre perfiles.")
-    if not available:
+    if source == "getangiru":
+        status = "not_applicable"
+    elif not available:
         status = "unavailable"
     elif truncated:
         status = "unverified"
@@ -105,7 +107,8 @@ def summarize(events, *, source, truncated=False, available=True):
         "label": {"good":"Interacción diversa", "acceptable":"Interacción aceptable",
                   "insufficient":"Completado con calidad insuficiente",
                   "unverified":"Calidad no verificable (datos parciales)",
-                  "unavailable":"Calidad no verificable (sin eventos)"}[status],
+                  "unavailable":"Calidad no verificable (sin eventos)",
+                  "not_applicable":"No aplica: decisiones sin conversación"}[status],
         "active_participants": active,
         "interaction_pairs": len(edges),
         "cross_agent_messages": cross_messages,
