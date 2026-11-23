@@ -27,7 +27,7 @@ def _safe_text(value, limit=90):
     return re.sub(r"[\x00-\x1f]+", " ", str(value or ""))[:limit].strip()
 
 def summarize(events, *, source, truncated=False, available=True):
-    by_day, by_hour, by_round, by_type, by_platform = map(Counter, [{}]*5)
+    by_day, by_hour, by_round, by_type, by_platform, by_space = map(Counter, [{}]*6)
     participants = {}
     edges = Counter()
     candidate_edges = Counter()
@@ -51,7 +51,9 @@ def summarize(events, *, source, truncated=False, available=True):
             conversations += 1
         by_type[kind or "OTHER"] += 1
         platform_name = _safe_text(event.get("platform") or source, 25)
+        space_name = _safe_text(event.get("social_space") or platform_name, 40)
         by_platform[platform_name] += 1
+        by_space[space_name] += 1
         platform_participants[platform_name].add(key)
         rnd = event.get("round_num",event.get("round",event.get("phase",0)))
         try:
@@ -84,6 +86,10 @@ def summarize(events, *, source, truncated=False, available=True):
                     "round":rnd if isinstance(rnd,int) else None,
                     "excerpt":_safe_text(message,360), "timestamp":stamp,
                     "platform":platform_name,
+                    "space":space_name,
+                    "thread_id":_safe_text(args.get("conversation_thread_id"),120),
+                    "reply_to":_safe_text(args.get("reply_to_action_id"),120),
+                    "turn":event.get("conversation_turn"),
                     "type":kind,
                     "target_id":str(target_id)[:100] if target_id is not None else None,
                     "action_id":_safe_text(args.get("synthetic_action_id") or args.get("reply_to_action_id"),110) or None,
@@ -102,7 +108,7 @@ def summarize(events, *, source, truncated=False, available=True):
     if not edges:
         missing.append("Se requiere al menos 1 par de interacción explícito.")
     if cross_messages < 2:
-        missing.append("Se requieren al menos 2 respuestas dirigidas entre perfiles.")
+        missing.append("Se requieren al menos 2 respuestas dirigidas entre participantes.")
     if source == "getangiru":
         status = "not_applicable"
     elif not available:
@@ -152,6 +158,7 @@ def summarize(events, *, source, truncated=False, available=True):
         "by_round":[{"round":k,"count":v} for k,v in sorted(by_round.items(),key=lambda x:int(x[0]))],
         "by_type":[{"type":k,"count":v} for k,v in by_type.most_common()],
         "by_platform":[{"platform":k,"count":v} for k,v in by_platform.most_common()],
+        "by_social_space":[{"space":k,"count":v} for k,v in by_space.most_common()],
         "participants":sorted(participants.values(),key=lambda p:(-p["actions"],p["name"]))[:120],
         "interactions":[{"from":a,"to":b,"count":n} for (a,b),n in edges.most_common(50)],
         "messages":messages,
