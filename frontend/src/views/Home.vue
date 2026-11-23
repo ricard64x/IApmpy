@@ -5,27 +5,25 @@
         <div class="intro-label">✦ INTELIGENCIA COLECTIVA</div>
         <h2>Subí tus documentos.<br><em>Explorá el futuro.</em></h2>
         <p>Tenonderã conecta información, crea participantes virtuales y simula sus interacciones para anticipar tendencias y escenarios posibles.</p>
-        <div class="steps">
-          <div><span>01</span><p><strong>Documentos</strong><small>Contexto y fuentes del escenario</small></p></div>
-          <div><span>02</span><p><strong>Red de relaciones</strong><small>Entidades, vínculos y memoria</small></p></div>
-          <div><span>03</span><p><strong>Simulación</strong><small>Participantes virtuales, acontecimientos y rondas</small></p></div>
-          <div><span>04</span><p><strong>Resultados</strong><small>Informes y análisis de tendencias</small></p></div>
-        </div>
+        <SimulationJourney theme="dark" compact :current-step="1" />
         <div class="info-card">
           <span>🇵🇾</span>
           <div><strong>Simulando el futuro desde Paraguay</strong><p>Los resultados son sintéticos: exploran escenarios, no reemplazan encuestas ni datos verificables.</p></div>
         </div>
       </section>
       <section class="workspace-form">
-        <div class="form-header"><span class="form-icon">◇</span><div><h3>Configurá tu escenario</h3><p>Tu proyecto se guardará de forma privada en tu cuenta.</p></div></div>
+        <div class="form-header"><span class="form-icon">◇</span><div><h3>Paso 1 · Definí el escenario</h3><p>En esta pantalla guardás el contexto. Los participantes y las conversaciones se eligen después.</p></div></div>
         <div class="form-group">
           <div class="form-label"><label>01 · Documentos de referencia</label><small>PDF, Markdown y TXT · Máximo 50 MB por solicitud</small></div>
-          <div class="upload-area" :class="{dragging,hasFiles:files.length>0}" @dragover.prevent="dragging=true" @dragleave.prevent="dragging=false" @drop.prevent="drop" @click="pick">
+          <div class="upload-area" role="button" tabindex="0" :aria-label="files.length?'Agregar documentos de referencia':'Seleccionar documentos de referencia'"
+               :class="{dragging,hasFiles:files.length>0}" @dragover.prevent="dragging=true" @dragleave.prevent="dragging=false" @drop.prevent="drop"
+               @click="pick" @keydown.enter.prevent="pick" @keydown.space.prevent="pick">
             <input ref="fileInput" type="file" hidden multiple accept=".pdf,.md,.txt,.markdown" @change="select" />
             <template v-if="!files.length"><div class="upload-glyph">↑</div><strong>Arrastrá o seleccioná tus archivos</strong><span>Cargá documentos con información del escenario</span></template>
             <template v-else><div class="upload-glyph">✓</div><strong>{{files.length}} archivo(s) preparados</strong><span>Hacé clic para agregar más documentos</span></template>
           </div>
-          <ul v-if="files.length" class="file-list"><li v-for="(file,index) in files" :key="index"><span>▤ {{file.name}}</span><button aria-label="Quitar archivo" @click="files.splice(index,1)">×</button></li></ul>
+          <ul v-if="files.length" class="file-list"><li v-for="(file,index) in files" :key="index"><span>▤ {{file.name}}</span><button type="button" :aria-label="'Quitar '+file.name" @click="files.splice(index,1)">×</button></li></ul>
+          <p v-if="files.length" class="file-summary" aria-live="polite">{{files.length}} documento(s) · {{totalFileMb}} MB de 50 MB permitidos por carga</p>
         </div>
         <div class="form-group"><div class="form-label"><label for="project-title">Nombre del proyecto (opcional)</label><small>Si lo dejás vacío, se genera desde el objetivo</small></div>
           <input id="project-title" class="area-input" v-model.trim="projectName" maxlength="100" placeholder="Ej.: Simulación de respuesta ante fraude"></div>
@@ -40,13 +38,22 @@
           <input id="interaction-area" class="area-input" v-model.trim="interactionArea" maxlength="120" placeholder="Ej.: Paraguay, Asunción o América Latina">
           <p class="area-help">Los agentes tomarán este ámbito como referencia al generar perfiles y conversaciones. La plataforma social se elige en el paso 2.</p>
         </div>
+        <div class="prepare-checklist" role="status" aria-live="polite">
+          <strong>Antes de continuar</strong>
+          <div :class="{ready:files.length>0}"><span>{{files.length?'✓':'1'}}</span> Agregá al menos un documento</div>
+          <div :class="{ready:!!prompt.trim()}"><span>{{prompt.trim()?'✓':'2'}}</span> Explicá qué querés analizar o simular</div>
+          <div class="ready"><span>✓</span> El lugar de interacción es opcional y editable</div>
+        </div>
         <div class="system-capacity">
           <span class="resource-icon">◉</span>
-          <div><strong>Capacidad segura en esta máquina</strong><small>Hasta {{capacity?.recommended_max_profiles||'—'}} perfiles · {{capacity?.max_active_agents_per_platform_per_round||'—'}} agentes activos por plataforma y ronda · 1 ejecución simultánea</small></div>
+          <div><strong>La cantidad de participantes se elige en el paso 3</strong>
+            <small>Motor eficiente: hasta {{capacity?.lightweight_max_profiles??'—'}} personajes (si está disponible).
+              Motor social completo: límite conservador de {{capacity?.recommended_max_profiles??'—'}} perfiles detectados. Solo una ejecución a la vez.</small></div>
         </div>
+        <p v-if="capacity?.busy" class="busy-note" role="status">Hay otra simulación ejecutándose. Podés preparar el proyecto, pero tendrás que esperar a que termine para iniciar una nueva ejecución.</p>
         <p v-if="error" class="error" role="alert">{{error}}</p>
-        <button class="start" :disabled="!canStart||capacity?.busy" @click="start">Iniciar proyecto de simulación <span>→</span></button>
-        <p class="small-note">El sistema bloqueará automáticamente una ejecución que exceda la capacidad disponible.</p>
+        <button class="start" :disabled="!canStart" @click="start">Guardar documentos y preparar el mapa <span>→</span></button>
+        <p class="small-note">No inicia conversaciones todavía: primero se procesan las fuentes. Más adelante definirás participantes, espacios y rondas.</p>
       </section>
     </div>
     <section class="history-area"><div class="section-h"><div><span>MIS ESCENARIOS</span><h2>Historial de simulaciones</h2></div><button @click="router.push('/')">Volver al panel →</button></div><HistoryDatabase /></section>
@@ -58,22 +65,30 @@ import {useRouter} from 'vue-router'
 import service from '../api'
 import {setPendingUpload} from '../store/pendingUpload'
 import TenonderaShell from '../components/TenonderaShell.vue'
+import SimulationJourney from '../components/SimulationJourney.vue'
 import HistoryDatabase from '../components/HistoryDatabase.vue'
 const router=useRouter()
 const projectName=ref(''),prompt=ref(''),interactionArea=ref('Paraguay'),files=ref([]),dragging=ref(false),error=ref(''),capacity=ref(null),fileInput=ref(null)
+const MAX_UPLOAD_BYTES=50*1024*1024
+const totalFileMb=computed(()=>(files.value.reduce((sum,f)=>sum+(f.size||0),0)/1048576).toFixed(1))
 const canStart=computed(()=>files.value.length>0&&!!prompt.value.trim())
 const pick=()=>fileInput.value?.click()
 function addFiles(collection){
   error.value=''
   for(const file of collection) {
     if(!/\.(pdf|md|markdown|txt)$/i.test(file.name)){error.value='Formato no admitido: '+file.name;continue}
-    if(!files.value.some(f=>f.name===file.name&&f.size===file.size))files.value.push(file)
+    if(files.value.some(f=>f.name===file.name&&f.size===file.size))continue
+    if(files.value.reduce((sum,f)=>sum+(f.size||0),0)+(file.size||0)>MAX_UPLOAD_BYTES){
+      error.value='La carga supera 50 MB en total. Quitá algún documento e intentá otra vez.'
+      continue
+    }
+    files.value.push(file)
   }
 }
 function select(event){addFiles(Array.from(event.target.files||[]));event.target.value=''}
 function drop(event){dragging.value=false;addFiles(Array.from(event.dataTransfer.files||[]))}
 function start(){
-  if(!canStart.value||capacity.value?.busy)return
+  if(!canStart.value)return
   const scope = interactionArea.value.trim()
   const requirement = scope
     ? prompt.value.trim() + '\n\nÁmbito territorial de interacción de los agentes: ' + scope + '. Considerá este contexto al crear sus perfiles y simular las conversaciones.'
@@ -90,4 +105,18 @@ onMounted(async()=>{try{capacity.value=(await service.get('/api/capacity/status'
 @media(max-width:1200px){.workspace-grid{grid-template-columns:1fr}.workspace-intro{min-height:unset}.steps{grid-template-columns:1fr 1fr}}@media(max-width:680px){.steps{grid-template-columns:1fr}.form-label{flex-direction:column}.history-area{padding:13px}}
  .area-input{width:100%;box-sizing:border-box;height:49px;border:1px solid #d6e4ed;border-radius:11px;padding:0 13px;font:inherit;color:#254a68;background:#fff}
 .area-input:focus{outline:3px solid #15d2bd18;border-color:#0cb3b2}.area-help{font-size:11px;color:#6e8a9e;line-height:1.6;margin-top:7px}
+
+.workspace-intro :deep(.journey){margin-top:25px}
+.workspace-intro :deep(.journey-track){grid-template-columns:1fr;gap:8px}
+.workspace-intro :deep(.journey-track li){padding:10px;background:#ffffff14}
+.workspace-intro :deep(.journey-track small){font-size:11px}
+.file-summary{font-size:11px;color:#51768c;margin:9px 0}
+.upload-area:focus-visible{outline:3px solid #21c6cc;outline-offset:3px}
+.prepare-checklist{margin-top:20px;padding:15px;border-radius:13px;border:1px solid #d8e9ee;background:#f7fbfc;display:grid;gap:10px}
+.prepare-checklist>strong{font-size:13px;color:#20516c}
+.prepare-checklist div{display:flex;align-items:center;gap:10px;color:#6b8396;font-size:12px}
+.prepare-checklist div span{width:24px;height:24px;display:grid;place-items:center;border-radius:8px;background:#e9eff5;color:#617e91;font-weight:850;flex:none}
+.prepare-checklist div.ready{color:#235a6e}
+.prepare-checklist div.ready span{color:#0c8256;background:#d9f7e8}
+.busy-note{font-size:12px;color:#98641d;background:#fff6e4;border:1px solid #f1dda7;padding:12px;line-height:1.55;border-radius:10px;margin-top:13px}
 </style>
