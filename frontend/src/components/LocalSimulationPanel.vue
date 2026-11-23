@@ -91,6 +91,9 @@
               <p><strong>Ronda {{ a.phase }} · {{ a.actor_type }}</strong></p>
               <p>{{ a.action_text }}</p>
               <small>Fuente original: {{ a.evidence_source || 'sin evidencia' }}</small>
+              <p class="local-sim-evidence"><strong>Fragmento documental:</strong>
+                {{ a.evidence || 'No hay referencia textual' }}
+              </p>
               <div class="local-sim-review">
                 <button type="button" class="secondary" :disabled="busy" @click="review(a,'accept')">
                   Validar decisión
@@ -268,6 +271,7 @@ onUnmounted(() => {requestNumber++;if(timer)clearInterval(timer)})
 .local-sim-history{max-height:360px;overflow-y:auto;margin-top:12px;border-top:1px solid #dce4eb}
 .local-sim-decision{padding:8px 0;border-bottom:1px solid #ebeff2}.local-sim-decision p{margin:4px 0;line-height:1.45}
 .local-sim-decision small{color:#63727e}
+.local-sim-evidence{padding:8px;background:#f4f8fa;border-left:3px solid #a8c3d2;white-space:pre-wrap;overflow-wrap:anywhere}
 .local-sim-review{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 @media(max-width:680px){.local-sim-panel{margin:12px;padding:12px}.local-sim-controls{align-items:stretch;flex-direction:column}}
 </style>
