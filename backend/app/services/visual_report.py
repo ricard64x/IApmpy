@@ -282,7 +282,7 @@ def render_pdf(markdown,metrics,opts,report_id):
         return page
     def line(text,size=10,heavy=False,indent=0):
         nonlocal y
-        text=re.sub(r"[^\x20-\x7e]"," ",str(text)) # base fonts lack Unicode; avoid tofu glyphs
+        text=str(text).encode("latin-1","replace").decode("latin-1") # preserve Spanish accents; unsupported pictograms become placeholders
         words=text.split()
         if not words:return
         maxchars=max(15,int((pw-2*margin-indent)/(size*.53)))
@@ -311,7 +311,7 @@ def render_pdf(markdown,metrics,opts,report_id):
         for r in rows:
             ensure(19)
             label=str(r.get(key,""))[:22]
-            page.insert_text((margin,y),re.sub(r"[^\x20-\x7e]"," ",label),fontsize=8,color=(.21,.37,.5))
+            page.insert_text((margin,y),label.encode("latin-1","replace").decode("latin-1"),fontsize=8,color=(.21,.37,.5))
             w=(pw-margin*2-225)*max(0,int(r.get("count",0)))/maxval
             page.draw_rect(fitz.Rect(margin+145,y-9,margin+145+w,y+2),fill=(.10,.47,.70),color=None)
             page.insert_text((pw-margin-31,y),str(r.get("count",0)),fontsize=8,color=(.1,.3,.5))
@@ -377,7 +377,7 @@ def render_pdf(markdown,metrics,opts,report_id):
             center=coords[name]
             rgb=tuple(int(PALETTE[i%len(PALETTE)][k:k+2],16)/255 for k in (1,3,5))
             page.draw_circle(center,12,color=None,fill=rgb)
-            label=re.sub(r"[^\x20-\x7e]"," ",name)[:13]
+            label=name.encode("latin-1","replace").decode("latin-1")[:13]
             page.insert_text((center.x-23,center.y+23),label,fontsize=7,color=(.1,.3,.45))
         y+=238
         separator()
