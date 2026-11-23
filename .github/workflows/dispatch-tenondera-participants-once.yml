@@ -1,0 +1,42 @@
+name: One-time protected participant selector release
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/dispatch-tenondera-participants-once.yml
+permissions:
+  contents: read
+  actions: write
+jobs:
+  dispatch-release:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      github.event.head_commit.message == 'chore: request tested participants release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Verify exact tested merge and no additional code edits
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TARGET: ${{ github.sha }}
+          MERGED: 242285cd7d431ec4ca9eb4fce4038a9fc6ed7503
+          TESTED: a4196e76004de16a09c6fccf74a1c0549fbc24b2
+        shell: bash
+        run: |
+          set -euo pipefail
+          only_dispatcher="$(gh api "repos/$REPO/compare/$MERGED...$TARGET" --jq '(.ahead_by == 1) and ((.files | length) == 1) and (.files[0].filename == ".github/workflows/dispatch-tenondera-participants-once.yml")')"
+          test "$only_dispatcher" = "true"
+          ci="$(gh api "repos/$REPO/actions/runs?head_sha=$TESTED&per_page=30" --jq '.workflow_runs | map(select(.name == "Verify IApmpy Fly deployment" and .event == "pull_request")) | .[0].conclusion // "missing"')"
+          test "$ci" = "success"
+          current="$(gh api "repos/$REPO/branches/main" --jq '.commit.sha')"
+          test "$current" = "$TARGET"
+      - name: Dispatch existing protected production deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api -X POST "repos/$REPO/actions/workflows/deploy-fly.yml/dispatches" -f ref=main
+          echo "Requested protected release."
