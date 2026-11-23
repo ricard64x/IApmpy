@@ -113,6 +113,7 @@
           :graphData="graphData"
           :systemLogs="systemLogs"
           :simulation-enabled="capabilities?.simulation_enabled !== false"
+          :graph-local-mode="capabilities?.graph_backend === 'getangiru_local'"
           @next-step="handleNextStep"
         />
         <!-- Step 2: 环境搭建 -->
