@@ -1755,6 +1755,7 @@ def start_simulation():
         # Enforce the interactive minimum on the server, not only in Vue.
         # Read prepared identities before any force/restart path can mutate logs.
         if engine_mode == "lightweight" and saved_settings.get("interaction_mode") == "dialogue":
+            import json
             from pathlib import Path
             from scripts.run_lightweight_simulation import _read_profile_data
             if max_rounds < 2:
