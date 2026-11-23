@@ -1852,6 +1852,12 @@ def start_simulation():
         if len(eligible) < 2:
             return jsonify({"success":False,
                 "error":"La simulación requiere al menos 2 participantes activos para generar interacción válida."}),422
+        from ..services.participant_population import capacity_limit
+        if len(eligible) > capacity_limit(engine_mode):
+            return jsonify({"success":False,
+                "error":"El motor seleccionado admite hasta "
+                        + str(capacity_limit(engine_mode))
+                        + " perfiles en esta máquina. Ajustá participantes desde Preparación del entorno."}),422
         if engine_mode == "lightweight" and saved_settings.get("interaction_mode") == "dialogue":
             if max_rounds < 2:
                 return jsonify({"success":False,
