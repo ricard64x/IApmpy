@@ -177,6 +177,7 @@ const systemLogs = ref([])
 
 // Polling timers
 let pollTimer = null
+let ontologyElapsedTimer = null
 let graphPollTimer = null
 let graphPollBusy = false
 let recoveryInProgress = false
@@ -253,6 +254,27 @@ const handleGoBack = () => {
 
 // --- Data Logic ---
 
+const stopOntologyElapsedTimer = () => {
+  if (ontologyElapsedTimer) {
+    clearInterval(ontologyElapsedTimer)
+    ontologyElapsedTimer = null
+  }
+}
+const startOntologyElapsedTimer = () => {
+  stopOntologyElapsedTimer()
+  const began = Date.now()
+  const local = capabilities.value?.ontology_backend === 'local'
+  const stage = local ? 'Modelo local generando la ontología' : 'Generando la ontología'
+  ontologyProgress.value = { message: `${stage}: 0 s transcurridos. Sin porcentaje estimado.` }
+  ontologyElapsedTimer = setInterval(() => {
+    const seconds = Math.floor((Date.now() - began) / 1000)
+    ontologyProgress.value = {
+      message: `${stage}: ${seconds} s transcurridos. Este tiempo no representa un porcentaje de avance.`,
+      elapsedSeconds: seconds
+    }
+  }, 1000)
+}
+
 const initProject = async () => {
   addLog('Project view initialized.')
   try {
@@ -284,8 +306,8 @@ const handleNewProject = async () => {
   try {
     loading.value = true
     currentPhase.value = 0
-    ontologyProgress.value = { message: 'Uploading and analyzing docs...' }
-    addLog('Starting ontology generation: Uploading files...')
+    startOntologyElapsedTimer()
+    addLog('Preparando documentos para analizar con el motor configurado...')
     
     const formData = new FormData()
     pending.files.forEach(f => formData.append('files', f))
@@ -316,6 +338,7 @@ const handleNewProject = async () => {
     error.value = err.message
     addLog(`Exception in handleNewProject: ${err.message}`)
   } finally {
+    stopOntologyElapsedTimer()
     loading.value = false
   }
 }
@@ -618,6 +641,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  stopOntologyElapsedTimer()
   document.removeEventListener('visibilitychange', onVisibilityChange)
   stopPolling()
   stopGraphPolling()
