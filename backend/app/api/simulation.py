@@ -1550,7 +1550,7 @@ def generate_profiles():
 @simulation_bp.route('/<simulation_id>/execution-settings', methods=['GET', 'POST'])
 def execution_settings(simulation_id: str):
     """Choose where agents interact, rounds and automatic finalization."""
-    from ..services.simulation_execution import get_execution_settings, save_execution_settings
+    from ..services.simulation_execution import get_execution_settings, save_execution_settings, settings_path
     if SimulationManager().get_simulation(simulation_id) is None:
         return jsonify({"success": False, "error": "Simulación no encontrada."}), 404
     run = SimulationRunner.get_run_state(simulation_id)
@@ -1560,6 +1560,7 @@ def execution_settings(simulation_id: str):
             **get_execution_settings(simulation_id),
             "locked": locked,
             "requires_new_version": locked,
+            "has_saved_settings": settings_path(simulation_id).is_file(),
         }})
     if locked:
         return jsonify({
