@@ -36,8 +36,30 @@ async function run() {
     const dashboardText = await page.locator('body').innerText()
     assert(dashboardText.includes('Tenonderã') || dashboardText.includes('TENONDERÃ'))
     assert(!/OASIS|Fly\.io|GraphRAG|agentes sintéticos/i.test(dashboardText), 'Dashboard shows engineering jargon')
+    assert(dashboardText.includes('De una pregunta a un resultado'), 'Five-step journey must be visible')
+    assert(dashboardText.includes('¿Cuántos participantes puedo usar?'), 'Engine limits must be understandable')
     await page.screenshot({ path: path.join(DIR, '02-dashboard-desktop.png'), fullPage: true })
     screenshots.push('02-dashboard-desktop.png')
+
+    // The first-run screen must prioritize action over a long introduction on phones.
+    await page.setViewportSize({width:390,height:844})
+    await page.goto(BASE + '/workspace', {waitUntil:'domcontentloaded'})
+    await page.getByText('Paso 1 · Definí el escenario').waitFor({timeout:12000})
+    const formRect = await page.locator('.workspace-form').boundingBox()
+    const guideRect = await page.locator('.workspace-intro').boundingBox()
+    assert(formRect && guideRect && formRect.y < guideRect.y,
+      'Mobile creation form must come before the long orientation guide')
+    assert(await page.getByRole('button',{name:'Seleccionar documentos de referencia'}).isVisible())
+    await page.locator('.upload-area input[type=file]').setInputFiles({
+      name:'caso-de-prueba.md',mimeType:'text/markdown',
+      buffer:Buffer.from('# Caso de prueba de experiencia\nEscenario hipotético.')
+    })
+    await page.locator('#sim-goal').fill('Explorar cómo dialogan distintos personajes sobre una decisión hipotética.')
+    assert(await page.getByRole('button',{name:/Guardar documentos y preparar el mapa/}).isEnabled())
+    await page.screenshot({path:path.join(DIR,'02a-crear-escenario-movil.png'),fullPage:true})
+    screenshots.push('02a-crear-escenario-movil.png')
+    await page.setViewportSize({width:1440,height:900})
+    await page.goto(BASE + '/', {waitUntil:'domcontentloaded'})
 
     // Any authenticated administrator can rotate credentials after the initial
     // required change. Never submit real passwords in browser QA.
@@ -93,7 +115,24 @@ async function run() {
     assert((await projectRow.innerText()).includes('25.0 %'), 'Dashboard has no live remote progress')
     await page.screenshot({path: path.join(DIR, '02b-proyectos-guardados.png'), fullPage: true})
     screenshots.push('02b-proyectos-guardados.png')
-    await projectRow.locator('.link-open').click()
+    await page.setViewportSize({width:390,height:844})
+    await page.reload({waitUntil:'domcontentloaded'})
+    await page.getByText('De una pregunta a un resultado').waitFor({timeout:12000})
+    const mobileDashWidth=await page.locator('.page-content').evaluate(e=>e.scrollWidth)
+    assert(mobileDashWidth<=391,
+      'Dashboard mobile content must not force horizontal scrolling')
+    const mainDashboardAction=page.getByRole('button',{name:/Crear nueva simulación/}).first()
+    assert(await mainDashboardAction.isVisible(),'New scenario CTA must be reachable on mobile')
+    await page.screenshot({path:path.join(DIR,'02c-dashboard-guiado-movil.png'),fullPage:true})
+    screenshots.push('02c-dashboard-guiado-movil.png')
+    await page.setViewportSize({width:1440,height:900})
+    assert((await projectRow.innerText()).includes('Revisar proyecto'),
+      'Saved projects must expose a meaningful next action')
+    await page.getByRole('button',{name:'Con informe',exact:true}).click()
+    assert.equal(await page.locator('.simulation-item').count(),0,
+      'Projects without reports must not appear under Con informe')
+    await page.getByRole('button',{name:'Mostrar todos'}).click()
+    await projectRow.getByRole('button',{name:/Revisar proyecto/}).click()
     await page.waitForURL(url => url.pathname === '/process/proj_visualqa', {timeout: 12000})
     await page.locator('.tracking-banner').getByText('20 de 80 fragmentos procesados').waitFor({timeout: 15000})
     assert(await page.locator('.tracking-banner').getByText('Actualización automática cada 12 segundos').isVisible())

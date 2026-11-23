@@ -1,30 +1,62 @@
 <template>
   <TenonderaShell :title="isAdmin ? 'Hola, Administrador' : 'Hola, ' + (activeUser?.name || 'bienvenido')" subtitle="Tus escenarios, usuarios y capacidad operativa, en un solo lugar." :section="isAdmin ? 'ADMINISTRACIÓN' : 'MIS SIMULACIONES'">
-    <div class="top-strip"><span><i></i> Plataforma operativa · datos aislados por usuario</span><div class="account-actions"><button class="account-password" type="button" @click="router.push('/cambiar-clave')">Cambiar mi contraseña</button><button class="new-action" @click="router.push('/workspace')">＋ Nueva simulación</button></div></div>
-    <section class="stat-grid">
-      <article class="stat-card"><span class="stat-icon blue">♧</span><div class="stat-label">{{isAdmin?'Usuarios activos':'Mi cuenta'}}</div><strong>{{isAdmin?users.filter(u=>u.active).length:1}}</strong><span class="stat-foot">{{isAdmin?'Usuarios habilitados':'Acceso personal'}}</span></article>
-      <article class="stat-card"><span class="stat-icon teal">◈</span><div class="stat-label">Perfiles de acceso</div><strong>{{isAdmin?3:1}}</strong><span class="stat-foot">{{isAdmin?'Administrador · Analista · Investigador':roleLabel}}</span></article>
-      <article class="stat-card"><span class="stat-icon purple">▷</span><div class="stat-label">{{isAdmin?'Proyectos y simulaciones':'Mis proyectos'}}</div><strong>{{visibleHistory.length}}</strong><span class="stat-foot">Proyectos recuperables y ejecuciones históricas</span></article>
-      <article class="stat-card"><span class="stat-icon green">▣</span><div class="stat-label">Memoria asignada</div><strong>{{capacity?.machine_memory_mb||'—'}} <small>MB</small></strong><span class="stat-foot">Servidor de Tenonderã</span></article>
+    <div class="top-strip"><span><i></i> Tu espacio privado · proyectos y versiones guardadas</span><div class="account-actions"><button class="account-password" type="button" @click="router.push('/cambiar-clave')">Cambiar mi contraseña</button><button class="text-btn" type="button" :disabled="loadingData" @click="loadData">{{loadingData?'Actualizando…':'↻ Actualizar datos'}}</button></div></div>
+    <section class="dashboard-hero" aria-label="Acciones recomendadas">
+      <div class="hero-copy">
+        <span class="hero-eyebrow">TU PRÓXIMA ACCIÓN</span>
+        <h2>{{nextEntry?'Continuá donde quedaste':'Tu primera simulación comienza acá'}}</h2>
+        <p v-if="nextEntry" class="hero-project">{{friendlyProjectName(nextEntry.project_name,nextEntry.simulation_requirement,nextEntry.project_id)}}</p>
+        <p>{{nextEntry?dashboardNextAction(nextEntry).detail:'Elegí una pregunta, agregá documentos y prepará un escenario de conversaciones. Te acompañamos durante todo el proceso.'}}</p>
+        <div class="hero-buttons">
+          <button v-if="nextEntry" type="button" class="hero-primary" @click="openNext(nextEntry)">
+            {{dashboardNextAction(nextEntry).label}} <span aria-hidden="true">→</span>
+          </button>
+          <button type="button" :class="nextEntry?'hero-secondary':'hero-primary'" @click="router.push('/workspace')">
+            ＋ Crear nueva simulación
+          </button>
+        </div>
+      </div>
+      <div class="hero-side">
+        <span class="hero-side-kicker">EN QUÉ PASO ESTÁS</span>
+        <strong>{{nextEntry?String(dashboardNextAction(nextEntry).stage).padStart(2,'0'):'01'}} <small>/ 05</small></strong>
+        <span>{{nextEntry?journeyStepName(dashboardNextAction(nextEntry).stage):'Objetivo y documentos'}}</span>
+        <p>{{nextEntry?'Tu próximo paso se determina a partir del estado guardado, no de un progreso estimado.':'La guía muestra lo que ocurrirá antes de empezar.'}}</p>
+      </div>
+    </section>
+    <SimulationJourney :current-step="nextEntry?dashboardNextAction(nextEntry).stage:0" />
+
+    <section class="stat-grid" aria-label="Resumen de proyectos guardados">
+      <article class="stat-card"><span class="stat-icon blue">▤</span><div class="stat-label">Proyectos visibles</div><strong>{{summary.projects}}</strong><span class="stat-foot">Incluye proyectos en preparación</span></article>
+      <article class="stat-card"><span class="stat-icon teal">▶</span><div class="stat-label">Procesos en curso</div><strong>{{summary.running}}</strong><span class="stat-foot">Análisis del mapa o conversaciones activos</span></article>
+      <article class="stat-card"><span class="stat-icon purple">▣</span><div class="stat-label">Con informe guardado</div><strong>{{summary.reports}}</strong><span class="stat-foot">Proyectos con un informe vinculado</span></article>
+      <article class="stat-card"><span class="stat-icon green">◇</span><div class="stat-label">Por continuar o revisar</div><strong>{{summary.pending}}</strong><span class="stat-foot">Aún no tienen informe final vinculado</span></article>
     </section>
 
     <section class="middle-grid">
       <article class="panel capacity">
-        <div class="panel-heading"><span class="title-icon">◉</span><div><h2>Capacidad segura de simulación</h2><p>Estimación según los recursos disponibles y las pruebas de capacidad</p></div></div>
-        <div class="tier-row">
-          <div class="tier tier-green"><strong>1–10</strong><span>Ligero</span><small>Menor demanda</small></div>
-          <div class="tier tier-blue"><strong>11–25</strong><span>Medio</span><small>Carga moderada</small></div>
-          <div class="tier tier-purple"><strong>26–{{capacity?.recommended_max_profiles||45}}</strong><span>Alto</span><small>Validar recursos</small></div>
+        <div class="panel-heading"><span class="title-icon">◉</span><div><h2>¿Cuántos participantes puedo usar?</h2><p>Depende del motor elegido; no hay un único límite para todos los escenarios.</p></div></div>
+        <div class="engine-comparison">
+          <div class="engine-card">
+            <div class="engine-head"><strong>Modo eficiente</strong><span :class="capacity?.lightweight_engine_available?'enabled':'unavailable'">{{capacity?'Motor '+(capacity.lightweight_engine_available?'disponible':'no configurado'):'Consultando'}}</span></div>
+            <div class="engine-number">{{capacity?.lightweight_max_profiles??'—'}} <small>máximo técnico</small></div>
+            <p>Personajes configurables y conversaciones por lotes. Empezá con 5 a 10 participantes para revisar la calidad.</p>
+          </div>
+          <div class="engine-card legacy">
+            <div class="engine-head"><strong>Motor social completo</strong><span>Experimental</span></div>
+            <div class="engine-number">Hasta 12 <small>perfiles detectados en el selector</small></div>
+            <p>Además del selector, el servidor fija un techo de admisión de {{capacity?.recommended_max_profiles??'—'}} según su memoria. Puede fallar aun con pocos participantes.</p>
+          </div>
         </div>
-        <div class="capacity-note"><span>⚠</span><p><strong>Máximo operativo: {{capacity?.recommended_max_profiles||'—'}} perfiles.</strong> Cada ronda activa hasta {{capacity?.max_active_agents_per_platform_per_round||'—'}} participantes virtuales por entorno y solo se admite una simulación simultánea. Más perfiles no significa más participantes activos simultáneamente.</p></div>
+        <p class="capacity-explain">Los límites no garantizan estabilidad. La cantidad activa por ronda y el consumo real son distintos de la población total. La selección definitiva se hace en <strong>Preparar entorno</strong>.</p>
       </article>
       <article class="panel resources">
         <div class="panel-heading"><span class="title-icon">▤</span><div><h2>Recursos disponibles</h2><p>Estado actual de la infraestructura</p></div></div>
-        <div class="resource-head"><strong>{{capacity?.memory_used_mb ?? '—'}} MB</strong><span>de {{capacity?.machine_memory_mb||'—'}} MB</span></div>
-        <div class="progress-track"><div :style="{width:memoryPercent+'%'}"></div></div>
-        <p class="resource-tip">Memoria utilizada (estimada). La disponibilidad puede variar durante una simulación.</p>
-        <div class="resource-status" :class="{busy:capacity?.busy}"><span>{{capacity?.busy?'◉':'✓'}}</span>{{capacity?.busy?'Hay una simulación en curso':'Capacidad disponible para una nueva ejecución'}}</div>
-        <div class="algorithm">Modo de funcionamiento eficiente · consumo reducido de recursos</div>
+        <div class="resource-head"><strong>{{capacity?.memory_used_mb ?? '—'}} MB</strong><span>de {{capacity?.machine_memory_mb??'—'}} MB</span></div>
+        <div v-if="capacity?.memory_used_mb!=null" class="progress-track" role="progressbar" aria-label="Memoria del servidor utilizada" :aria-valuenow="memoryPercent" aria-valuemin="0" aria-valuemax="100"><div :style="{width:memoryPercent+'%'}"></div></div>
+        <p class="resource-tip">{{capacity?.memory_used_mb!=null?'Consumo observado por el servidor, no memoria reservada para cada personaje.':'El servidor no devolvió un valor de memoria utilizada.'}}</p>
+        <div class="resource-status" :class="{busy:capacity?.busy}"><span>{{capacity?.busy?'◉':capacity?'✓':'?'}}</span>{{!capacity?'Estado de ejecución no confirmado':capacity.busy?'Hay una simulación ejecutándose':'No se detecta una simulación activa'}}</div>
+        <p class="resource-tip">{{capacity?.busy?'Podés revisar proyectos e informes, pero no iniciar otra ejecución hasta liberar recursos.':'Solo se ejecuta una simulación a la vez. La capacidad se comprueba nuevamente antes del inicio.'}}</p>
+        <div v-if="!capacity" class="capacity-loading">No se pudo confirmar la capacidad en esta lectura. <button type="button" @click="loadData">Reintentar</button></div>
       </article>
     </section>
 
@@ -43,27 +75,42 @@
         </table></div><div v-if="!users.length" class="empty">Todavía no hay otros usuarios registrados.</div>
       </article>
 
-      <article class="panel simulations-panel">
-        <div class="table-top"><div><h2>{{isAdmin?'Proyectos y simulaciones guardados':'Mis proyectos y simulaciones'}}</h2><p>Se muestran desde que se cargan los documentos, aunque la simulación todavía no haya comenzado.</p></div><button class="text-btn" @click="loadData">↻ Actualizar</button></div>
+      <article class="panel simulations-panel" id="mis-proyectos">
+        <div class="table-top"><div><h2>{{isAdmin?'Proyectos y simulaciones guardados':'Mis escenarios'}}</h2><p>Elegí un escenario para continuar exactamente desde el último paso guardado.</p></div><button class="text-btn" :disabled="loadingData" @click="loadData">↻ Actualizar</button></div>
+        <div class="project-filters">
+          <label class="project-search"><span aria-hidden="true">⌕</span><input v-model.trim="projectQuery" aria-label="Buscar escenarios" placeholder="Buscar por nombre u objetivo…"/></label>
+          <div class="filter-tabs" role="group" aria-label="Filtrar escenarios">
+            <button v-for="tab in stageTabs" :key="tab.id" type="button" :class="{active:stageFilter===tab.id}" :aria-pressed="stageFilter===tab.id" @click="stageFilter=tab.id">{{tab.title}}</button>
+          </div>
+        </div>
         <div v-if="isAdmin&&users.length" class="owner-filter"><label for="owner-filter">Filtrar por usuario</label><select id="owner-filter" v-model="selectedOwner"><option value="">Todos</option><option v-for="p in users" :key="p.id" :value="p.id">{{p.name}}</option></select></div>
         <p v-if="historyError" class="history-error" role="alert">{{historyError}}</p>
-        <div class="simulation-list"><div v-for="item in visibleHistory" :key="item.simulation_id || item.project_id" class="simulation-item">
-          <div class="simulation-icon">{{statusClass(item)==='failed'?'⚠':'◇'}}</div>
-          <div class="simulation-info">
-            <strong>{{friendlyProjectName(item.project_name, item.simulation_requirement, item.project_id)}}</strong>
-            <small>{{personName(item.owner_id)}} · {{(item.created_at||'').slice(0,10)}} · {{item.simulation_id ? (item.total_rounds||0)+' rondas' : 'Etapa de preparación'}}</small>
-            <div v-if="liveProgress[item.project_id]" class="project-live-inline" :aria-label="progressLabel(liveProgress[item.project_id])">
-              <span>{{progressLabel(liveProgress[item.project_id])}}</span>
-              <div class="project-live-track"><div :style="{width:Math.min(100,Math.max(0,Number(liveProgress[item.project_id].percent)||0))+'%'}"></div></div>
-              <small>{{unavailable[item.project_id] ? 'Última lectura conservada · comprobando conexión' : 'Datos reales · actualización automática cada 15 segundos'}}</small>
+        <div class="simulation-list">
+          <article v-for="item in filteredHistory" :key="item.simulation_id || item.project_id" class="simulation-item">
+            <div class="simulation-icon" aria-hidden="true">{{statusClass(item)==='failed'?'⚠':'◇'}}</div>
+            <div class="simulation-info">
+              <strong>{{friendlyProjectName(item.project_name,item.simulation_requirement,item.project_id)}}</strong>
+              <small>{{personName(item.owner_id)}} · {{(item.created_at||'').slice(0,10)}} · {{item.simulation_id ? (item.total_rounds||0)+' rondas previstas o registradas' : 'Sin ejecución iniciada'}}</small>
+              <p class="next-hint"><b>Paso {{dashboardNextAction(item).stage}}:</b> {{dashboardNextAction(item).detail}}</p>
+              <div v-if="liveProgress[item.project_id]" class="project-live-inline" :aria-label="progressLabel(liveProgress[item.project_id])">
+                <span>{{progressLabel(liveProgress[item.project_id])}}</span>
+                <div class="project-live-track"><div :style="{width:Math.min(100,Math.max(0,Number(liveProgress[item.project_id].percent)||0))+'%'}"></div></div>
+                <small>{{unavailable[item.project_id] ? 'Última lectura conservada · comprobando conexión' : 'Avance registrado · actualización automática cada 15 segundos'}}</small>
+              </div>
             </div>
+            <span class="run-pill" :class="statusClass(item)">{{liveProgress[item.project_id] ? progressLabel(liveProgress[item.project_id]) : statusText(item)}}</span>
+            <div class="simulation-actions">
+              <button class="next-action" type="button" @click="openNext(item)">{{dashboardNextAction(item).label}} <span aria-hidden="true">→</span></button>
+              <button class="text-btn" v-if="item.project_id" @click="router.push('/historial?project='+encodeURIComponent(item.project_id))">Versiones</button>
+              <button class="text-btn" v-if="item.project_id" @click="rename(item)">Renombrar</button>
+            </div>
+          </article>
+          <div v-if="!filteredHistory.length" class="empty">
+            <p>{{visibleHistory.length?'No hay escenarios que coincidan con esos filtros.':'Todavía no hay proyectos guardados.'}}</p>
+            <button type="button" v-if="visibleHistory.length" class="clear-filters" @click="stageFilter='all';projectQuery=''">Mostrar todos</button>
+            <button type="button" v-else class="new-action" @click="router.push('/workspace')">Crear mi primer escenario</button>
           </div>
-          <span class="run-pill" :class="statusClass(item)">{{liveProgress[item.project_id] ? progressLabel(liveProgress[item.project_id]) : statusText(item)}}</span>
-          <button class="text-btn" v-if="item.project_id" @click="rename(item)">Renombrar</button>
-          <button class="text-btn" v-if="item.project_id" @click="router.push('/historial?project='+encodeURIComponent(item.project_id))">Historial</button>
-          <button class="link-open" @click="openSimulation(item)" :aria-label="'Abrir '+(item.project_id||item.simulation_id)">→</button>
         </div>
-        <div v-if="!visibleHistory.length" class="empty">Aún no hay proyectos guardados. Creá tu primer escenario para comenzar.</div></div>
         <button class="secondary-action" @click="router.push('/historial')">Consultar historial completo y reportes →</button>
       </article>
     </section>
@@ -95,6 +142,8 @@
 import {computed,onMounted,reactive,ref} from 'vue'
 import {useRouter} from 'vue-router'
 import TenonderaShell from '../components/TenonderaShell.vue'
+import SimulationJourney from '../components/SimulationJourney.vue'
+import {dashboardNextAction,dashboardBucket,dashboardCounts,JOURNEY_STEPS} from '../utils/dashboardJourney'
 import {activeUser} from '../api/auth'
 import service from '../api'
 import {mergeProjectHistory, projectEntryStatus, friendlyProjectName} from '../utils/projectHistory'
@@ -103,6 +152,9 @@ const router=useRouter()
 const isAdmin=computed(()=>activeUser.value?.role==='administrator')
 const roleLabel=computed(()=>roleText(activeUser.value?.role))
 const users=ref([]),history=ref([]),savedProjects=ref([]),capacity=ref(null),historyError=ref('')
+const stageFilter=ref('all'),projectQuery=ref(''),loadingData=ref(false)
+const stageTabs=[{id:'all',title:'Todos'},{id:'preparing',title:'En preparación'},{id:'running',title:'En curso'},{id:'report',title:'Con informe'},{id:'attention',title:'Revisar'}]
+const journeyStepName=n=>JOURNEY_STEPS[n-1]?.short || 'Preparación'
 const search=ref(''),selectedOwner=ref(''),showUserForm=ref(false),editingUser=ref(null)
 const editRole=ref('analyst'),editActive=ref(true),editPassword=ref('')
 const saving=ref(false),modalError=ref('')
@@ -112,11 +164,24 @@ const personName=id=>isAdmin.value?(users.value.find(u=>u.id===id)?.name||'Admin
 const memoryPercent=computed(()=>capacity.value?.memory_used_mb&&capacity.value.machine_memory_mb?Math.min(100,Math.round(100*capacity.value.memory_used_mb/capacity.value.machine_memory_mb)):0)
 const filteredUsers=computed(()=>users.value.filter(u=>(u.name+' '+u.username).toLowerCase().includes(search.value.toLowerCase())))
 const visibleHistory=computed(()=>mergeProjectHistory(savedProjects.value,history.value).filter(s=>!isAdmin.value||!selectedOwner.value||s.owner_id===selectedOwner.value))
+const summary=computed(()=>dashboardCounts(visibleHistory.value))
+const filteredHistory=computed(()=>visibleHistory.value.filter(item=>{
+  if(stageFilter.value!=='all'&&dashboardBucket(item)!==stageFilter.value)return false
+  const needle=projectQuery.value.toLocaleLowerCase()
+  return !needle || [item.project_name,item.simulation_requirement,item.project_id,item.simulation_id].some(v=>String(v||'').toLocaleLowerCase().includes(needle))
+}))
+const nextEntry=computed(()=>visibleHistory.value.find(item=>dashboardBucket(item)==='running')
+  || visibleHistory.value.find(item=>dashboardBucket(item)==='attention')
+  || visibleHistory.value.find(item=>dashboardBucket(item)==='preparing')
+  || visibleHistory.value[0] || null)
+const openNext=item=>router.push(dashboardNextAction(item).to)
 const {liveProgress,unavailable} = useLiveProjectProgress(visibleHistory)
 const brief=s=>typeof s==='string'?s.slice(0,54):''
 const statusText=s=>projectEntryStatus(s).label
 const statusClass=s=>projectEntryStatus(s).style
 async function loadData(){
+  if(loadingData.value)return
+  loadingData.value=true
   historyError.value=''
   const requests=[service.get('/api/capacity/status'),service.get('/api/simulation/history',{params:{limit:100}}),service.get('/api/graph/project/list',{params:{limit:200}})]
   if(isAdmin.value)requests.push(service.get('/api/auth/users'))
@@ -130,6 +195,7 @@ async function loadData(){
     historyError.value='No se pudo cargar todo el historial. Volvé a intentar.'
   }
   if(results[3]?.status==='fulfilled')users.value=results[3].value.data||[]
+  loadingData.value=false
 }
 async function submitUser(){
   saving.value=true;modalError.value=''
@@ -197,4 +263,71 @@ onMounted(loadData)
   .simulation-item{align-items:flex-start}
   .run-pill{order:3}
 }
+
+/* Guided scenario dashboard: act first, inspect technical capacity second. */
+.dashboard-hero{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(200px,.6fr);gap:18px;align-items:stretch;padding:clamp(20px,3vw,32px);background:linear-gradient(118deg,#093a70 0%,#075c7e 68%,#087c83 100%);border-radius:20px;color:#fff;margin:0 0 17px;box-shadow:0 12px 28px #154c811a}
+.hero-copy{min-width:0}
+.hero-eyebrow,.hero-side-kicker{font-size:10px;letter-spacing:.15em;color:#92e8e3;font-weight:850}
+.dashboard-hero h2{font-size:clamp(23px,2.9vw,34px);line-height:1.2;letter-spacing:-.035em;margin:9px 0 12px}
+.dashboard-hero p{font-size:13px;line-height:1.65;color:#d7eff6;max-width:690px;margin:0 0 12px}
+.dashboard-hero .hero-project{font-weight:800;font-size:15px;color:white;margin-bottom:6px;overflow-wrap:anywhere}
+.hero-buttons{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+.hero-buttons button{min-height:47px;border-radius:11px;padding:10px 17px;font-size:13px;font-weight:850;cursor:pointer}
+.hero-primary{border:1px solid #fff;background:white;color:#104875}
+.hero-secondary{border:1px solid #ffffff6e;background:#ffffff12;color:#fff}
+.hero-buttons button:hover{filter:brightness(.95)}
+.hero-buttons button:focus-visible,.project-filters button:focus-visible,.next-action:focus-visible{outline:3px solid #7cf2e4;outline-offset:2px}
+.hero-side{display:flex;flex-direction:column;justify-content:center;border-left:1px solid #ffffff38;padding:15px 5px 15px 22px;min-width:0}
+.hero-side strong{font-size:48px;line-height:1.1;letter-spacing:-.06em;margin-top:8px}
+.hero-side strong small{font-size:17px;color:#a9dce7}
+.hero-side>span:not(.hero-side-kicker){font-size:14px;font-weight:800}
+.hero-side p{font-size:11px;margin-top:12px;margin-bottom:0}
+.stat-grid{margin-top:22px}
+.engine-comparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;margin:17px 0}
+.engine-card{border:1px solid #bfe1e8;background:#f0fafb;border-radius:14px;padding:15px;min-width:0}
+.engine-card.legacy{background:#f8fafc;border-color:#e1eaf2}
+.engine-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.engine-head strong{font-size:13px;color:#174e67}
+.engine-head span{font-size:10px;color:#777d94;border:1px solid #d3e1e7;background:#fff;padding:5px 7px;border-radius:100px}
+.engine-head .enabled{color:#11714c;background:#e1f8e9}
+.engine-head .unavailable{color:#a45130;background:#fff3eb}
+.engine-number{font-size:32px;letter-spacing:-.05em;font-weight:850;color:#145b7b;margin:11px 0 7px}
+.engine-number small{font-size:11px;color:#617e91;letter-spacing:0;font-weight:600}
+.engine-card p{line-height:1.55;color:#5b7589;margin:0}
+.panel .capacity-explain{font-size:11px;color:#516e84;line-height:1.65;padding:10px 12px;border-left:3px solid #0b9ca5;background:#f1f8fc;margin:0}
+.capacity-loading{padding:10px;color:#9d6538;font-size:11px;background:#fff5ea;border-radius:9px;margin-top:10px}
+.capacity-loading button{border:0;background:transparent;font-weight:750;color:#176d92;text-decoration:underline;cursor:pointer}
+.project-filters{margin-top:18px;display:grid;gap:12px}
+.project-search{border:1px solid #d9e7ed;border-radius:10px;background:#fff;display:flex;gap:9px;align-items:center;padding:8px 12px;max-width:100%}
+.project-search span{font-size:23px;color:#59829a}
+.project-search input{border:0;outline:0;width:100%;min-width:0;font:inherit;font-size:13px;color:#23475d}
+.filter-tabs{display:flex;gap:7px;overflow-x:auto;padding:2px 0 7px;scrollbar-width:thin}
+.filter-tabs button{border:1px solid #d8e6ee;background:#f8fbfd;color:#41677d;border-radius:999px;white-space:nowrap;min-height:38px;padding:8px 12px;font-size:11px;font-weight:750;cursor:pointer}
+.filter-tabs button.active{background:#115d82;border-color:#115d82;color:#fff}
+.simulation-item{gap:12px;padding:15px}
+.simulation-info strong{font-size:13px}
+.simulation-info .next-hint{margin:8px 0 0;font-size:11px;color:#4d7189;line-height:1.55}
+.next-hint b{color:#185c7e}
+.simulation-actions{display:flex;flex-wrap:wrap;gap:9px;align-items:center;width:100%;border-top:1px solid #edf2f7;padding-top:11px}
+.next-action{border:1px solid #0c7394;background:#0d7092;color:#fff;border-radius:9px;padding:9px 13px;font:800 12px system-ui,sans-serif;cursor:pointer;min-height:40px}
+.next-action:hover{background:#085a79}
+.simulation-actions .text-btn{min-height:38px;padding:8px}
+.clear-filters{background:#ebf7f9;border:1px solid #bad9e2;padding:10px 14px;border-radius:10px;font-weight:750;color:#145e7a;cursor:pointer}
+@media(max-width:980px){.dashboard-hero{grid-template-columns:1fr}.hero-side{border-left:0;border-top:1px solid #ffffff38;padding:14px 0 0}.hero-side strong{font-size:35px}}
+@media(max-width:620px){
+ .dashboard-hero{padding:19px}
+ .hero-buttons{display:grid}
+ .hero-buttons button{width:100%}
+ .engine-comparison{grid-template-columns:1fr}
+ .project-filters{gap:10px}
+ .simulation-actions{display:grid;grid-template-columns:1fr 1fr}
+ .simulation-actions .next-action{grid-column:1/-1}
+ .simulation-item{display:grid;grid-template-columns:38px minmax(0,1fr)}
+ .simulation-info{min-width:0}
+ .run-pill{grid-column:2;justify-self:start}
+ .simulation-actions{grid-column:1/-1}
+ .top-strip{flex-wrap:wrap}
+ .account-actions{display:flex;flex-wrap:wrap;gap:10px}
+}
+
 </style>
