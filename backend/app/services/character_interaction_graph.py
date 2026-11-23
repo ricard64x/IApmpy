@@ -35,7 +35,7 @@ def character_alias(agent_id: str | int) -> str:
 
 
 def _text(value, limit=180):
-    return re.sub(r"[\x00-\x1f]+", " ", str(value or "")).strip()[:limit]
+    return re.sub(r"[\x00-\x1f]+", " ", str("" if value is None else value)).strip()[:limit]
 
 
 def _professions(directory: Path):
