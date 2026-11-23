@@ -112,6 +112,7 @@ jobs:
           test -n "$CHROME_BIN" || { echo "Chrome no está instalado en el ejecutor"; exit 1; }
           echo "Navegador de pruebas: $CHROME_BIN"
           CHROME_BIN="$CHROME_BIN" node tests/browser_visual_smoke.cjs
+          CHROME_BIN="$CHROME_BIN" node tests/browser_native_simulation_smoke.cjs
       - name: Upload visual browser evidence
         if: always()
         uses: actions/upload-artifact@v4
