@@ -70,7 +70,7 @@ class LocalOntologyTests(unittest.TestCase):
         self.assertEqual("Person", ontology["entity_types"][-2]["name"])
         self.assertEqual("Organization", ontology["entity_types"][-1]["name"])
         self.assertEqual(1200, fake.calls[0]["max_tokens"])
-        self.assertIn("exactamente 8", fake.calls[0]["messages"][0]["content"])
+        self.assertIn("EXACTAMENTE 8", fake.calls[0]["messages"][0]["content"])
 
     def test_reject_local_incomplete_schema(self):
         with patch.dict(os.environ, {"LLM_LOCAL_INFERENCE": "true"}):
