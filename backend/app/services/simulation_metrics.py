@@ -37,7 +37,9 @@ def summarize(events, *, source, truncated=False, available=True):
     types_for_talk = {"CREATE_POST","CREATE_COMMENT","REPLY","REPLY_POST","COMMENT","POST"}
     for event in events:
         kind = _safe_text(event.get("action_type"), 48).upper()
-        sender = event.get("agent_id") or event.get("actor_uuid")
+        sender = event.get("agent_id")
+        if sender is None:
+            sender = event.get("actor_uuid")
         if sender is None:
             continue
         key = str(sender)[:100]
@@ -66,7 +68,9 @@ def summarize(events, *, source, truncated=False, available=True):
             last = max(last, stamp) if last else stamp
         args = event.get("action_args")
         if not isinstance(args,dict): args = {}
-        target = args.get("target_agent_id") or event.get("target_agent_id")
+        target = args.get("target_agent_id")
+        if target is None:
+            target = event.get("target_agent_id")
         # Count only explicitly directed replies to another participant.
         # Mentions, self-replies and arbitrary missing IDs are not proof of dialogue.
         if kind in {"CREATE_COMMENT", "REPLY", "REPLY_POST", "COMMENT"} and target is not None and str(target) != key:
