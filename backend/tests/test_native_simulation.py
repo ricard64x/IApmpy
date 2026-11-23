@@ -85,6 +85,9 @@ class LocalSimulationTests(unittest.TestCase):
         self.s.feedback(first["id"],actor_uuid=actor["uuid"],phase=1,
                         verdict="reject",note="Exigir evidencia de validación")
         self.assertEqual({"reject":1},self.s.quality(first["id"]))
+        snapshot=self.s.public(first["id"])
+        self.assertEqual(1,snapshot["human_validation"]["reviewed"])
+        self.assertEqual(0.0,snapshot["human_validation"]["acceptance_rate_pct"])
         second=self.create()
         self.s.execute(second["id"],self.graph,"Test")
         plan=self.s.public(second["id"])["report"]["plan"]
