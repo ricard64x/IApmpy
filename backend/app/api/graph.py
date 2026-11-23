@@ -334,6 +334,19 @@ def _reset_project_impl(project_id: str):
 
 # ============== 接口1：上传文件并生成本体 ==============
 
+@graph_bp.route('/capabilities', methods=['GET'])
+def get_processing_capabilities():
+    """Authentication-protected readiness. No providers are contacted or secrets returned."""
+    return jsonify({
+        "success": True,
+        "data": {
+            "ontology_enabled": bool(Config.LLM_API_KEY),
+            "graph_enabled": bool(Config.ZEP_API_KEY),
+            "memory_local_enabled": os.environ.get("GETANGIRU_MIRROR_ENABLED", "false").lower() == "true",
+        }
+    })
+
+
 @graph_bp.route('/ontology/generate', methods=['POST'])
 def generate_ontology():
     """
@@ -366,6 +379,15 @@ def generate_ontology():
     try:
         logger.info("=== 开始生成本体定义 ===")
         
+        # Fail before creating an empty project or accepting a long-running task.
+        # The local Getangiru memory mirror is not an ontology-generation model.
+        if not Config.LLM_API_KEY:
+            return jsonify({
+                "success": False,
+                "error": "No hay un modelo de IA configurado para generar la ontología en este entorno. La memoria local funciona, pero el análisis de documentos está deshabilitado.",
+                "code": "ONTOLOGY_PROVIDER_NOT_CONFIGURED",
+            }), 503
+
         # 获取参数
         simulation_requirement = request.form.get('simulation_requirement', '')
         project_name = request.form.get('project_name', 'Unnamed Project')
