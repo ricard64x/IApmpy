@@ -567,6 +567,9 @@ def report_simulation_metrics(report_id: str):
     base = os.path.join(SimulationRunner.RUN_STATE_DIR,simulation_id)
     from ..services.simulation_metrics import followup_metrics
     data=legacy_metrics(simulation_id,base)
+    from ..services.character_interaction_graph import character_graph
+    from pathlib import Path
+    data["conversation_archive"] = character_graph(simulation_id, Path(base))
     try:
         from pathlib import Path
         from ..services.participant_population import population_status
