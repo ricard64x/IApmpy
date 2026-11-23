@@ -9,6 +9,7 @@ from app.api import graph_bp
 from app.config import Config
 from app.models.project import ProjectManager
 from app.utils.local_model import local_inference_ready
+from app.utils.llm_client import LLMClient
 
 
 class LocalModelReadinessTests(unittest.TestCase):
@@ -39,6 +40,8 @@ class LocalModelReadinessTests(unittest.TestCase):
              patch.object(Config, 'LLM_API_KEY', 'key'), \
              patch.object(Config, 'LLM_BASE_URL', 'https://api.openai.com/v1'):
             self.assertFalse(local_inference_ready())
+            with self.assertRaisesRegex(ValueError, "modelos externos"):
+                LLMClient(api_key="not-a-real-key", base_url="https://api.openai.com/v1", model="test")
 
 
 if __name__ == '__main__':
