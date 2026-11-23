@@ -360,6 +360,87 @@ def _reset_project_impl(project_id: str):
     })
 
 
+
+# The durable endpoint is the default for new clients. The historical
+# synchronous /ontology/generate route stays for backward compatibility.
+@graph_bp.post('/ontology/submit')
+def submit_ontology_job():
+    """Return an owned project ID before LLM work begins, even on slow networks."""
+    from ..auth import current_user
+    from ..models.project import project_display_name
+    from ..services.ontology_queue import find_submission, submit, start_worker
+    key=request.form.get("submission_key","")
+    if not re.fullmatch(r"[a-zA-Z0-9_-]{16,80}",key):
+        return jsonify({"success":False,"error":"Identificador de envío inválido"}),422
+    owner=current_user()
+    if not owner:
+        return jsonify({"success":False,"error":"Iniciá sesión"}),401
+    existing=find_submission(owner["id"],key)
+    if existing:
+        return jsonify({"success":True,"data":{"project_id":existing["project_id"],
+            "state":existing["state"],"reused":True}}),202
+    if not local_inference_ready():
+        return jsonify({"success":False,"error":"El modelo de IA no está disponible. Podés intentarlo nuevamente."}),503
+    requirement=request.form.get("simulation_requirement","").strip()
+    name=request.form.get("project_name","").strip()
+    uploads=request.files.getlist("files")
+    if not 8<=len(requirement)<=12000 or len(name)>100:
+        return jsonify({"success":False,"error":"Objetivo inválido (8 a 12.000 caracteres)"}),422
+    if not 1<=len(uploads)<=10 or any(not f.filename or not allowed_file(f.filename) for f in uploads):
+        return jsonify({"success":False,"error":"Adjuntá entre 1 y 10 archivos PDF, TXT o Markdown válidos"}),422
+    project=None
+    try:
+        project=ProjectManager.create_project(name=project_display_name(name,requirement))
+        project.simulation_requirement=requirement
+        # Uploads are fully saved to the encrypted persistent volume before
+        # the job becomes visible to a worker. Never overwrite old projects.
+        for attachment in uploads:
+            saved=ProjectManager.save_file_to_project(project.project_id,attachment,attachment.filename)
+            project.files.append({"filename":saved["original_filename"],"size":saved["size"]})
+        ProjectManager.save_project(project)
+        try:
+            submit(project.project_id,owner["id"],key)
+        except sqlite3.IntegrityError:
+            # Duplicate client request after a lost response.
+            known=find_submission(owner["id"],key)
+            if not known:
+                raise
+            ProjectManager.delete_project(project.project_id)
+            return jsonify({"success":True,"data":{"project_id":known["project_id"],
+                       "state":known["state"],"reused":True}}),202
+        return jsonify({"success":True,"data":{"project_id":project.project_id,
+                       "state":"queued","reused":False}}),202
+    except Exception:
+        logger.exception("Unable to persist ontology upload")
+        if project is not None:
+            project.status=ProjectStatus.FAILED
+            project.error="No se pudo guardar completamente el envío."
+            try:ProjectManager.save_project(project)
+            except (OSError,ValueError):pass
+        return jsonify({"success":False,
+          "error":"No se pudo confirmar la recepción. Revisá Mis proyectos antes de reenviar."}),503
+
+
+@graph_bp.get('/project/<project_id>/ontology-status')
+def ontology_job_status(project_id):
+    """Ownership enforced by the existing project authorization middleware."""
+    from ..services.ontology_queue import status
+    item=status(project_id)
+    if item is None:
+        return jsonify({"success":False,"error":"No existe una tarea para este proyecto"}),404
+    return jsonify({"success":True,"data":item})
+
+
+@graph_bp.post('/project/<project_id>/ontology-retry')
+def retry_ontology_job(project_id):
+    """Manual retry reuses saved uploads; never requires another file transfer."""
+    from ..services.ontology_queue import retry
+    result=retry(project_id)
+    if result is None:
+        return jsonify({"success":False,"error":"No hay una tarea recuperable"}),409
+    return jsonify({"success":True,"data":result}),202
+
+
 # ============== 接口1：上传文件并生成本体 ==============
 
 @graph_bp.route('/capabilities', methods=['GET'])
