@@ -51,6 +51,24 @@
         </div>
       </div>
 
+      <section class="saved-runs" aria-label="Historial de simulaciones">
+        <div class="saved-runs-heading">
+          <h4>Historial de este proyecto</h4>
+          <button type="button" class="secondary" :disabled="historyBusy" @click="loadHistory">Actualizar historial</button>
+        </div>
+        <p class="local-sim-note">Los resultados anteriores se conservan. Crear otra ejecución no borra ninguna anterior.</p>
+        <p v-if="historyError" role="alert" class="local-sim-error">{{ historyError }}</p>
+        <div v-if="history.length" class="saved-runs-list">
+          <button v-for="item in history" :key="item.simulation_id"
+            type="button" class="saved-run" :class="{ selected: result?.simulation_id === item.simulation_id }"
+            @click="openHistoricalRun(item.simulation_id)">
+            <strong>{{ new Date(item.started_at).toLocaleString('es-PY') }}</strong>
+            <span>{{ stateName(item.status) }} · {{ item.mode_requested === 'rules' ? 'Reglas' : 'Híbrido' }}</span>
+            <span>{{ item.progress_pct }}% · Ver detalles</span>
+          </button>
+        </div>
+        <p v-else-if="!historyBusy" class="local-sim-note">Todavía no hay ejecuciones guardadas para este proyecto.</p>
+      </section>
       <div v-if="result" class="local-sim-results" role="status">
         <div class="local-sim-status">
           <strong>{{ statusLabel }}</strong>
@@ -139,6 +157,37 @@ const busyResearch = ref(false)
 const researchError = ref('')
 const researchResult = ref(null)
 const cves = ref('')
+const history = ref([])
+const historyBusy = ref(false)
+const historyError = ref('')
+const stateName = (status) => ({queued:'En cola',running:'En ejecución',completed:'Completada',
+  failed:'Fallida',interrupted:'Interrumpida'})[status] || status
+async function loadHistory() {
+  if (!props.projectId || !props.graphReady) return
+  const projectId = props.projectId
+  historyBusy.value = true
+  historyError.value = ''
+  try {
+    const response = await service.get('/api/native-simulation/project/'+encodeURIComponent(projectId)+'/history')
+    if (projectId === props.projectId) history.value = response?.data || []
+  } catch (e) {
+    if (projectId === props.projectId) historyError.value = e.message || 'No se pudo cargar el historial'
+  } finally { historyBusy.value = false }
+}
+async function openHistoricalRun(id) {
+  if (active.value || !history.value.some(item => item.simulation_id === id)) return
+  requestNumber++
+  error.value = ''
+  showActions.value = false
+  try {
+    const response = await service.get('/api/native-simulation/'+encodeURIComponent(id))
+    if (response.data?.project_id === props.projectId) {
+      result.value = response.data
+      managePolling()
+    }
+  } catch (e) { error.value = e.message || 'No se pudo abrir la ejecución guardada' }
+}
+
 let timer = null
 let requestNumber = 0
 
@@ -178,6 +227,7 @@ async function loadLatest() {
     if (current !== requestNumber) return
     result.value = response?.data || null
     managePolling()
+    await loadHistory()
   } catch (e) {
     if (current === requestNumber) error.value = e.message || 'No se pudo consultar la simulación'
   }
@@ -214,6 +264,7 @@ async function run() {
     }
     managePolling()
     await update()
+    await loadHistory()
   } catch (e) {
     error.value = e.message || 'No se inició la simulación'
   } finally {busy.value = false}
@@ -234,13 +285,15 @@ async function review(action, verdict) {
 watch(() => props.projectId, () => {
   requestNumber++
   result.value=null
+  history.value=[]
   error.value=''
   showActions.value=false
   if (timer){clearInterval(timer);timer=null}
   loadLatest()
+  loadHistory()
 })
-watch(() => props.graphReady, enabled => {if (enabled)loadLatest()})
-onMounted(() => {loadCapabilities();loadLatest()})
+watch(() => props.graphReady, enabled => {if (enabled){loadLatest();loadHistory()}})
+onMounted(() => {loadCapabilities();loadLatest();loadHistory()})
 onUnmounted(() => {requestNumber++;if(timer)clearInterval(timer)})
 </script>
 
@@ -274,4 +327,15 @@ onUnmounted(() => {requestNumber++;if(timer)clearInterval(timer)})
 .local-sim-evidence{padding:8px;background:#f4f8fa;border-left:3px solid #a8c3d2;white-space:pre-wrap;overflow-wrap:anywhere}
 .local-sim-review{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 @media(max-width:680px){.local-sim-panel{margin:12px;padding:12px}.local-sim-controls{align-items:stretch;flex-direction:column}}
+
+.saved-runs{min-width:0;margin-top:16px;padding-top:12px;border-top:1px solid #dae2e8}
+.saved-runs-heading{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+.saved-runs-heading h4{margin:0}
+.saved-runs-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:8px}
+.local-sim-panel .saved-run{display:flex;flex-direction:column;align-items:flex-start;gap:5px;
+ background:#f5f9fc;color:#25445a;text-align:left;border:1px solid #b9cedb;min-width:0;
+ overflow-wrap:anywhere}
+.local-sim-panel .saved-run.selected{border:2px solid #087d91}
+.local-sim-panel{max-width:100%;min-width:0;box-sizing:border-box;overflow-wrap:anywhere}
+@media(max-width:680px){.saved-runs-list{grid-template-columns:1fr}.saved-runs-heading{align-items:stretch}}
 </style>
