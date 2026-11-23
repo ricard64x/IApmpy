@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { activeUser, loadSession } from '../api/auth'
 import Dashboard from '../views/Dashboard.vue'
 import Home from '../views/Home.vue'
+import SimulationHistory from '../views/SimulationHistory.vue'
 import Login from '../views/Login.vue'
 import MainView from '../views/MainView.vue'
 import SimulationView from '../views/SimulationView.vue'
@@ -15,6 +16,7 @@ const routes = [
   { path: '/', name: 'Dashboard', component: Dashboard },
   { path: '/administracion', name: 'Administration', component: Dashboard, meta: { admin: true } },
   { path: '/workspace', name: 'Home', component: Home },
+  { path: '/historial', name: 'History', component: SimulationHistory },
   { path: '/process/:projectId', name: 'Process', component: MainView, props: true },
   { path: '/simulation/:simulationId', name: 'Simulation', component: SimulationView, props: true },
   { path: '/simulation/:simulationId/start', name: 'SimulationRun', component: SimulationRunView, props: true },
