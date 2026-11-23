@@ -257,6 +257,20 @@ class OntologyGenerator:
         Returns:
             本体定义（entity_types, edge_types等）
         """
+        if local_inference_requested() and os.getenv("LLM_LOCAL_FAST_MODE", "false").lower() == "true":
+            from .local_ontology_fast import infer_fast_local_ontology
+            candidates = infer_fast_local_ontology(
+                self.llm_client,
+                document=self._build_document_context(document_texts),
+                requirement=simulation_requirement,
+            )
+            result = self._validate_and_process(candidates)
+            if len(result["entity_types"]) != 10 or len(result["edge_types"]) < 4:
+                raise LLMResponseError(
+                    "El modelo local no produjo una ontología válida para el documento."
+                )
+            return result
+
         # 构建用户消息
         user_message = self._build_user_message(
             document_texts, 
