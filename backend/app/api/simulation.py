@@ -73,6 +73,19 @@ def optimize_interview_prompt(prompt: str) -> str:
     return f"{INTERVIEW_PROMPT_PREFIX}{prompt}"
 
 
+def _getangiru_graph_view(graph_id: str):
+    """Owner-scoped local graph, no cloud lookups."""
+    if not graph_id.startswith("gtg_"):
+        raise KeyError("Not a local Getangiru graph")
+    from ..services.getangiru_graph_engine import default_store
+    projects = ProjectManager.find_projects_by_graph_id(graph_id)
+    if not projects:
+        raise KeyError("Graph not found")
+    return default_store(Config.UPLOAD_FOLDER).read(
+        graph_id, tenant="tenondera", project_id=projects[0].project_id
+    )
+
+
 # ============== 实体读取接口 ==============
 
 @simulation_bp.route('/entities/<graph_id>', methods=['GET'])
@@ -87,6 +100,22 @@ def get_graph_entities(graph_id: str):
         enrich: 是否获取相关边信息（默认true）
     """
     try:
+        if graph_id.startswith("gtg_"):
+            try:
+                graph_data = _getangiru_graph_view(graph_id)
+            except KeyError:
+                return jsonify({"success": False, "error": "Grafo no encontrado"}), 404
+            requested = set(filter(None, request.args.get('entity_types', '').split(',')))
+            nodes = [
+                {**node, "related_edges": [], "related_nodes": []}
+                for node in graph_data["nodes"]
+                if not requested or requested.intersection(node["labels"])
+            ]
+            return jsonify({"success": True, "data": {
+                "entities": nodes, "entity_types": graph_data["entity_types"],
+                "total_count": graph_data["node_count"], "filtered_count": len(nodes),
+                "semantics": graph_data["graph_semantics"],
+            }})
         if not Config.ZEP_API_KEY:
             return jsonify({
                 "success": False,
@@ -124,6 +153,21 @@ def get_graph_entities(graph_id: str):
 def get_entity_detail(graph_id: str, entity_uuid: str):
     """获取单个实体的详细信息"""
     try:
+        if graph_id.startswith("gtg_"):
+            try:
+                graph_data = _getangiru_graph_view(graph_id)
+            except KeyError:
+                return jsonify({"success": False, "error": "Grafo no encontrado"}), 404
+            entity = next((x for x in graph_data["nodes"] if x["uuid"] == entity_uuid), None)
+            if entity is None:
+                return jsonify({"success": False, "error": "Entidad no encontrada"}), 404
+            return jsonify({"success": True, "data": {
+                **entity,
+                "related_edges": [e for e in graph_data["edges"] if
+                                  entity_uuid in (e["source_node_uuid"], e["target_node_uuid"])],
+                "related_nodes": [],
+            }})
+
         if not Config.ZEP_API_KEY:
             return jsonify({
                 "success": False,
@@ -245,6 +289,12 @@ def create_simulation():
                 "error": t('api.graphNotBuilt')
             }), 400
         
+        if graph_id.startswith("gtg_"):
+            return jsonify({
+                "success": False, "code": "LOCAL_SIMULATION_NOT_AVAILABLE",
+                "error": "El grafo Getangiru local está disponible, pero los agentes de simulación aún no tienen adaptador de memoria local. No se inició ninguna simulación.",
+            }), 409
+
         manager = SimulationManager()
         state = manager.create_simulation(
             project_id=project_id,
