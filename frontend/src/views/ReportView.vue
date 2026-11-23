@@ -57,6 +57,7 @@
           :systemLogs="systemLogs"
           @add-log="addLog"
           @update-status="updateStatus"
+          @quality-updated="qualitySummary = $event"
         />
       </div>
     </main>
@@ -95,6 +96,7 @@ const graphData = ref(null)
 const graphLoading = ref(false)
 const systemLogs = ref([])
 const currentStatus = ref('processing') // processing | completed | error
+const qualitySummary = ref(null)
 
 // --- Computed Layout Styles ---
 const leftPanelStyle = computed(() => {
@@ -111,12 +113,18 @@ const rightPanelStyle = computed(() => {
 
 // --- Status Computed ---
 const statusClass = computed(() => {
+  if (currentStatus.value === 'completed' && qualitySummary.value &&
+      !qualitySummary.value.valid_multiagent_interaction) return 'warning'
   return currentStatus.value
 })
 
 const statusText = computed(() => {
   if (currentStatus.value === 'error') return t('common.error')
-  if (currentStatus.value === 'completed') return t('common.completed')
+  if (currentStatus.value === 'completed') {
+    if (qualitySummary.value && !qualitySummary.value.valid_multiagent_interaction)
+      return qualitySummary.value.label
+    return t('common.completed')
+  }
   return t('common.processing')
 })
 
@@ -351,4 +359,9 @@ onMounted(() => {
 .panel-wrapper.left {
   border-right: 1px solid #EAEAEA;
 }
+</style>
+
+<style scoped>
+.status-indicator.warning .dot{background:#cc743d!important}
+.status-indicator.warning{color:#9a4824!important}
 </style>
