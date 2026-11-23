@@ -269,7 +269,7 @@ class OntologyGenerator:
             # Structured ontology responses can exceed 4096 completion tokens,
             # especially when a compatible provider counts hidden reasoning in
             # the same budget. Let the provider use its model-specific limit.
-            max_tokens=2900 if local_inference_requested() else None,
+            max_tokens=2100 if local_inference_requested() else None,
             max_attempts=1 if local_inference_requested() else 2,
         )
         
