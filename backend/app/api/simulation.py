@@ -1693,6 +1693,8 @@ def fork_simulation_version(simulation_id):
                       "synthetic_additions":0}
         # Existing executions keep their immutable settings and logs.
         save_execution_settings(newer.simulation_id,new_settings)
+        newer.enable_twitter = new_settings["platform"] in ("twitter", "parallel")
+        newer.enable_reddit = new_settings["platform"] in ("reddit", "parallel")
         (destination/"version_origin.json").write_text(json.dumps({
             "parent_simulation_id":simulation_id,
             "created_at":datetime.now().isoformat(),
