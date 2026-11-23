@@ -8,6 +8,7 @@ const state = reactive({
   files: [],
   simulationRequirement: '',
   projectName: '',
+  submissionKey: '',
   isPending: false
 })
 
@@ -15,6 +16,7 @@ export function setPendingUpload(files, requirement, name = '') {
   state.files = files
   state.simulationRequirement = requirement
   state.projectName = name
+  state.submissionKey = crypto.randomUUID().replace(/-/g, '')
   state.isPending = true
 }
 
@@ -23,6 +25,7 @@ export function getPendingUpload() {
     files: state.files,
     simulationRequirement: state.simulationRequirement,
     projectName: state.projectName,
+    submissionKey: state.submissionKey,
     isPending: state.isPending
   }
 }
@@ -31,6 +34,7 @@ export function clearPendingUpload() {
   state.files = []
   state.simulationRequirement = ''
   state.projectName = ''
+  state.submissionKey = ''
   state.isPending = false
 }
 
