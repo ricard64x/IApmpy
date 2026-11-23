@@ -204,8 +204,19 @@ class ProjectManager:
         project.updated_at = datetime.now().isoformat()
         meta_path = cls._get_project_meta_path(project.project_id)
         
-        with open(meta_path, 'w', encoding='utf-8') as f:
-            json.dump(project.to_dict(), f, ensure_ascii=False, indent=2)
+        # Avoid truncated JSON when a mobile client polls concurrently with a write.
+        # The source file and the entire historical project directory remain intact.
+        temp_path = meta_path + "." + uuid.uuid4().hex + ".tmp"
+        try:
+            with open(temp_path, 'w', encoding='utf-8') as f:
+                json.dump(project.to_dict(), f, ensure_ascii=False, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.chmod(temp_path, 0o600)
+            os.replace(temp_path, meta_path)
+        finally:
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
     
     @classmethod
     def get_project(cls, project_id: str) -> Optional[Project]:
