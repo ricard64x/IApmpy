@@ -305,13 +305,10 @@ watch(() => route.params.simulationId, id => {
   loadSimulationData()
 })
 
-onMounted(async () => {
+onMounted(() => {
   addLog(t('log.simViewInit'))
-  
-  // 检查并关闭正在运行的模拟（用户从 Step 3 返回时）
-  await checkAndStopRunningSimulation()
-  
-  // 加载模拟数据
+  // Visiting preparation must never stop an existing simulation just to
+  // inspect its profiles or create a separate editable version.
   loadSimulationData()
 })
 </script>
