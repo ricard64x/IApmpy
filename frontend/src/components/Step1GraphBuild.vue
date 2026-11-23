@@ -180,11 +180,11 @@
           <p class="description">{{ $t('step1.buildCompleteDesc') }}</p>
           <button 
             class="action-btn" 
-            :disabled="currentPhase !== 2 || creatingSimulation"
+            :disabled="currentPhase !== 2 || creatingSimulation || !simulationEnabled"
             @click="handleEnterEnvSetup"
           >
             <span v-if="creatingSimulation" class="spinner-sm"></span>
-            {{ creatingSimulation ? $t('step1.creating') : $t('step1.enterEnvSetup') + ' ➝' }}
+            {{ !simulationEnabled ? 'Simulación integral pendiente de compatibilidad' : (creatingSimulation ? $t('step1.creating') : $t('step1.enterEnvSetup') + ' ➝') }}
           </button>
         </div>
       </div>
@@ -223,6 +223,7 @@ const { t } = useI18n()
 
 const props = defineProps({
   currentPhase: { type: Number, default: 0 },
+  simulationEnabled: { type: Boolean, default: true },
   projectData: Object,
   ontologyProgress: Object,
   buildProgress: Object,
