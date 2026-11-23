@@ -25,6 +25,8 @@
             <div class="header-divider"></div>
           </div>
 
+          <ResultsExplorer :report-id="reportId" />
+
           <!-- Sections List -->
           <div class="sections-list">
             <div 
@@ -369,12 +371,24 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import {useRoute} from 'vue-router'
+import ResultsExplorer from './ResultsExplorer.vue'
 import { useI18n } from 'vue-i18n'
 import { getReport, getAgentLog, getSavedReportSections, createReportInteraction, getReportInteractions, reportExportUrl } from '../api/report'
 import { getSimulationProfilesRealtime } from '../api/simulation'
 import { ensureSpanishReport, containsChinese } from '../utils/reportSpanish'
 
 const { t } = useI18n()
+const route = useRoute()
+const applySuggestedQuestion = () => {
+  const question = route.query.pregunta
+  if (typeof question === 'string' && question.trim()) {
+    activeTab.value = 'chat'
+    chatTarget.value = 'report_agent'
+    chatInput.value = question.slice(0, 1200)
+  }
+}
+watch(() => route.query.pregunta, applySuggestedQuestion)
 
 const props = defineProps({
   reportId: String,
