@@ -125,7 +125,7 @@ def character_graph(simulation_id: str, directory: Path) -> dict:
             relations[key] += 1
             if message and len(notes[key]) < 6:
                 notes[key].append(message)
-        if message and len(messages) < 250:
+        if message and len(messages) < 600:
             messages.append({
                 "from":aid,"to":target_id if qualified else None,
                 "author":character_alias(aid),
@@ -147,6 +147,8 @@ def character_graph(simulation_id: str, directory: Path) -> dict:
         "nodes":list(participants.values())[:120],
         "edges":edges,
         "messages":messages,
+        "transcript_truncated":len(rows)>len(messages),
+        "transcript_limit":600,
         "total_actions":len(rows),
         "directed_responses":sum(relations.values()),
         "rooms":sorted(valid_ids.keys()),
