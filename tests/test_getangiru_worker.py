@@ -54,8 +54,10 @@ class GetangiruSyncWorkerTests(unittest.TestCase):
         self.worker.send = failing
         self.assertEqual(1, self.worker.sync_once()[0])
         self.assertEqual(1, len(calls))
-        self.assertEqual(2, self.worker.sync_once()[0])
-        self.assertEqual(3, len(calls))  # Already-failed ID is backed off.
+        self.assertEqual(1, self.worker.sync_once()[0])
+        self.assertEqual(2, len(calls))  # Already-failed ID is backed off.
+        self.assertEqual(1, self.worker.sync_once()[0])
+        self.assertEqual(3, len(calls))
 
     def test_endpoint_rejects_redirectable_or_insecure_destinations(self):
         for url in ("http://example.com", "https://evil.example",
