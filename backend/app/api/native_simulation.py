@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import re
 import threading
@@ -87,6 +88,8 @@ def start():
         return jsonify({"success":False,"error":"Motor Getangiru local deshabilitado"}),503
     if project.status!=ProjectStatus.GRAPH_COMPLETED or not project.graph_id or not project.graph_id.startswith("gtg_"):
         return jsonify({"success":False,"error":"Primero construí el grafo local del proyecto"}),409
+    if set(data.keys()) != {"project_id","mode"} and set(data.keys()) != {"project_id"}:
+        return jsonify({"success":False,"error":"Campos de simulación desconocidos"}),422
     mode=data.get("mode","hybrid")
     if mode not in ("hybrid","rules"):
         return jsonify({"success":False,"error":"Modo de inferencia inválido"}),422
@@ -103,8 +106,12 @@ def start():
     objective=(project.simulation_requirement or "Revisión de controles y respuesta hipotética")[:600]
     sim_store=_store()
     try:
+        source_hash=hashlib.sha256(json.dumps({
+            "graph_id":graph["graph_id"],"nodes":graph["nodes"],"edges":graph["edges"],
+            "schema_relations":graph.get("schema_relations",[])
+        },sort_keys=True,ensure_ascii=False).encode("utf-8")).hexdigest()
         run=sim_store.create(project_id=project_id,graph_id=project.graph_id,mode=mode,
-                             source_hash=str(graph["graph_id"])+":"+str(graph["node_count"])+":"+str(graph["edge_count"]))
+                             source_hash=source_hash)
     except RuntimeError:
         return jsonify({"success":False,"error":"Hay una simulación en ejecución; consultá su progreso."}),409
     def worker():
