@@ -1579,7 +1579,8 @@ def execution_settings(simulation_id: str):
 def fork_simulation_version(simulation_id):
     """Copy prepared profiles to an independent ID without copying any run log."""
     import shutil
-    import uuid
+    import json
+    from datetime import datetime
     from pathlib import Path
     from ..config import Config
     from ..services.simulation_execution import get_execution_settings, save_execution_settings
