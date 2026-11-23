@@ -96,10 +96,18 @@ def _model_settings():
 
 
 def _request_actions(group, *, context, round_no, platform, request_fn=None,
-                     memory=None, request_metrics=None, previous_posts=None):
+                     memory=None, request_metrics=None, previous_posts=None, targets=None):
     ids = [p["agent_id"] for p in group]
+    targets = targets or {}
     participants = [
-        {"id": p["agent_id"], "nombre": p["name"], "perfil": p["persona"]}
+        {
+            "id": p["agent_id"], "nombre": p["name"], "perfil": p["persona"],
+            **({"responder_a": {
+                "id_agente": targets[p["agent_id"]]["agent_id"],
+                "nombre": targets[p["agent_id"]]["agent_name"],
+                "mensaje": targets[p["agent_id"]]["content"][:280],
+            }} if p["agent_id"] in targets else {"instruccion":"Publicar mensaje inicial"})
+        }
         for p in group
     ]
     system = (
@@ -129,8 +137,9 @@ def _request_actions(group, *, context, round_no, platform, request_fn=None,
             for p in previous_posts[-3:]
         ]
         content_data["instruccion_dialogo"] = (
-            "Para cada participante: responder a uno de los mensajes anteriores "
-            "con contenido relacionado y una decisión o consecuencia, sin repetirlo."
+            "Cuando un participante tenga el campo responder_a, contestá SOLO a ese "
+            "mensaje con un argumento concreto desde su perfil. No atribuyas otro destinatario. "
+            "Si dice Publicar mensaje inicial, generá una publicación independiente."
         )
     if memory:
         content_data["memoria_no_confiable"] = render_untrusted_memory(memory)
@@ -310,13 +319,25 @@ def execute(config_path: Path, platform: str, max_rounds: int, request_fn=None):
                 lookup = bridge.search(
                     project_id=project_id, simulation_id=simulation_id, query=memory_query
                 )
+                # A source selected BEFORE inference binds the generated reply
+                # to the exact message actually supplied as its target.
+                previous = list(threads[name])
+                targets = {}
+                if interaction_mode == "dialogue":
+                    for participant in batch:
+                        target = next(
+                            (p for p in reversed(previous)
+                             if p["agent_id"] != participant["agent_id"]), None)
+                        if target is not None:
+                            targets[participant["agent_id"]] = target
                 usage = {}
                 request_started = time.monotonic()
                 try:
                     reply = _request_actions(batch, context=context, round_no=round_no,
                                              platform=name, request_fn=request_fn,
                                              memory=lookup["items"], request_metrics=usage,
-                                             previous_posts=threads[name] if interaction_mode == "dialogue" else None)
+                                             previous_posts=previous if interaction_mode == "dialogue" else None,
+                                             targets=targets)
                 except Exception:
                     _log(directory / "llm_usage_metrics.jsonl", {
                         "status": "failed", "round": round_no, "platform": name,
@@ -341,14 +362,10 @@ def execute(config_path: Path, platform: str, max_rounds: int, request_fn=None):
                     "getangiru_status": lookup["status"],
                     "retrieved_sources": len(lookup["items"]),
                 })
-                # All actions in this batch use ONLY previously completed
-                # batches as context: no fabricated reply to a future post.
-                previous = list(threads[name])
+                # All relations refer to a source explicitly included in the
+                # participant's model prompt, never a guessed addressee.
                 for item in batch:
-                    source = next(
-                        (p for p in reversed(previous) if p["agent_id"] != item["agent_id"]),
-                        None
-                    ) if interaction_mode == "dialogue" else None
+                    source = targets.get(item["agent_id"])
                     action_id = f"{name}:r{round_no}:a{item['agent_id']}"
                     args = {"content": reply[item["agent_id"]], "synthetic_action_id":action_id}
                     kind = "CREATE_POST"
