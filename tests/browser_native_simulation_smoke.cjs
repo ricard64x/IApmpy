@@ -72,8 +72,8 @@ async function main(){
   await run.click()
   await page.getByText('Simulación finalizada').waitFor({timeout:12000})
   await page.getByText('Consultas IA externa').waitFor({timeout:12000})
-  assert((await page.locator('.local-sim-panel').innerText()).includes('32')===false,
-        'Synthetic stub should have eight actions, not hardcoded 32')
+  assert.equal((await page.locator('.local-sim-metrics > div').first().locator('strong').innerText()).trim(),
+    '8','Action count must reflect actual response, not hardcoded data')
   assert((await page.locator('.local-sim-panel').innerText()).includes('Exportar informe (.md)'))
   await page.screenshot({path:path.join(DIR,'08-getangiru-simulacion-local.png'),fullPage:true})
   await page.setViewportSize({width:390,height:844})
