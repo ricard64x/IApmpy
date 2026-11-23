@@ -58,6 +58,8 @@ def validate_execution_settings(body: dict) -> dict:
         raise ValueError("Seleccioná conversación por lotes o publicaciones independientes.")
     if engine_mode == "lightweight" and not auto_finalize:
         raise ValueError("El modo GPT liviano necesita cierre automático.")
+    if engine_mode == "lightweight" and interaction_mode == "dialogue" and rounds < 2:
+        raise ValueError("La simulación conversacional requiere al menos 2 rondas.")
     return {"platform": platform, "auto_finalize": auto_finalize,
             "max_rounds": rounds, "engine_mode": engine_mode,
             "interaction_mode": interaction_mode}
