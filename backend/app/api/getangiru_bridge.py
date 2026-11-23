@@ -31,13 +31,16 @@ _MAX_BYTES = 6200
 
 def _db_path() -> Path:
     path = Path(Config.UPLOAD_FOLDER) / "getangiru" / "mirror.sqlite3"
-    path.parent.mkdir(parents=True, exist_ok=True)
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(path.parent, 0o700)
     return path
 
 
 @contextmanager
 def _db():
-    connection = sqlite3.connect(str(_db_path()), timeout=10)
+    path = _db_path()
+    connection = sqlite3.connect(str(path), timeout=10)
+    os.chmod(path, 0o600)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA busy_timeout=10000")
     connection.execute("PRAGMA journal_mode=WAL")
