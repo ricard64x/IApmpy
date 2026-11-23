@@ -30,7 +30,12 @@ def get_execution_settings(simulation_id: str) -> dict:
         return dict(_DEFAULTS)
     with path.open(encoding="utf-8") as handle:
         stored = json.load(handle)
-    return {**_DEFAULTS, **{k: stored[k] for k in _DEFAULTS if k in stored}}
+    config = {**_DEFAULTS, **{k: stored[k] for k in _DEFAULTS if k in stored}}
+    # Existing historical settings predate dialogue mode. Never relabel their
+    # archived actions as conversations that never actually occurred.
+    if "interaction_mode" not in stored:
+        config["interaction_mode"] = "posts"
+    return config
 
 
 def validate_execution_settings(body: dict) -> dict:
