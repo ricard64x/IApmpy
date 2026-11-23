@@ -182,6 +182,10 @@ function render(){
     })
 }
 watch(selectedRoom,()=>nextTick(render))
+watch(visualArea, el=>{
+  observer?.disconnect()
+  if(el) observer?.observe(el)
+})
 watch(()=>props.simulationId,load)
 onMounted(()=>{
   load()
