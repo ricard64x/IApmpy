@@ -33,6 +33,7 @@ jobs:
           npm ci --prefix frontend
           npm run build --prefix frontend
           node --test frontend/tests/projectHistory.test.mjs
+          node --test frontend/tests/dashboardJourney.test.mjs
       - name: Check Python syntax
         run: python3 -m compileall -q backend/app backend/wsgi.py backend/scripts/getangiru_bridge.py backend/scripts/run_lightweight_simulation.py
       - name: Validate lightweight GPT simulation without external calls
