@@ -152,7 +152,7 @@ def summarize(events, *, source, truncated=False, available=True):
         "by_round":[{"round":k,"count":v} for k,v in sorted(by_round.items(),key=lambda x:int(x[0]))],
         "by_type":[{"type":k,"count":v} for k,v in by_type.most_common()],
         "by_platform":[{"platform":k,"count":v} for k,v in by_platform.most_common()],
-        "participants":sorted(participants.values(),key=lambda p:(-p["actions"],p["name"]))[:100],
+        "participants":sorted(participants.values(),key=lambda p:(-p["actions"],p["name"]))[:120],
         "interactions":[{"from":a,"to":b,"count":n} for (a,b),n in edges.most_common(50)],
         "messages":messages,
         "messages_sample_limit":250,
