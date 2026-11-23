@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 from app.config import Config
-from app.services.simulation_metrics import legacy_metrics,native_metrics
+from app.services.simulation_metrics import legacy_metrics,native_metrics,followup_metrics
 from app.services.model_evaluation import Result,gate,approved_cases
 from app.utils.public_context import context_for_local_qwen,public_topic
 
@@ -37,6 +37,25 @@ class MetricsAndLearningTests(unittest.TestCase):
         self.assertEqual(m["total_actions"],1)
         self.assertEqual(m["message_actions"],0)
         self.assertEqual(m["active_participants"],1)
+
+    def test_post_report_chat_and_surveys_are_separate(self):
+        with tempfile.TemporaryDirectory() as td:
+            file=Path(td)/"interacciones.jsonl"
+            events=[
+                {"simulation_id":"sim_123","kind":"chat","target":"participant","agent_id":2,
+                 "question":"¿Qué haría en este caso?","created_at":"2026-11-23T12:00:00Z"},
+                {"simulation_id":"sim_123","kind":"survey","question":"¿Qué opinan?",
+                 "created_at":"2026-11-23T13:00:00Z","results":[
+                     {"agent_id":2,"agent_name":"Actor de prueba","answer":"Respuesta simulada"},
+                     {"agent_id":3,"agent_name":"Otro actor","answer":"Respuesta simulada"}]},
+            ]
+            file.write_text("\\n".join(json.dumps(x) for x in events))
+            stats=followup_metrics(file,"sim_123")
+            self.assertEqual(stats["chat_turns"],1)
+            self.assertEqual(stats["surveys"],1)
+            self.assertEqual(stats["survey_answers"],2)
+            self.assertEqual(stats["participant_turns"],1)
+            self.assertEqual(stats["by_day"][0]["count"],2)
 
     def test_public_context_requires_enable_and_never_sends_private_prompt(self):
         previous=Config.UPLOAD_FOLDER
