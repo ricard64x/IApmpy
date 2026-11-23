@@ -1000,12 +1000,20 @@ def export_persisted_report(report_id: str):
                 mime,ext="application/pdf","pdf"
         else:
             return jsonify({"success": False, "error": "Formato no compatible."}), 400
-        return send_file(
+        response = send_file(
             io.BytesIO(payload),
             mimetype=mime,
-            as_attachment=True,
+            as_attachment=fmt != "html",
             download_name=f"Tenondera_{report_id}.{ext}",
         )
+        if fmt == "html":
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'none'; style-src 'unsafe-inline'; img-src data:; "
+                "object-src 'none'; base-uri 'none'; form-action 'none'"
+            )
+            response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Cache-Control"] = "private, no-store"
+        return response
     except Exception as error:
         logger.exception("Error en exportación: %s", type(error).__name__)
         return jsonify({"success": False, "error": "No se pudo exportar el informe."}), 500
