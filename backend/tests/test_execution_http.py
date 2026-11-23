@@ -92,6 +92,22 @@ class ExecutionHTTPTests(unittest.TestCase):
             }, headers={"X-CSRF-Token": self.csrf})
         self.assertEqual(denied.status_code, 409)
 
+    def test_start_rejects_one_profile_also_for_oasis(self):
+        import json
+        single = SimulationManager().create_simulation(
+            project_id=self.project.project_id, graph_id="unit-graph")
+        folder = Path(Config.UPLOAD_FOLDER) / "simulations" / single.simulation_id
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "reddit_profiles.json").write_text(
+            json.dumps([{"user_id": 1, "name": "Único", "persona": "Ficticio"}]),
+            encoding="utf-8")
+        result = self.client.post("/api/simulation/start", json={
+            "simulation_id": single.simulation_id, "platform": "reddit",
+        }, headers={"X-CSRF-Token": self.csrf})
+        self.assertEqual(result.status_code, 422, result.get_json())
+        self.assertIn("2 participantes", result.get_json()["error"])
+        self.assertIsNone(SimulationRunner.get_run_state(single.simulation_id))
+
     def test_close_ack_does_not_prematurely_mark_completed(self):
         sim = SimulationManager().get_simulation(self.sim.simulation_id)
         self.assertNotEqual(sim.status, SimulationStatus.COMPLETED)
