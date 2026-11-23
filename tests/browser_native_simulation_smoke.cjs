@@ -75,6 +75,8 @@ async function main(){
   assert.equal((await page.locator('.local-sim-metrics > div').first().locator('strong').innerText()).trim(),
     '8','Action count must reflect actual response, not hardcoded data')
   assert((await page.locator('.local-sim-panel').innerText()).includes('Exportar informe (.md)'))
+  await page.getByRole('button',{name:'Ver decisiones y evidencias'}).click()
+  await page.locator('.local-sim-evidence').first().getByText('El SOC participa en un escenario ficticio.').waitFor({timeout:8000})
   await page.screenshot({path:path.join(DIR,'08-getangiru-simulacion-local.png'),fullPage:true})
   await page.setViewportSize({width:390,height:844})
   await page.reload({waitUntil:'domcontentloaded'})
