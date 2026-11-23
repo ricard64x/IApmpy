@@ -35,7 +35,7 @@
       </div>
     </header>
     <BuildProgressBanner
-      v-if="currentPhase === 1"
+      v-if="currentPhase === 1 && !graphPendingConfiguration"
       :progress="cloudProgress || buildProgress"
       :refreshed-at="lastProgressAt"
       :stale="progressUnavailable"
@@ -62,6 +62,16 @@
         <button class="secondary" @click="router.push({ name: 'Dashboard' })">Mis proyectos</button>
       </div>
     </section>
+    <section v-else-if="graphPendingConfiguration" class="workflow-attention" role="status">
+      <div>
+        <strong>Ontología generada localmente</strong>
+        <p>El modelo local terminó el análisis de documentos. La construcción del grafo está pendiente porque su motor todavía no está configurado.</p>
+        <p>Podés revisar las entidades generadas y consultar Getangiru sin llamadas a IA externa.</p>
+      </div>
+      <div class="workflow-attention-actions">
+        <button @click="router.push({ name: 'Dashboard' })">Mis proyectos</button>
+      </div>
+    </section>
     <section v-else-if="error" class="workflow-attention workflow-error" role="alert">
       <div><strong>El proceso no pudo continuar</strong><p>{{ error }}</p></div>
       <button @click="router.push({ name: 'Home' })">Volver a cargar documentos</button>
@@ -75,7 +85,8 @@
           :graphData="graphData"
           :loading="graphLoading"
           :currentPhase="currentPhase"
-          :idle="projectNeedsAttention"
+          :idle="projectNeedsAttention || graphPendingConfiguration"
+          :idle-message="graphPendingConfiguration ? 'Ontología lista. Falta configurar el motor del grafo.' : ''"
           @refresh="refreshGraph"
           @toggle-maximize="toggleMaximize('graph')"
         />
@@ -149,8 +160,13 @@ const error = ref('')
 const projectData = ref(null)
 const capabilities = ref(null)
 const projectNeedsAttention = computed(() => projectRequiresAction(projectData.value))
+const graphPendingConfiguration = computed(() => (
+  projectData.value?.status === 'ontology_generated'
+  && !projectData.value?.graph_id
+  && capabilities.value?.graph_enabled === false
+))
 const graphData = ref(null)
-const currentPhase = ref(-1) // -1: Upload, 0: Ontology, 1: Build, 2: Complete
+const currentPhase = ref(-1) // -1: Idle, 0: Ontology running, 1: Build, 2: Complete, 3: Ontology ready / graph disabled
 const ontologyProgress = ref(null)
 const buildProgress = ref(null)
 const cloudProgress = ref(null)
@@ -181,16 +197,17 @@ const rightPanelStyle = computed(() => {
 
 // --- Status Computed ---
 const statusClass = computed(() => {
-  if (projectNeedsAttention.value) return 'waiting'
+  if (projectNeedsAttention.value || graphPendingConfiguration.value) return 'waiting'
   if (error.value) return 'error'
-  if (currentPhase.value >= 2) return 'completed'
+  if (currentPhase.value === 2) return 'completed'
   return 'processing'
 })
 
 const statusText = computed(() => {
   if (projectNeedsAttention.value) return 'Pendiente de preparación'
+  if (graphPendingConfiguration.value) return 'Ontología lista · Grafo pendiente'
   if (error.value) return t('common.error')
-  if (currentPhase.value >= 2) return t('common.ready')
+  if (currentPhase.value === 2) return t('common.ready')
   if (currentPhase.value === 1) return t('main.statusBuildingGraph')
   if (currentPhase.value === 0) return t('main.statusGeneratingOntology')
   return t('main.statusInitializing')
@@ -283,7 +300,14 @@ const handleNewProject = async () => {
       router.replace({ name: 'Process', params: { projectId: res.data.project_id } })
       ontologyProgress.value = null
       addLog(`Ontology generated successfully for project ${res.data.project_id}`)
-      await startBuildGraph()
+      if (capabilities.value?.graph_enabled === false) {
+        const saved = await getProject(res.data.project_id)
+        if (saved.success) projectData.value = saved.data
+        currentPhase.value = 3
+        addLog('Ontología lista; grafo pendiente de configuración.')
+      } else {
+        await startBuildGraph()
+      }
     } else {
       error.value = res.error || 'Ontology generation failed'
       addLog(`Error generating ontology: ${error.value}`)
@@ -310,7 +334,12 @@ const loadProject = async () => {
       }
       
       if (res.data.status === 'ontology_generated' && !res.data.graph_id) {
-        await startBuildGraph()
+        if (capabilities.value?.graph_enabled === false) {
+          currentPhase.value = 3
+          addLog('Grafo pendiente: proveedor no configurado. No se inició ninguna tarea.')
+        } else {
+          await startBuildGraph()
+        }
       } else if (
         (res.data.status === 'graph_building' || res.data.status === 'failed')
         && res.data.zep_batch_id
@@ -339,7 +368,7 @@ const loadProject = async () => {
 const updatePhaseByStatus = (status) => {
   switch (status) {
     case 'created': currentPhase.value = -1; break;
-    case 'ontology_generated': currentPhase.value = 0; break;
+    case 'ontology_generated': currentPhase.value = capabilities.value?.graph_enabled === false ? 3 : 0; break;
     case 'graph_building': currentPhase.value = 1; break;
     case 'graph_completed': currentPhase.value = 2; break;
     case 'failed':
@@ -350,6 +379,11 @@ const updatePhaseByStatus = (status) => {
 }
 
 const startBuildGraph = async () => {
+  if (capabilities.value?.graph_enabled === false) {
+    currentPhase.value = 3
+    addLog('No se construyó el grafo: falta motor configurado.')
+    return
+  }
   try {
     currentPhase.value = 1
     buildProgress.value = { progress: 0, message: 'Starting build...' }
