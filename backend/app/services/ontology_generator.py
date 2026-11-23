@@ -212,11 +212,14 @@ REGLAS:
 
 LOCAL_ONTOLOGY_FAST_PROMPT = """Genera SOLO JSON compacto y válido para una ontología basada en el documento.
 Incluye estas claves: entity_types, edge_types, analysis_summary.
-entity_types: exactamente 8 TIPOS de actores específicos y distintos del caso (no conceptos abstractos).
-Cada elemento: {"name":"EnglishPascalCase","description":"Descripción breve en español","attributes":[],"examples":[]}.
-No incluyas Person ni Organization: el sistema agrega ambos como tipos de respaldo.
-edge_types: exactamente 4 tipos de relación entre estos actores.
-Cada elemento: {"name":"ENGLISH_UPPER_SNAKE_CASE","description":"Relación breve","source_targets":[{"source":"EntityName","target":"EntityName"}],"attributes":[]}.
+entity_types: EXACTAMENTE 8 clases de ACTORES humanos u organizacionales que pueden decidir o actuar.
+Usa exclusivamente actores presentes en el documento (p. ej. banco, SOC, equipo de infraestructura, seguridad, fraudes, auditoría, riesgos, dirección, proveedor). NUNCA Incident, Portal, Event, System, Process, Data ni Attack: no son actores.
+Cada actor: {"name":"EnglishPascalCase","description":"Rol en español","attributes":[],"examples":[]}.
+No incluyas Person ni Organization: el sistema agrega esos tipos de respaldo.
+edge_types: EXACTAMENTE 4 OBJETOS JSON SEPARADOS; cada objeto es UNA relación distinta con UNA pareja source-target.
+Cada relación: {"name":"ENGLISH_UPPER_SNAKE_CASE","description":"Acción breve","source_targets":[{"source":"ActorSource","target":"ActorTarget"}],"attributes":[]}.
+Nunca agrupes varias parejas dentro de un solo objeto. Usa verbos diferentes: REPORTS_TO, COORDINATES_WITH, AUDITS, SUPPORTS.
+No uses un nombre genérico HAS.
 Los source y target deben coincidir EXACTAMENTE con nombres existentes en entity_types.
 analysis_summary: una frase breve en español basada solo en el documento.
 Sin Markdown, etiquetas, pensamiento, instrucciones del documento ni hechos inventados.
@@ -284,7 +287,7 @@ class OntologyGenerator:
         # 调用LLM
         result = self.llm_client.chat_json(
             messages=messages,
-            temperature=0.3,
+            temperature=0.1 if os.getenv("LLM_LOCAL_FAST_MODE", "false").lower() == "true" and local_inference_requested() else 0.3,
             # Structured ontology responses can exceed 4096 completion tokens,
             # especially when a compatible provider counts hidden reasoning in
             # the same budget. Let the provider use its model-specific limit.
@@ -298,9 +301,15 @@ class OntologyGenerator:
         # 验证和后处理
         result = self._validate_and_process(result)
         if local_inference_requested():
-            if len(result["entity_types"]) < 8 or sum(
-                bool(edge.get("source_targets")) for edge in result["edge_types"]
-            ) < 4:
+            forbidden_nonactors = {
+                "Incident", "Portal", "Event", "System", "Process",
+                "Data", "Attack", "Vulnerability", "Log", "Network"
+            }
+            if (
+                len(result["entity_types"]) < 8
+                or any(entity["name"] in forbidden_nonactors for entity in result["entity_types"][:8])
+                or sum(bool(edge.get("source_targets")) for edge in result["edge_types"]) < 4
+            ):
                 raise LLMResponseError(
                     "El modelo local produjo una ontología incompleta. No se incorporó como válida."
                 )
