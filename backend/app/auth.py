@@ -307,7 +307,7 @@ def install_auth(app):
             "simulation/history","report/list","capacity/status",
             "native-simulation/capabilities","native-simulation/public-cve",
         }
-        if not refs and path not in allowed_without_object:
+        if not refs and path not in allowed_without_object and not path.startswith('graph/ontology/receipt/'):
             # Tasks overview and script internals are administrator-only.
             return jsonify({"success": False, "error": "Acceso restringido."}), 403
 
