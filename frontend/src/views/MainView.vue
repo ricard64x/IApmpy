@@ -72,6 +72,15 @@
         <button @click="router.push({ name: 'Dashboard' })">Mis proyectos</button>
       </div>
     </section>
+    <section v-else-if="localGraphAwaitingSimulation" class="workflow-attention" role="status">
+      <div>
+        <strong>Grafo Getangiru construido localmente</strong>
+        <p>Las entidades y co-menciones verificables están guardadas y pueden visualizarse.
+        Las relaciones de la ontología son propuestas, no hechos comprobados.</p>
+        <p>La simulación integral requiere adaptar los agentes que todavía dependen de Zep.
+        No se ejecutarán contra un proveedor externo sin autorización.</p>
+      </div>
+    </section>
     <section v-else-if="error" class="workflow-attention workflow-error" role="alert">
       <div><strong>El proceso no pudo continuar</strong><p>{{ error }}</p></div>
       <button @click="router.push({ name: 'Home' })">Volver a cargar documentos</button>
@@ -103,6 +112,7 @@
           :buildProgress="buildProgress"
           :graphData="graphData"
           :systemLogs="systemLogs"
+          :simulation-enabled="capabilities?.simulation_enabled !== false"
           @next-step="handleNextStep"
         />
         <!-- Step 2: 环境搭建 -->
@@ -160,6 +170,10 @@ const error = ref('')
 const projectData = ref(null)
 const capabilities = ref(null)
 const projectNeedsAttention = computed(() => projectRequiresAction(projectData.value))
+const localGraphAwaitingSimulation = computed(() => (
+  projectData.value?.status === 'graph_completed'
+  && capabilities.value?.graph_backend === 'getangiru_local'
+))
 const graphPendingConfiguration = computed(() => (
   projectData.value?.status === 'ontology_generated'
   && !projectData.value?.graph_id
