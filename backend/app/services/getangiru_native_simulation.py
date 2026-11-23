@@ -140,6 +140,12 @@ class NativeSimStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_feedback_project ON feedback(project_id,created_at);
             """)
+            # Additive migration: preserve every historical row and report.
+            columns = {row[1] for row in c.execute("PRAGMA table_info(runs)").fetchall()}
+            if "parent_run_id" not in columns:
+                c.execute("ALTER TABLE runs ADD COLUMN parent_run_id TEXT")
+            if "instructions" not in columns:
+                c.execute("ALTER TABLE runs ADD COLUMN instructions TEXT NOT NULL DEFAULT ''")
             c.commit()
         # This database stores simulated decisions and original evidence quotes.
         os.chmod(self.path,0o600)
@@ -148,9 +154,15 @@ class NativeSimStore:
             if side.exists():
                 os.chmod(side,0o600)
 
-    def create(self, *, project_id: str, graph_id: str, mode: str, source_hash: str) -> dict:
+    def create(self, *, project_id: str, graph_id: str, mode: str, source_hash: str, parent_run_id=None, instructions='') -> dict:
         if not GRAPH_RE.fullmatch(graph_id) or mode not in ("rules", "hybrid"):
             raise ValueError("Grafo o modo de ejecución inválido")
+        if not isinstance(instructions, str) or len(instructions) > 1200:
+            raise ValueError("Indicaciones inválidas")
+        if parent_run_id:
+            parent = self.get(parent_run_id)
+            if not parent or parent["project_id"] != project_id or parent["state"] not in ("completed", "failed", "interrupted"):
+                raise ValueError("Ejecución anterior inválida")
         ident = "lsim_" + uuid.uuid4().hex[:24]
         now = utc()
         with self._mutex, closing(self._connect()) as c:
@@ -173,8 +185,8 @@ class NativeSimStore:
                 c.rollback()
                 raise ValueError("Límite de 100 simulaciones por proyecto; exportar y archivar antes de crear más")
             c.execute("""INSERT INTO runs(id,project_id,graph_id,input_hash,mode_requested,state,
-                         started_at,updated_at) VALUES(?,?,?,?,?,?,?,?)""",
-                      (ident,project_id,graph_id,source_hash,mode,"queued",now,now))
+                         started_at,updated_at,parent_run_id,instructions) VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                      (ident,project_id,graph_id,source_hash,mode,"queued",now,now,parent_run_id,instructions))
             c.commit()
         return self.get(ident)
 
@@ -395,6 +407,7 @@ class NativeSimStore:
         return {
             "simulation_id":row["id"],"project_id":row["project_id"],
             "graph_id":row["graph_id"],"input_hash":row["input_hash"],
+            "parent_run_id":row["parent_run_id"],"instructions":row["instructions"],
             "status":row["state"],
             "phase":row["phase"],"total_phases":row["total_phases"],
             "progress_pct":round(row["phase"]*25,1) if row["state"]!="failed" else 0,

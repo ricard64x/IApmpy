@@ -50,7 +50,7 @@
         <div class="simulation-list"><div v-for="item in visibleHistory" :key="item.simulation_id || item.project_id" class="simulation-item">
           <div class="simulation-icon">{{statusClass(item)==='failed'?'⚠':'◇'}}</div>
           <div class="simulation-info">
-            <strong>{{item.project_name || brief(item.simulation_requirement) || 'Escenario sin título'}}</strong>
+            <strong>{{friendlyProjectName(item.project_name, item.simulation_requirement, item.project_id)}}</strong>
             <small>{{personName(item.owner_id)}} · {{(item.created_at||'').slice(0,10)}} · {{item.simulation_id ? (item.total_rounds||0)+' rondas' : 'Etapa de preparación'}}</small>
             <div v-if="liveProgress[item.project_id]" class="project-live-inline" :aria-label="progressLabel(liveProgress[item.project_id])">
               <span>{{progressLabel(liveProgress[item.project_id])}}</span>
@@ -59,10 +59,12 @@
             </div>
           </div>
           <span class="run-pill" :class="statusClass(item)">{{liveProgress[item.project_id] ? progressLabel(liveProgress[item.project_id]) : statusText(item)}}</span>
+          <button class="text-btn" v-if="item.project_id" @click="rename(item)">Renombrar</button>
+          <button class="text-btn" v-if="item.project_id" @click="router.push('/historial?project='+encodeURIComponent(item.project_id))">Historial</button>
           <button class="link-open" @click="openSimulation(item)" :aria-label="'Abrir '+(item.project_id||item.simulation_id)">→</button>
         </div>
         <div v-if="!visibleHistory.length" class="empty">Aún no hay proyectos guardados. Creá tu primer escenario para comenzar.</div></div>
-        <button class="secondary-action" @click="router.push('/workspace')">Crear nueva simulación ↗</button>
+        <button class="secondary-action" @click="router.push('/historial')">Consultar historial completo y reportes →</button>
       </article>
     </section>
 
@@ -95,7 +97,7 @@ import {useRouter} from 'vue-router'
 import TenonderaShell from '../components/TenonderaShell.vue'
 import {activeUser} from '../api/auth'
 import service from '../api'
-import {mergeProjectHistory, projectEntryStatus} from '../utils/projectHistory'
+import {mergeProjectHistory, projectEntryStatus, friendlyProjectName} from '../utils/projectHistory'
 import {useLiveProjectProgress,progressLabel} from '../composables/useLiveProjectProgress'
 const router=useRouter()
 const isAdmin=computed(()=>activeUser.value?.role==='administrator')
@@ -145,6 +147,15 @@ async function submitEdit(){
     editingUser.value=null;editPassword.value='';await loadData()
   }catch(e){modalError.value=e.message}
   finally{saving.value=false}
+}
+async function rename(item) {
+  const current = friendlyProjectName(item.project_name,item.simulation_requirement,item.project_id)
+  const requested = window.prompt('Nombre del proyecto (máximo 100 caracteres):', current)
+  if (requested === null || !requested.trim()) return
+  try {
+    await service.patch('/api/graph/project/'+encodeURIComponent(item.project_id)+'/name', {name:requested.trim().slice(0,100)})
+    await loadData()
+  } catch (e) { historyError.value = e.message || 'No se pudo guardar el nombre' }
 }
 function openSimulation(s){
   if(s.report_id)router.push('/report/'+s.report_id)

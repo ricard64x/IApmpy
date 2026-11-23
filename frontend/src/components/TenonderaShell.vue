@@ -7,7 +7,7 @@
         <RouterLink to="/" exact-active-class="selected" @click="menuOpened=false"><span>⌂</span> Inicio</RouterLink>
         <RouterLink to="/workspace" active-class="selected" @click="menuOpened=false"><span>◇</span> Nueva simulación</RouterLink>
         <RouterLink v-if="isAdmin" to="/administracion" active-class="selected" @click="menuOpened=false"><span>♧</span> Usuarios y perfiles</RouterLink>
-        <RouterLink to="/" @click="menuOpened=false"><span>▣</span> Mis simulaciones</RouterLink>
+        <RouterLink to="/historial" active-class="selected" @click="menuOpened=false"><span>▣</span> Historial y reportes</RouterLink>
       </nav>
       <div class="side-bottom"><div class="lace-mark">✺</div><div class="sidebar-flag"><span></span><span></span><span></span></div><small>Tenonderã · Paraguay 🇵🇾<br/>Simulando el futuro</small></div>
     </aside>

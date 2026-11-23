@@ -90,8 +90,19 @@ def start():
         return jsonify({"success":False,"error":"Motor Getangiru local deshabilitado"}),503
     if project.status!=ProjectStatus.GRAPH_COMPLETED or not project.graph_id or not project.graph_id.startswith("gtg_"):
         return jsonify({"success":False,"error":"Primero construí el grafo local del proyecto"}),409
-    if set(data.keys()) != {"project_id","mode"} and set(data.keys()) != {"project_id"}:
+    if set(data) - {"project_id", "mode", "parent_run_id", "instructions"}:
         return jsonify({"success":False,"error":"Campos de simulación desconocidos"}),422
+    parent_run_id = data.get("parent_run_id")
+    instructions = data.get("instructions", "")
+    if not isinstance(instructions, str) or len(instructions) > 1200:
+        return jsonify({"success":False,"error":"Indicaciones demasiado extensas"}),422
+    if parent_run_id is not None:
+        parent = _get_owned_run(parent_run_id) if isinstance(parent_run_id, str) else None
+        if (not parent or parent["project_id"] != project_id
+                or parent["state"] not in ("completed", "failed", "interrupted")):
+            return jsonify({"success":False,"error":"Versión anterior no disponible"}),404
+        if not instructions.strip():
+            return jsonify({"success":False,"error":"Indicá qué querés ampliar o modificar"}),422
     mode=data.get("mode","hybrid")
     if mode not in ("hybrid","rules"):
         return jsonify({"success":False,"error":"Modo de inferencia inválido"}),422
@@ -113,7 +124,7 @@ def start():
             "schema_relations":graph.get("schema_relations",[])
         },sort_keys=True,ensure_ascii=False).encode("utf-8")).hexdigest()
         run=sim_store.create(project_id=project_id,graph_id=project.graph_id,mode=mode,
-                             source_hash=source_hash)
+                             source_hash=source_hash, parent_run_id=parent_run_id, instructions=instructions.strip())
     except RuntimeError:
         return jsonify({"success":False,"error":"Hay una simulación en ejecución; consultá su progreso."}),409
     except ValueError:
@@ -125,7 +136,9 @@ def start():
             if model is not None:
                 # One short, local, non-retried Qwen call per full simulation.
                 model.client=model.client.with_options(timeout=55.0,max_retries=0)
-            sim_store.execute(run["id"],graph,objective,llm=model)
+            sim_store.execute(run["id"],graph,
+                              (objective + ("\\nNueva hipótesis o ajuste: " + instructions.strip()
+                                            if instructions.strip() else ""))[:1200],llm=model)
         except Exception as exc:
             # Error codes only, never leak evidence or model prompts.
             state=sim_store.get(run["id"])
@@ -138,7 +151,7 @@ def start():
                      name="native-sim-"+run["id"][-6:]).start()
     return jsonify({"success":True,"data":{
         "simulation_id":run["id"],"project_id":project_id,"status":"queued",
-        "mode":mode,"message":"Simulación local iniciada con límites de recursos"
+        "mode":mode,"parent_run_id":parent_run_id,"message":"Simulación local iniciada con límites de recursos"
     }}),202
 
 
@@ -200,7 +213,9 @@ def download_report(run_id):
         "**Alcance:** escenario hipotético, sin afirmaciones de incidentes reales.","",
         "**Proyecto:** "+owned["project_id"],
         "**Grafo:** "+owned["graph_id"],
-        "**Objetivo:** "+report["scenario_goal"],"",
+        "**Objetivo:** "+report["scenario_goal"],
+        "**Versión anterior:** "+str(owned.get("parent_run_id") or "Inicial"),
+        "**Nuevas indicaciones:** "+str(owned.get("instructions") or "Ninguna"),"",
         "## Resultados",
         "- Participantes: "+", ".join(report["roles"]),
         "- Acciones hipotéticas: "+str(report["actions"]),

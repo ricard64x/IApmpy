@@ -158,6 +158,24 @@ def get_project(project_id: str):
     })
 
 
+@graph_bp.route('/project/<project_id>/name', methods=['PATCH'])
+def rename_project(project_id: str):
+    """Rename metadata only; preserve graph, reports and every run."""
+    from ..models.project import project_display_name
+    project = ProjectManager.get_project(project_id)
+    if not project:
+        return jsonify({"success": False, "error": "Proyecto no disponible"}), 404
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or set(payload) != {"name"}:
+        return jsonify({"success": False, "error": "Nombre inválido"}), 422
+    name = payload["name"]
+    if not isinstance(name, str) or not name.strip() or len(name.strip()) > 100:
+        return jsonify({"success": False, "error": "Ingresá un nombre de 1 a 100 caracteres"}), 422
+    project.name = project_display_name(name, project.simulation_requirement, project.files, project_id)
+    ProjectManager.save_project(project)
+    return jsonify({"success": True, "data": {"project_id": project_id, "name": project.name}})
+
+
 @graph_bp.route('/project/<project_id>/build-status', methods=['GET'])
 def get_project_build_status(project_id: str):
     """Durable, read-only graph processing status directly from Zep Cloud.
@@ -411,7 +429,7 @@ def generate_ontology():
 
         # 获取参数
         simulation_requirement = request.form.get('simulation_requirement', '')
-        project_name = request.form.get('project_name', 'Unnamed Project')
+        project_name = request.form.get('project_name', '').strip()
         additional_context = request.form.get('additional_context', '')
         
         logger.debug(f"项目名称: {project_name}")
@@ -432,7 +450,8 @@ def generate_ontology():
             }), 400
         
         # 创建项目
-        project = ProjectManager.create_project(name=project_name)
+        from ..models.project import project_display_name
+        project = ProjectManager.create_project(name=project_display_name(project_name, simulation_requirement))
         project.simulation_requirement = simulation_requirement
         logger.info(f"创建项目: {project.project_id}")
         
