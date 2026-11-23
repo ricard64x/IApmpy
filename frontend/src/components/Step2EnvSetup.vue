@@ -491,9 +491,26 @@
                   <small>Preserva el funcionamiento anterior, sin respuestas enlazadas.</small></span>
               </label>
             </div>
-            <p v-if="configuredProfileCount < 2" class="preference-error" role="alert">
-              Tenonderã requiere al menos 2 participantes preparados tanto en el motor completo como en el eficiente.
-              Perfiles detectados: {{ configuredProfileCount }}.
+            <div class="population-control">
+              <label for="participant-target"><strong>Participantes de la simulación</strong></label>
+              <input id="participant-target" v-model.number="desiredParticipants" type="number"
+                min="2" :max="maxParticipants" step="1" aria-describedby="participant-detail">
+              <p id="participant-detail">Perfiles detectados: <strong>{{ detectedParticipants }}</strong>.
+                Seleccionados: <strong>{{ desiredParticipants }}</strong>.
+                Límite de este motor: <strong>{{ maxParticipants }}</strong>.</p>
+              <p v-if="desiredParticipants > detectedParticipants" class="population-warning">
+                Se agregarán {{ desiredParticipants - detectedParticipants }} roles hipotéticos sintéticos.
+                No son personas reales ni entidades extraídas del grafo.
+              </p>
+              <p v-if="engineMode==='oasis'" class="population-warning">
+                Motor completo en 2 GB: máximo conservador de 12 perfiles detectados; incluso dentro de ese límite puede fallar por memoria.
+                Usá el modo eficiente para agregar personajes sintéticos.
+              </p>
+            </div>
+            <p v-if="isLocked" class="locked-banner" role="status">
+              Esta simulación ya se inició y sus resultados están protegidos.
+              Podés elegir motor, participantes y rondas para una <strong>nueva versión independiente</strong>.
+              No se eliminará ni modificará el informe anterior.
             </p>
             <p v-if="engineMode==='lightweight' && interactionMode==='dialogue' && customMaxRounds < 2"
               class="preference-error" role="alert">
@@ -533,7 +550,7 @@
               :disabled="phase < 4 || savingPreferences"
               @click="handleStartSimulation"
             >
-              {{ $t('step2.startDualWorldSim') }} ➝
+              {{ isLocked ? 'Crear nueva versión editable' : $t('step2.startDualWorldSim') }} ➝
             </button>
           </div>
         </div>
@@ -649,6 +666,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import service from '../api'
 import {
   prepareSimulation,
@@ -657,10 +675,14 @@ import {
   getSimulationConfig,
   getSimulationConfigRealtime,
   getExecutionSettings,
-  saveExecutionSettings
+  saveExecutionSettings,
+  getSimulationPopulation,
+  saveSimulationPopulation,
+  forkSimulationVersion
 } from '../api/simulation'
 
 const { t } = useI18n()
+const router = useRouter()
 
 const props = defineProps({
   simulationId: String,  // 从父组件传入
@@ -696,6 +718,19 @@ const engineMode = ref('oasis')
 const interactionMode = ref('dialogue')
 const capacityInfo = ref(null)
 const configuredProfileCount = computed(() => simulationConfig.value?.agent_configs?.length || profiles.value.length || 0)
+const detectedBase = ref(null)
+const detectedParticipants = computed(() => detectedBase.value ?? configuredProfileCount.value)
+const desiredParticipants = ref(2)
+const userCountInitialized = ref(false)
+const isLocked = ref(false)
+const maxParticipants = computed(() => engineMode.value === 'lightweight'
+  ? 120 : Math.min(12, detectedParticipants.value))
+watch(configuredProfileCount, count => {
+  if (count > 0 && !userCountInitialized.value) {
+    desiredParticipants.value = Math.max(2, Math.min(count, maxParticipants.value || 120))
+    userCountInitialized.value = true
+  }
+})
 const oasisLimit = computed(() => capacityInfo.value?.recommended_max_profiles || 45)
 const oasisOverLimit = computed(() => configuredProfileCount.value > oasisLimit.value)
 const autoFinalize = ref(true)
@@ -782,8 +817,10 @@ const handleStartSimulation = async () => {
     settingError.value = t('step2.roundsValidation')
     return
   }
-  if (configuredProfileCount.value < 2) {
-    settingError.value = 'La simulación requiere al menos 2 participantes activos para generar interacción válida.'
+  const participants = Number(desiredParticipants.value)
+  if (!Number.isInteger(participants) || participants < 2 || participants > maxParticipants.value) {
+    settingError.value = 'Seleccioná entre 2 y ' + maxParticipants.value
+      + ' participantes para el motor seleccionado. En modo eficiente se admiten hasta 120.'
     return
   }
   if (engineMode.value === 'lightweight' && interactionMode.value === 'dialogue') {
@@ -792,11 +829,8 @@ const handleStartSimulation = async () => {
       return
     }
   }
-  if (engineMode.value === 'oasis' && oasisOverLimit.value) {
-    settingError.value = 'No se puede iniciar OASIS con ' + configuredProfileCount.value
-      + ' perfiles. Seleccioná el modo eficiente con GPT antes de continuar.'
-    return
-  }
+  // The selected population, rather than every detected graph entity,
+  // determines the memory load of a new execution.
   if (engineMode.value === 'lightweight' && capacityInfo.value?.lightweight_engine_available === false) {
     settingError.value = 'El modelo GPT todavía no está configurado en el servidor.'
     return
@@ -813,6 +847,21 @@ const handleStartSimulation = async () => {
       interaction_mode: interactionMode.value,
       max_rounds: rounds
     }
+    if (isLocked.value) {
+      const fork = await forkSimulationVersion(props.simulationId, {
+        participants_count: participants, settings
+      })
+      if (!fork.success || !fork.data?.simulation_id)
+        throw new Error(fork.error || 'No fue posible crear una nueva versión.')
+      await router.push({
+        name: 'Simulation', params: {simulationId: fork.data.simulation_id}
+      })
+      return
+    }
+    const applied = await saveSimulationPopulation(props.simulationId, {
+      participants_count: participants, engine_mode: settings.engine_mode
+    })
+    if (!applied.success) throw new Error(applied.error || 'No se pudo configurar la población.')
     await saveExecutionSettings(props.simulationId, settings)
     emit('next-step', {
       maxRounds: rounds,
@@ -822,10 +871,27 @@ const handleStartSimulation = async () => {
     })
   } catch (error) {
     settingError.value = error.message || t('common.unknownError')
+    if (settingError.value.includes('configuración no puede cambiarse') ||
+        settingError.value.includes('nueva versión')) isLocked.value = true
     addLog(settingError.value)
   } finally {
     savingPreferences.value = false
   }
+}
+
+const loadParticipantInfo = async () => {
+  try {
+    const response = await getSimulationPopulation(props.simulationId)
+    if (response.success && response.data) {
+      detectedBase.value = response.data.detected_profiles
+      if (!userCountInitialized.value) {
+        desiredParticipants.value = Math.max(2,
+          Math.min(response.data.selected_participants, maxParticipants.value || 120))
+        userCountInitialized.value = true
+      }
+      if (response.data.locked) isLocked.value = true
+    }
+  } catch (_) { /* Preparation may not have written profiles yet. */ }
 }
 
 const truncateBio = (bio) => {
@@ -1085,6 +1151,7 @@ const fetchConfigRealtime = async () => {
         
         stopConfigPolling()
         phase.value = 4
+        await loadParticipantInfo()
         addLog(t('log.envSetupComplete'))
         emit('update-status', 'completed')
       }
@@ -1126,6 +1193,7 @@ const loadPreparedData = async () => {
 
         addLog(t('log.envSetupComplete'))
         phase.value = 4
+        await loadParticipantInfo()
         emit('update-status', 'completed')
       } else if (configState.is_generating) {
         addLog(t('log.configGenerating'))
@@ -1163,12 +1231,17 @@ onMounted(async () => {
       interactionMode.value = result.data.interaction_mode || 'posts'
       autoFinalize.value = result.data.auto_finalize !== false
       customMaxRounds.value = result.data.max_rounds || 10
+      isLocked.value = result.data.locked === true
     }
   } catch (error) {
     settingError.value = error.message
   }
   addLog(t('log.step2Init'))
-  startPrepareSimulation()
+  if (isLocked.value) {
+    await loadPreparedData()
+  } else {
+    startPrepareSimulation()
+  }
 })
 
 onUnmounted(() => {
@@ -2737,4 +2810,13 @@ onUnmounted(() => {
 .engine-option span{display:grid;gap:5px}
 .engine-option strong{font-size:12px;color:#17405a}
 .engine-option small{font-size:11px;line-height:1.5;color:#526f7f}
+</style>
+
+<style scoped>
+.population-control{background:#f3f9ff;border:1px solid #bfd9ed;border-radius:12px;padding:14px;display:grid;gap:8px;font-size:13px}
+.population-control label{display:block;color:#173c5d}
+.population-control input{width:130px;max-width:100%;padding:9px;border:1px solid #c4d4e0;border-radius:8px;background:#fff;color:#132f45}
+.population-control p{margin:2px 0;font-size:12px;line-height:1.5}
+.population-warning{background:#fff8e8;border:1px solid #eed69c;border-radius:7px;padding:8px;color:#72541d}
+.locked-banner{background:#f0f6fc;border-left:4px solid #1d69a2;border-radius:8px;padding:11px 14px;font-size:12px;line-height:1.55;color:#164669}
 </style>
