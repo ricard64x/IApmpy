@@ -927,6 +927,8 @@ def export_persisted_report(report_id: str):
                         "error": "Para exportar en español, primero traducí todos los capítulos desde el informe.",
                     }), 409
                 markdown = localized
+        # Keep the localized original separate from the statistical appendix.
+        narrative_markdown = markdown
         # Enrich exports on demand; never mutate the original saved report.
         from ..services.simulation_metrics import legacy_metrics, followup_metrics
         metrics = legacy_metrics(report.simulation_id,
@@ -991,10 +993,10 @@ def export_persisted_report(report_id: str):
         elif fmt in ("html", "pdf"):
             from ..services.visual_report import render_html, render_pdf
             if fmt=="html":
-                payload=render_html(report.markdown_content or markdown,metrics,visual_opts,report_id).encode("utf-8")
+                payload=render_html(narrative_markdown,metrics,visual_opts,report_id).encode("utf-8")
                 mime,ext="text/html","html"
             else:
-                payload=render_pdf(report.markdown_content or markdown,metrics,visual_opts,report_id)
+                payload=render_pdf(narrative_markdown,metrics,visual_opts,report_id)
                 mime,ext="application/pdf","pdf"
         else:
             return jsonify({"success": False, "error": "Formato no compatible."}), 400
