@@ -1,0 +1,42 @@
+name: One-time protected Tenondera interaction-quality release
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/dispatch-tenondera-quality-once.yml
+permissions:
+  contents: read
+  actions: write
+jobs:
+  dispatch-production:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      github.event.head_commit.message == 'chore: request protected release for interaction quality'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify exactly the tested merge plus this dispatcher
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TARGET: ${{ github.sha }}
+          MERGED: 510a46cbbcdbbb5b2186a630761b34a44d963b80
+          TESTED: 0c0a094403142cb6f7e62402288cf6b0f5ac9f68
+        shell: bash
+        run: |
+          set -euo pipefail
+          only_dispatcher="$(gh api "repos/$REPO/compare/$MERGED...$TARGET" --jq '(.ahead_by == 1) and ((.files | length) == 1) and (.files[0].filename == ".github/workflows/dispatch-tenondera-quality-once.yml")')"
+          test "$only_dispatcher" = "true"
+          pr_ci="$(gh api "repos/$REPO/actions/runs?head_sha=$TESTED&per_page=30" --jq '.workflow_runs | map(select(.name == "Verify IApmpy Fly deployment" and .event == "pull_request")) | .[0].conclusion // "missing"')"
+          test "$pr_ci" = "success"
+          current="$(gh api "repos/$REPO/branches/main" --jq '.commit.sha')"
+          test "$current" = "$TARGET"
+      - name: Dispatch existing protected Fly deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api -X POST "repos/$REPO/actions/workflows/deploy-fly.yml/dispatches" -f ref=main
+          echo "Protected deployment requested."
