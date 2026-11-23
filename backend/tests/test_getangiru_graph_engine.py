@@ -99,6 +99,12 @@ class GetangiruLocalGraphTests(unittest.TestCase):
             self.build(extra_sources=[{"source_id": "../../bad",
                                       "content": "El SOC revisa registros"}])
 
+    def test_graph_and_parent_directory_are_private(self):
+        import stat
+        self.build()
+        self.assertEqual(stat.S_IMODE(self.store.path.stat().st_mode), 0o600)
+        self.assertEqual(stat.S_IMODE(self.store.path.parent.stat().st_mode), 0o700)
+
     def test_delete_is_tenant_scoped(self):
         first = self.build()
         with self.assertRaises(GraphScopeError):

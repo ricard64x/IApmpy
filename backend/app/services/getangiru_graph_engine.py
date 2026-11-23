@@ -69,7 +69,8 @@ class GraphScopeError(ValueError):
 class GetangiruGraphStore:
     def __init__(self, db_path: str | Path):
         self.path = Path(db_path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.chmod(self.path.parent, 0o700)
         self._initialize()
 
     def _connect(self):
@@ -109,6 +110,12 @@ class GetangiruGraphStore:
             CREATE INDEX IF NOT EXISTS idx_edge_graph ON edges(graph_id);
             """)
             c.commit()
+        # Evidence is private even when a Sprite allows multiple Unix users.
+        os.chmod(self.path, 0o600)
+        for suffix in ("-wal", "-shm"):
+            sidecar = Path(str(self.path) + suffix)
+            if sidecar.exists():
+                os.chmod(sidecar, 0o600)
 
     @staticmethod
     def graph_id(tenant: str, project_id: str) -> str:
