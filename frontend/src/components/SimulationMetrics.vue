@@ -14,6 +14,29 @@
         <div><small>Mensajes / comentarios</small><strong>{{ data.message_actions }}</strong></div>
         <div><small>Pares de interacción explícitos</small><strong>{{ data.recorded_interaction_pairs }}</strong></div>
       </div>
+      <section v-if="data.followups?.available" class="followups">
+        <h3>Conversaciones y encuestas posteriores al informe</h3>
+        <p class="notice">Estas consultas fueron realizadas después de la simulación y se cuentan por separado.</p>
+        <div class="kpis">
+          <div><small>Turnos de chat</small><strong>{{data.followups.chat_turns}}</strong></div>
+          <div><small>Encuestas realizadas</small><strong>{{data.followups.surveys}}</strong></div>
+          <div><small>Respuestas de encuesta</small><strong>{{data.followups.survey_answers}}</strong></div>
+          <div><small>Respuestas a participantes</small><strong>{{data.followups.participant_turns}}</strong></div>
+        </div>
+        <div class="two-col">
+          <article><h3>Actividad posterior por día</h3>
+            <div class="bars">
+              <div class="bar" v-for="item in data.followups.by_day" :key="item.date">
+                <span>{{item.date}}</span><div class="track"><i :style="{width:width(item.count,data.followups.by_day)+'%'}"></i></div><b>{{item.count}}</b>
+              </div>
+            </div>
+          </article>
+          <article><h3>Participantes consultados</h3>
+            <table><thead><tr><th>Agente ficticio</th><th>Respuestas</th></tr></thead>
+              <tbody><tr v-for="p in data.followups.participants" :key="p.id"><td>{{p.name}} ({{p.id}})</td><td>{{p.responses}}</td></tr></tbody></table>
+          </article>
+        </div>
+      </section>
       <div class="two-col">
         <article>
           <h3>Histograma por ronda</h3>
