@@ -12,6 +12,13 @@
       Aún no hay llamadas registradas. Los indicadores aparecerán al ejecutar las primeras rondas.
     </p>
     <template v-else>
+      <div v-if="metrics.quality_structural.discussion_mode==='dialogue' && !metrics.quality_structural.valid_multiagent_interaction"
+        class="quality-warning" role="alert">
+        ⚠️ Interacción conversacional aún insuficiente: se requieren 2 participantes,
+        1 par explícito y 2 respuestas cruzadas. No presentar como simulación multiagente validada.
+      </div>
+      <div v-else-if="metrics.quality_structural.discussion_mode==='dialogue'"
+        class="quality-ok" role="status">✓ Calidad conversacional estructural mínima verificada.</div>
       <div class="efficiency-grid">
         <div><strong>{{ metrics.quality_structural.synthetic_conversation_replies || 0 }}</strong><span>Respuestas entre agentes sintéticos</span></div>
         <div><strong>{{ metrics.quality_structural.recorded_interaction_pairs || 0 }}</strong><span>Pares con destinatario explícito</span></div>
@@ -93,6 +100,8 @@ onUnmounted(() => {
 .efficiency-grid span{font-size:10px;line-height:1.4;color:#607c87}
 .efficiency-panel small,.metrics-empty,.metrics-error{font-size:10px;color:#59737b;line-height:1.5}
 .metrics-error{color:#914c28}
+.quality-warning{background:#fff3e9;color:#873f23;border:1px solid #cf7651;padding:9px;border-radius:9px;font-weight:650}
+.quality-ok{color:#1c7358;font-weight:700}
 @media(max-width:900px){.efficiency-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:520px){.efficiency-title{flex-wrap:wrap}.efficiency-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
