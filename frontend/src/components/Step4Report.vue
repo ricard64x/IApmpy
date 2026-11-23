@@ -13,9 +13,50 @@
             <div class="report-export-toolbar" v-if="isComplete">
               <span>✓ {{ $t('step5.savedAutomatically') }}</span>
               <button :disabled="translationBusy" @click="downloadSavedReport('md')">{{ $t('step5.exportMarkdown') }}</button>
-              <button :disabled="translationBusy" @click="downloadSavedReport('html')">{{ $t('step5.exportHtml') }}</button>
-              <button :disabled="translationBusy" @click="printSavedReport">{{ $t('step5.exportPdf') }}</button>
+              <button :disabled="translationBusy" @click="showReportOptions=!showReportOptions">📊 Configurar informe visual</button>
+              <button :disabled="translationBusy" @click="exportVisual('html')">🌐 HTML visual</button>
+              <button :disabled="translationBusy" @click="exportVisual('pdf')">📄 PDF visual</button>
             </div>
+            <section v-if="showReportOptions && isComplete" class="report-config" aria-label="Configurar el informe visual">
+              <div class="report-config-header"><strong>🎨 Diseño del informe</strong><span>Elegí exactamente qué mostrar al cliente o al directorio.</span></div>
+              <div class="report-config-grid">
+                <label>Tipo de informe
+                  <select v-model="visualMode" @change="selectVisualPreset">
+                    <option value="executive">📈 Ejecutivo — compacto y visual</option>
+                    <option value="technical">🔎 Técnico — detalle y trazabilidad</option>
+                  </select>
+                </label>
+                <label>Cantidad máxima de participantes
+                  <select v-model.number="visualTop">
+                    <option :value="5">Top 5</option>
+                    <option :value="10">Top 10</option>
+                    <option :value="12">Top 12</option>
+                    <option :value="20">Top 20</option>
+                    <option :value="30">Top 30</option>
+                  </select>
+                </label>
+                <label class="wide">Título personalizado
+                  <input v-model="visualTitle" maxlength="110" placeholder="Informe ejecutivo de la simulación" />
+                </label>
+                <label class="wide">Indicaciones del informe (opcional)
+                  <textarea v-model="visualNotes" rows="3" maxlength="600" placeholder="Ej.: Priorizar riesgos reputacionales y mostrar actividad por día, tipos de comentarios y quiénes participaron."></textarea>
+                </label>
+              </div>
+              <div class="config-choices">
+                <fieldset><legend>📊 Gráficos disponibles</legend>
+                  <label v-for="item in visualChartChoices" :key="item.id"><input type="checkbox" :value="item.id" v-model="visualCharts" /> {{ item.label }}</label>
+                </fieldset>
+                <fieldset><legend>📚 Datos y secciones</legend>
+                  <label v-for="item in visualSectionChoices" :key="item.id"><input type="checkbox" :value="item.id" v-model="visualSections" /> {{ item.label }}</label>
+                </fieldset>
+              </div>
+              <p class="config-help">Los gráficos se construyen desde eventos guardados. Los datos ausentes se señalan expresamente. Las fechas corresponden a la ejecución registrada, no a días ficticios del escenario.</p>
+              <div class="config-actions">
+                <button @click="exportVisual('html')">👁 Abrir HTML visual</button>
+                <button @click="exportVisual('pdf')">📥 Descargar PDF visual</button>
+                <button @click="selectVisualPreset">Restablecer selección</button>
+              </div>
+            </section>
             <div class="report-meta">
               <span class="report-tag">{{ $t('step5.savedReportLabel') }}</span>
               <span class="report-id">ID: {{ reportId || 'REF-2024-X92' }}</span>
@@ -447,6 +488,51 @@ const refreshSpanishCopy = async () => {
   }
 }
 
+const showReportOptions = ref(false)
+const visualMode = ref('executive')
+const visualTop = ref(12)
+const visualTitle = ref('')
+const visualNotes = ref('')
+const visualChartChoices = [
+  { id:'rounds', label:'Actividad por ronda (barras)' },
+  { id:'days', label:'Histograma diario' },
+  { id:'hours', label:'Distribución por hora' },
+  { id:'types', label:'Tipos de acciones (torta)' },
+  { id:'platforms', label:'Distribución de plataformas (torta)' },
+  { id:'actors', label:'Ranking de participantes' },
+  { id:'network', label:'Grafo de relaciones explícitas' },
+  { id:'followups', label:'Charlas y encuestas posteriores' }
+]
+const visualSectionChoices = [
+  { id:'summary', label:'Resumen KPI' },
+  { id:'charts', label:'Gráficos e histogramas' },
+  { id:'participants', label:'Listado de participantes' },
+  { id:'interactions', label:'Relaciones registradas' },
+  { id:'narrative', label:'Análisis narrativo del informe' },
+  { id:'methodology', label:'Metodología y limitaciones' }
+]
+const visualCharts = ref(['rounds','types','actors','days','network'])
+const visualSections = ref(['summary','charts','participants','narrative','methodology'])
+const selectVisualPreset = () => {
+  visualCharts.value = visualMode.value === 'technical'
+    ? visualChartChoices.map(item=>item.id)
+    : ['rounds','types','actors','days','network']
+  visualSections.value = visualMode.value === 'technical'
+    ? visualSectionChoices.map(item=>item.id)
+    : ['summary','charts','participants','narrative','methodology']
+}
+const exportVisual = (format) => {
+  if (!props.reportId) return
+  const params = new URLSearchParams({
+    format, locale:'es', mode:visualMode.value,
+    charts:visualCharts.value.join(','), sections:visualSections.value.join(','),
+    top:String(visualTop.value),
+    title:(visualTitle.value || reportOutline.value?.title || 'Informe Tenonderã').slice(0,110),
+    notes:visualNotes.value.slice(0,600)
+  })
+  const url = '/api/report/' + encodeURIComponent(props.reportId) + '/export?' + params.toString()
+  window.open(url, '_blank', 'noopener,noreferrer')
+}
 // Persistent report exports use the existing authenticated session.
 const downloadSavedReport = (format) => {
   if (props.reportId) window.location.assign(reportExportUrl(props.reportId,format))
@@ -5241,6 +5327,20 @@ html[lang="en"] .report-header-block .main-title {
 </style>
 
 <style scoped>
+.report-config{background:#f7fbfe;border:1px solid #cfe4f0;border-radius:13px;padding:17px;margin:15px 0;color:#21455d}
+.report-config-header{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:14px}
+.report-config-header strong{font-size:15px}.report-config-header span,.config-help{font-size:12px;color:#59748a}
+.report-config-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.report-config-grid label{display:grid;gap:5px;font-size:12px;font-weight:700}
+.report-config-grid .wide{grid-column:1/-1}
+.report-config-grid input,.report-config-grid textarea,.report-config-grid select{width:100%;border:1px solid #c9dae7;border-radius:8px;background:white;padding:10px;font:inherit;color:#254a68}
+.config-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}
+.config-choices fieldset{border:1px solid #d3e5ee;background:white;border-radius:10px;min-width:0;display:grid;gap:7px;padding:11px}
+.config-choices legend{font-size:12px;font-weight:800}.config-choices label{font-size:12px;display:flex;gap:6px;align-items:center}
+.config-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.config-actions button{border:1px solid #bcd8e4;background:#e8f5fa;color:#176384;border-radius:8px;padding:9px 12px;cursor:pointer}
+@media(max-width:700px){.report-config-grid,.config-choices{grid-template-columns:1fr}}
+@media print{.report-config{display:none!important}}
 .report-export-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:0 0 15px}
 .report-export-toolbar span{font-size:11px;font-weight:700;color:#178270}
 .report-export-toolbar button{padding:7px 10px;border:1px solid #d5e9ed;background:#effaff;border-radius:7px;color:#146b87;font-size:11px;font-weight:700;cursor:pointer}
