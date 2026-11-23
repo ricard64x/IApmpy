@@ -101,6 +101,10 @@ class LocalSimulationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.s.feedback(second["id"],actor_uuid=actor["uuid"],phase=2,
                             verdict="invented",note="x")
+        for note,phase in ((None,2),("text",True),(123,2)):
+            with self.subTest(note=note,phase=phase),self.assertRaises(ValueError):
+                self.s.feedback(second["id"],actor_uuid=actor["uuid"],phase=phase,
+                                verdict="accept",note=note)
 
     def test_missing_evidence_fails_closed(self):
         row=self.create()
