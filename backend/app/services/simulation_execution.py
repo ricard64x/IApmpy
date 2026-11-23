@@ -15,7 +15,7 @@ from ..config import Config
 
 _VALID_ID = re.compile(r"^sim_[A-Za-z0-9_-]{1,90}$")
 _PLATFORMS = ("twitter", "reddit", "parallel")
-_DEFAULTS = {"platform": "parallel", "auto_finalize": True, "max_rounds": 10, "engine_mode": "oasis"}
+_DEFAULTS = {"platform": "parallel", "auto_finalize": True, "max_rounds": 10, "engine_mode": "oasis", "interaction_mode": "dialogue"}
 
 
 def settings_path(simulation_id: str) -> Path:
@@ -30,7 +30,12 @@ def get_execution_settings(simulation_id: str) -> dict:
         return dict(_DEFAULTS)
     with path.open(encoding="utf-8") as handle:
         stored = json.load(handle)
-    return {**_DEFAULTS, **{k: stored[k] for k in _DEFAULTS if k in stored}}
+    config = {**_DEFAULTS, **{k: stored[k] for k in _DEFAULTS if k in stored}}
+    # Existing historical settings predate dialogue mode. Never relabel their
+    # archived actions as conversations that never actually occurred.
+    if "interaction_mode" not in stored:
+        config["interaction_mode"] = "posts"
+    return config
 
 
 def validate_execution_settings(body: dict) -> dict:
@@ -48,10 +53,14 @@ def validate_execution_settings(body: dict) -> dict:
     engine_mode = body.get("engine_mode", "oasis")
     if engine_mode not in ("oasis", "lightweight"):
         raise ValueError("Elegí entre ejecución estándar o modo GPT liviano.")
+    interaction_mode = body.get("interaction_mode", "dialogue")
+    if interaction_mode not in ("dialogue", "posts"):
+        raise ValueError("Seleccioná conversación por lotes o publicaciones independientes.")
     if engine_mode == "lightweight" and not auto_finalize:
         raise ValueError("El modo GPT liviano necesita cierre automático.")
     return {"platform": platform, "auto_finalize": auto_finalize,
-            "max_rounds": rounds, "engine_mode": engine_mode}
+            "max_rounds": rounds, "engine_mode": engine_mode,
+            "interaction_mode": interaction_mode}
 
 
 def save_execution_settings(simulation_id: str, body: dict) -> dict:

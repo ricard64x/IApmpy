@@ -13,6 +13,8 @@
     </p>
     <template v-else>
       <div class="efficiency-grid">
+        <div><strong>{{ metrics.quality_structural.synthetic_conversation_replies || 0 }}</strong><span>Respuestas entre agentes sintéticos</span></div>
+        <div><strong>{{ metrics.quality_structural.recorded_interaction_pairs || 0 }}</strong><span>Pares con destinatario explícito</span></div>
         <div><strong>{{ metrics.model.calls }}</strong><span>Llamadas registradas al modelo</span></div>
         <div><strong>{{ milliseconds(metrics.model.latency_p95_ms) }}</strong><span>Latencia p95 por lote</span></div>
         <div><strong>{{ megabytes(metrics.resource.peak_child_process_rss_mb) }}</strong><span>RAM pico del proceso</span></div>
