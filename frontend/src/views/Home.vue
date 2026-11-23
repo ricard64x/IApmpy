@@ -48,7 +48,7 @@
           <span class="resource-icon">◉</span>
           <div><strong>La cantidad de participantes se elige en el paso 3</strong>
             <small>Motor eficiente: hasta {{capacity?.lightweight_max_profiles??'—'}} personajes (si está disponible).
-              Motor social completo: límite conservador de {{capacity?.recommended_max_profiles??'—'}} perfiles detectados. Solo una ejecución a la vez.</small></div>
+              Motor social completo: hasta 12 perfiles detectados en el selector (con un techo de admisión adicional de {{capacity?.recommended_max_profiles??'—'}} según memoria). Solo una ejecución a la vez.</small></div>
         </div>
         <p v-if="capacity?.busy" class="busy-note" role="status">Hay otra simulación ejecutándose. Podés preparar el proyecto, pero tendrás que esperar a que termine para iniciar una nueva ejecución.</p>
         <p v-if="error" class="error" role="alert">{{error}}</p>
