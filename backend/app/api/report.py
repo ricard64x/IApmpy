@@ -535,6 +535,20 @@ def get_generate_status():
 
 # ============== 报告获取接口 ==============
 
+@report_bp.route('/<report_id>/metrics', methods=['GET'])
+def report_simulation_metrics(report_id: str):
+    """Structured visualizations derived from this saved report's execution."""
+    from ..services.simulation_metrics import legacy_metrics
+    report = ReportManager.get_report(report_id)
+    if report is None:
+        return jsonify({"success":False,"error":"Informe no disponible"}),404
+    simulation_id = report.simulation_id
+    if SimulationManager().get_simulation(simulation_id) is None:
+        return jsonify({"success":False,"error":"Simulación no disponible"}),404
+    base = os.path.join(SimulationRunner.RUN_STATE_DIR,simulation_id)
+    return jsonify({"success":True,"data":legacy_metrics(simulation_id,base)})
+
+
 @report_bp.route('/<report_id>', methods=['GET'])
 def get_report(report_id: str):
     """
