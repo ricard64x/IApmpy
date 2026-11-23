@@ -170,7 +170,18 @@ class NativeSimStore:
             return None
         with closing(self._connect()) as c:
             row = c.execute("SELECT * FROM runs WHERE id=?", (ident,)).fetchone()
-        return dict(row) if row else None
+        if not row:
+            return None
+        if row["state"] in ("queued","running"):
+            threshold=datetime.fromtimestamp(time.time()-180,timezone.utc)
+            if datetime.fromisoformat(row["updated_at"])<threshold:
+                with closing(self._connect()) as c:
+                    c.execute("""UPDATE runs SET state='interrupted',error_code='STALE_WORKER',
+                                 updated_at=? WHERE id=? AND state IN ('queued','running')
+                                 AND updated_at=?""",(utc(),ident,row["updated_at"]))
+                    c.commit()
+                    row=c.execute("SELECT * FROM runs WHERE id=?",(ident,)).fetchone()
+        return dict(row)
 
     def latest(self, project_id: str) -> dict | None:
         with closing(self._connect()) as c:
@@ -223,6 +234,14 @@ class NativeSimStore:
                               GROUP BY verdict""",(project_id,)).fetchall()
         return {x["verdict"]:x["total"] for x in rows}
 
+    def actors_requiring_review(self, project_id: str) -> set[str]:
+        # A rejected simulation action becomes an extra verification obligation,
+        # NOT an instruction to alter facts or automatically retrain the model.
+        with closing(self._connect()) as c:
+            rows=c.execute("""SELECT DISTINCT actor_uuid FROM feedback
+                              WHERE project_id=? AND verdict='reject'""",(project_id,)).fetchall()
+        return {row["actor_uuid"] for row in rows}
+
     def execute(self, ident: str, graph: dict, objective: str, *,
                 llm=None, max_agents: int = 12):
         start=time.perf_counter()
@@ -245,6 +264,7 @@ class NativeSimStore:
         # A single optional local-model assessment is shared by all agents,
         # rather than N expensive requests. Never promote its text to evidence.
         reviewed=self.historical_feedback(run["project_id"])
+        reviewed_actors=self.actors_requiring_review(run["project_id"])
         plan={"focus":"evidencias","basis":"reglas","hypothesis":"",
               "verified":False,"external_research":RESEARCH_DEFAULT,
               "past_human_feedback": reviewed,
@@ -288,6 +308,8 @@ class NativeSimStore:
                     for uid,actor_type,name,quote,source_id in evidence:
                         scripts=ROLES.get(actor_type,GENERIC_ACTIONS)
                         step=scripts[phase-1]
+                        if phase==4 and uid in reviewed_actors:
+                            step += " Requiere validación reforzada: observación humana anterior."
                         c.execute("""INSERT INTO actions
                            (run_id,phase,actor_uuid,actor_type,action_text,rationale,origin,
                             evidence,evidence_source,created_at)
@@ -326,6 +348,7 @@ class NativeSimStore:
                 "local_model_fallback":plan["basis"]=="reglas_fallback",
                 "execution_ms":round((time.perf_counter()-start)*1000,1),
                 "past_feedback_reviewed": reviewed,
+                "actors_under_enhanced_review":len(reviewed_actors),
                 "learning":"Las evaluaciones humanas elevan prioridad de revisión; no se reentrenan pesos automáticamente",
             }
             self._update(ident,report_json=json.dumps(report,ensure_ascii=False),state="completed")
@@ -339,7 +362,8 @@ class NativeSimStore:
         if not row:return None
         return {
             "simulation_id":row["id"],"project_id":row["project_id"],
-            "graph_id":row["graph_id"],"status":row["state"],
+            "graph_id":row["graph_id"],"input_hash":row["input_hash"],
+            "status":row["state"],
             "phase":row["phase"],"total_phases":row["total_phases"],
             "progress_pct":round(row["phase"]*25,1) if row["state"]!="failed" else 0,
             "started_at":row["started_at"],"updated_at":row["updated_at"],
