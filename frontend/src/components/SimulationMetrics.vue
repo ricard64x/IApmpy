@@ -8,11 +8,30 @@
     <template v-if="data">
       <p class="notice">Son personajes y decisiones <strong>simulados</strong>, no personas o conversaciones reales. Las fechas corresponden a registros de ejecución, no al calendario ficticio del escenario.</p>
       <div v-if="data.partial" class="alert">Muestra parcial: el registro superó el límite de lectura segura.</div>
+      <section v-if="data.interaction_quality" class="quality-card"
+        :class="{ 'quality-warning': !data.interaction_quality.valid_multiagent_interaction }"
+        :role="data.interaction_quality.valid_multiagent_interaction ? 'status' : 'alert'"
+        aria-label="Calidad de interacción">
+        <h3>Calidad de interacción — {{ data.interaction_quality.label }}</h3>
+        <p v-if="!data.interaction_quality.valid_multiagent_interaction">
+          Este resultado <strong>no acredita una conversación multiagente válida</strong>.
+          No debe presentarse como un informe conversacional normal.
+        </p>
+        <p v-else>La calidad estructural mínima está respaldada por eventos dirigidos entre personajes sintéticos.</p>
+        <div class="quality-facts">
+          <span><strong>Diversidad:</strong> {{ data.interaction_quality.diversity }}</span>
+          <span><strong>Respuestas cruzadas:</strong> {{ data.cross_agent_messages || 0 }}</span>
+          <span><strong>Concentración máxima:</strong> {{ data.interaction_quality.maximum_action_share_percent }}%</span>
+        </div>
+        <p v-for="issue in data.interaction_quality.issues" :key="issue" class="quality-issue">{{ issue }}</p>
+        <small>La evaluación mide estructura de mensajes simulados, no veracidad de opiniones ni personas reales.</small>
+      </section>
       <div class="kpis">
         <div><small>Participantes activos</small><strong>{{ data.active_participants }}</strong></div>
         <div><small>Acciones registradas</small><strong>{{ data.total_actions }}</strong></div>
         <div><small>Mensajes / comentarios</small><strong>{{ data.message_actions }}</strong></div>
         <div><small>Pares de interacción explícitos</small><strong>{{ data.recorded_interaction_pairs }}</strong></div>
+        <div><small>Respuestas entre agentes</small><strong>{{ data.cross_agent_messages || 0 }}</strong></div>
       </div>
       <section v-if="data.followups?.available" class="followups">
         <h3>Conversaciones y encuestas posteriores al informe</h3>
@@ -120,6 +139,13 @@ watch(()=>[props.reportId,props.nativeRunId],load,{immediate:true})
 .heading h2{font-size:19px;margin:0 0 7px}.heading p,.notice{font-size:12px;color:#4e667b;line-height:1.6}
 button{border:1px solid #bed4e4;border-radius:8px;padding:9px 12px;color:#164f74;background:#eef7fb;cursor:pointer}
 .alert{color:#a12c3d;font-size:12px}
+.quality-card{border:1px solid #9dcbb5;background:#eff9f4;border-radius:10px;padding:14px;margin:14px 0;font-size:12px}
+.quality-card.quality-warning{border:2px solid #ca7550;background:#fff3e9;color:#763b24}
+.quality-card h3{margin:0 0 8px;font-size:14px}
+.quality-card p{margin:6px 0;line-height:1.5}
+.quality-facts{display:flex;flex-wrap:wrap;gap:12px;margin:10px 0}
+.quality-issue{font-weight:650}
+.quality-card small{color:inherit;opacity:.8}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:20px 0}
 .kpis>div{background:#edf7fa;border-radius:10px;padding:14px}.kpis small{display:block;font-size:11px;color:#4b697c}
 .kpis strong{font-size:26px;display:block;margin-top:7px}
