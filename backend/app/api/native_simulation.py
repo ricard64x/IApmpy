@@ -5,6 +5,7 @@ import json
 import os
 import re
 import threading
+from pathlib import Path
 from flask import Blueprint, Response, jsonify, request
 
 from ..auth import can_access_project, is_admin
@@ -53,6 +54,24 @@ def capabilities():
         "independent_of_zep": True,
         "max_agents": 12, "max_phases": 4,
     }})
+
+
+@native_sim_bp.post("/public-cve")
+def public_cve_lookup():
+    """Explicit, bounded public-data search. Never uploads project content."""
+    if os.getenv("GETANGIRU_PUBLIC_RESEARCH_ENABLED","false").lower()!="true":
+        return jsonify({"success":False,"error":"Consultas externas deshabilitadas por política"}),403
+    data=request.get_json(silent=True) or {}
+    if set(data.keys())!={"cves"}:
+        return jsonify({"success":False,"error":"Solo se permiten identificadores CVE explícitos"}),422
+    from ..services.getangiru_public_research import lookup_public_cves
+    try:
+        result=lookup_public_cves(data.get("cves"),Path(Config.UPLOAD_FOLDER)/"getangiru"/"public-kev-cache.json")
+    except ValueError:
+        return jsonify({"success":False,"error":"Ingresá entre 1 y 5 identificadores CVE válidos"}),422
+    except (OSError,RuntimeError,TimeoutError):
+        return jsonify({"success":False,"error":"Catálogo público no disponible; no se enviaron datos internos"}),503
+    return jsonify({"success":True,"data":result})
 
 
 @native_sim_bp.post("/start")
