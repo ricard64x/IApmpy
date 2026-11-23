@@ -962,7 +962,7 @@ def export_persisted_report(report_id: str):
             f"- Respuestas dirigidas a participantes: {follow['participant_turns']}",
             "| Fecha | Interacciones posteriores |", "|---|---:|",
         ] + [f"| {item['date']} | {item['count']} |" for item in follow['by_day']]
-        markdown += "\\n" + "\\n".join(metrics_lines) + "\\n"
+        markdown += "\n" + "\n".join(metrics_lines) + "\n"
         if fmt == 'md':
             payload = markdown.encode('utf-8')
             mime, ext = "text/markdown", "md"
