@@ -75,11 +75,20 @@ def summarize(events, *, source, truncated=False, available=True):
         # Mentions, self-replies and arbitrary missing IDs are not proof of dialogue.
         if kind in {"CREATE_COMMENT", "REPLY", "REPLY_POST", "COMMENT"} and target is not None and str(target) != key:
             candidate_edges[(platform_name,key,str(target)[:100])] += 1
-        if kind in types_for_talk and len(messages) < 50:
+        if kind in types_for_talk and len(messages) < 250:
             message = args.get("content") or event.get("action_text")
             if isinstance(message,str) and message.strip():
-                messages.append({"participant":name,"round":rnd if isinstance(rnd,int) else None,
-                                 "excerpt":_safe_text(message,240),"timestamp":stamp})
+                target_id = target if target is not None and str(target) != key else None
+                messages.append({
+                    "participant":name, "participant_id":key,
+                    "round":rnd if isinstance(rnd,int) else None,
+                    "excerpt":_safe_text(message,360), "timestamp":stamp,
+                    "platform":platform_name,
+                    "type":kind,
+                    "target_id":str(target_id)[:100] if target_id is not None else None,
+                    "action_id":_safe_text(args.get("synthetic_action_id") or args.get("reply_to_action_id"),110) or None,
+                    "synthetic":str(event.get("source_mode") or "").startswith("sintetico_"),
+                })
     for (platform_name, sender_id, target_id), count in candidate_edges.items():
         if sender_id in platform_participants[platform_name] and target_id in platform_participants[platform_name]:
             edges[(sender_id, target_id)] += count
@@ -143,9 +152,11 @@ def summarize(events, *, source, truncated=False, available=True):
         "by_round":[{"round":k,"count":v} for k,v in sorted(by_round.items(),key=lambda x:int(x[0]))],
         "by_type":[{"type":k,"count":v} for k,v in by_type.most_common()],
         "by_platform":[{"platform":k,"count":v} for k,v in by_platform.most_common()],
-        "participants":sorted(participants.values(),key=lambda p:(-p["actions"],p["name"]))[:100],
+        "participants":sorted(participants.values(),key=lambda p:(-p["actions"],p["name"]))[:120],
         "interactions":[{"from":a,"to":b,"count":n} for (a,b),n in edges.most_common(50)],
         "messages":messages,
+        "messages_sample_limit":250,
+        "messages_sample_truncated":conversations>len(messages),
     }
 
 def legacy_metrics(simulation_id, simulation_dir):

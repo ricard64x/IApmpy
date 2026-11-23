@@ -25,7 +25,7 @@
             <div class="header-divider"></div>
           </div>
 
-          <SimulationMetrics :report-id="reportId" @quality-updated="handleQualityUpdated" />
+          <ResultsExplorer :report-id="reportId" @quality-updated="handleQualityUpdated" />
 
           <!-- Sections List -->
           <div class="sections-list">
@@ -407,7 +407,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, h, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import SimulationMetrics from './SimulationMetrics.vue'
+import ResultsExplorer from './ResultsExplorer.vue'
 import { getAgentLog, getConsoleLog, getReport, getSavedReportSections, reportExportUrl } from '../api/report'
 import { ensureSpanishReport, containsChinese } from '../utils/reportSpanish'
 

@@ -567,6 +567,12 @@ def report_simulation_metrics(report_id: str):
     base = os.path.join(SimulationRunner.RUN_STATE_DIR,simulation_id)
     from ..services.simulation_metrics import followup_metrics
     data=legacy_metrics(simulation_id,base)
+    try:
+        from pathlib import Path
+        from ..services.participant_population import population_status
+        data["population"] = population_status(Path(base), "lightweight")
+    except (ValueError, TypeError, OSError):
+        data["population"] = None  # Historical runs may not have prepared profiles.
     data["followups"]=followup_metrics(
         os.path.join(ReportManager.REPORTS_DIR,report_id,"interacciones.jsonl"),
         simulation_id)
@@ -1012,24 +1018,8 @@ def export_persisted_report(report_id: str):
             }, ensure_ascii=False, indent=2).encode('utf-8')
             mime, ext = "application/json", "json"
         elif fmt == 'html':
-            # Escaped HTML intentionally avoids interpreting model-authored markup.
-            page = (
-                '<!doctype html><html lang="es"><head><meta charset="utf-8">'
-                '<title>Tenonderã — Informe de simulación</title>'
-                '<style>body{max-width:900px;margin:50px auto;padding:24px;'
-                'font-family:system-ui,sans-serif;color:#173658;line-height:1.6}'
-                'pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit}'
-                'h1{color:#11699f}small{color:#5d7890}'
-                '@media print{body{margin:0;padding:0}}</style></head><body>'
-                '<h1>Tenonderã · Informe guardado</h1>'
-                '<small>Resultados de un escenario sintético, no de una encuesta real.</small>'
-                + ('<aside role="alert" style="padding:14px;margin:15px 0;'
-                   'border:2px solid #b24b32;background:#fff1e8">'
-                   '<strong>CALIDAD DE INTERACCIÓN INSUFICIENTE O NO VERIFICABLE</strong><p>'
-                   + html.escape(" ".join(quality["issues"]) or quality["label"])
-                   + '</p></aside>' if quality_warning else '')
-                + '<pre>' + html.escape(markdown) + '</pre></body></html>'
-            )
+            from ..services.report_export_html import render_executive_html
+            page = render_executive_html(markdown, metrics, report_id)
             payload = page.encode("utf-8")
             mime, ext = "text/html", "html"
         else:
