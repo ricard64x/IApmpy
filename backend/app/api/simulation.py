@@ -1660,7 +1660,8 @@ def fork_simulation_version(simulation_id):
         else:
             new_settings = get_execution_settings(simulation_id)
             new_settings = {key: new_settings[key] for key in (
-                "platform", "auto_finalize", "max_rounds", "engine_mode", "interaction_mode")}
+                "platform", "auto_finalize", "max_rounds", "engine_mode",
+                "interaction_mode", "social_spaces", "dialogue_depth")}
     except (ValueError, TypeError) as error:
         return jsonify({"success": False, "error": str(error)}), 422
     manager = SimulationManager()
