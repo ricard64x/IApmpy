@@ -156,14 +156,22 @@ function render(){
     .on('keydown',(event,d)=>{if(event.key==='Enter'||event.key===' '){
       event.preventDefault();selected.value={type:'person',person:d}
     }})
-  groups.append('circle').attr('r',22).attr('fill','#e5f3f7')
+  groups.append('circle').attr('r',24).attr('fill','#e5f3f7')
     .attr('stroke','#187894').attr('stroke-width',2.5)
+    .attr('pointer-events','all')
+    .on('click',(event,d)=>{
+      event.stopPropagation()
+      selected.value={type:'person',person:d}
+    })
   groups.append('text').text(d=>d.name?.split(' ').map(p=>p[0]).slice(0,2).join('')||'P')
+    .attr('pointer-events','none')
     .attr('text-anchor','middle').attr('dy','0.32em')
     .attr('fill','#115473').attr('font-size','13px').attr('font-weight',800)
   groups.append('text').text(d=>d.name).attr('y',37).attr('text-anchor','middle')
+    .attr('pointer-events','none')
     .attr('font-size','11px').attr('font-weight',750).attr('fill','#213e56')
   groups.append('text').text(d=>d.profession==='Profesión no indicada'?'Profesión no indicada':d.profession)
+    .attr('pointer-events','none')
     .attr('y',52).attr('text-anchor','middle').attr('font-size','9px')
     .attr('fill','#617b90')
     .text(function(){
