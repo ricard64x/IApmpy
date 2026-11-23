@@ -199,6 +199,15 @@ def submit_feedback(run_id):
                                           "method":"human_review_no_autonomous_retraining"}})
 
 
+@native_sim_bp.get("/<run_id>/metrics")
+def native_simulation_metrics(run_id):
+    from ..services.simulation_metrics import native_metrics
+    owned=_get_owned_run(run_id)
+    if not owned:
+        return jsonify({"success":False,"error":"Simulación no disponible"}),404
+    return jsonify({"success":True,"data":native_metrics(_store().actions(run_id))})
+
+
 @native_sim_bp.get("/<run_id>/report.md")
 def download_report(run_id):
     owned=_get_owned_run(run_id)
