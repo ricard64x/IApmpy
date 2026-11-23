@@ -146,6 +146,13 @@ class NativeSimStore:
         now = utc()
         with self._mutex, closing(self._connect()) as c:
             c.execute("BEGIN IMMEDIATE")
+            # A crashed worker may leave an obsolete running flag. Never
+            # replay its actions; mark it interrupted after a bounded grace
+            # period, preserving the original audit trail.
+            cutoff = datetime.fromtimestamp(time.time()-180, timezone.utc).isoformat()
+            c.execute("""UPDATE runs SET state='interrupted',error_code='STALE_WORKER',
+                         updated_at=? WHERE state IN ('queued','running')
+                         AND updated_at<?""",(now,cutoff))
             active = c.execute(
                 "SELECT id FROM runs WHERE state IN ('queued','running') LIMIT 1"
             ).fetchone()
@@ -237,10 +244,16 @@ class NativeSimStore:
         self._update(ident,state="running")
         # A single optional local-model assessment is shared by all agents,
         # rather than N expensive requests. Never promote its text to evidence.
+        reviewed=self.historical_feedback(run["project_id"])
         plan={"focus":"evidencias","basis":"reglas","hypothesis":"",
-              "verified":False,"external_research":RESEARCH_DEFAULT}
+              "verified":False,"external_research":RESEARCH_DEFAULT,
+              "past_human_feedback": reviewed,
+              "review_priority": ("ampliar evidencia" if reviewed.get("reject",0)>reviewed.get("accept",0)
+                                  else "seguimiento ordinario")}
+        llm_attempts=0
         if run["mode_requested"]=="hybrid" and llm is not None:
             try:
+                llm_attempts += 1
                 response=llm.chat(messages=[
                     {"role":"system","content":(
                         "Sos un planificador de simulación defensiva. Respondé SOLO JSON con "
@@ -259,7 +272,10 @@ class NativeSimStore:
                 if (focus in PRIORITIES and isinstance(hypothesis,str)
                         and 4<=len(hypothesis)<=160):
                     plan={"focus":focus,"basis":"qwen_local","hypothesis":hypothesis,
-                          "verified":False,"external_research":RESEARCH_DEFAULT}
+                          "verified":False,"external_research":RESEARCH_DEFAULT,
+                          "past_human_feedback": reviewed,
+                          "review_priority": ("ampliar evidencia" if reviewed.get("reject",0)>reviewed.get("accept",0)
+                                              else "seguimiento ordinario")}
             except Exception:
                 plan["basis"]="reglas_fallback"
         self._update(ident,plan_json=json.dumps(plan,ensure_ascii=False),
@@ -306,10 +322,11 @@ class NativeSimStore:
                   "Aceptar o mitigar riesgos residuales documentados"
                 ],
                 "external_model_requests":0,
-                "local_llm_requests":int(plan["basis"]=="qwen_local"),
+                "local_llm_requests":llm_attempts,
                 "local_model_fallback":plan["basis"]=="reglas_fallback",
                 "execution_ms":round((time.perf_counter()-start)*1000,1),
-                "learning":"Retroalimentación revisada por humanos; no se reentrenan pesos automáticamente",
+                "past_feedback_reviewed": reviewed,
+                "learning":"Las evaluaciones humanas elevan prioridad de revisión; no se reentrenan pesos automáticamente",
             }
             self._update(ident,report_json=json.dumps(report,ensure_ascii=False),state="completed")
             return self.get(ident)
