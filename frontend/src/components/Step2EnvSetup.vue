@@ -456,24 +456,78 @@
                 <small>{{ $t('step2.interactionBothDesc') }}</small>
               </label>
             </div>
-            <p v-if="oasisOverLimit" class="preference-error" role="status">
-              El expediente tiene {{configuredProfileCount}} perfiles. El motor OASIS solo
-              admite {{oasisLimit}} según la memoria configurada y puede fallar incluso
-              por debajo de ese límite. Seleccioná modo GPT liviano para conservar los perfiles.
+            <div class="population-control" aria-labelledby="participant-selection-title">
+              <div class="participant-heading">
+                <div>
+                  <strong id="participant-selection-title">¿Cuántos participantes querés simular?</strong>
+                  <p>2 es el mínimo, <strong>no el máximo</strong>. Para agregar más, usá el motor eficiente.</p>
+                </div>
+                <span class="participant-current">{{ desiredParticipants }} participantes</span>
+              </div>
+              <div class="participant-presets" role="group" aria-label="Cantidad de participantes">
+                <button v-for="count in participantOptions" :key="count"
+                  type="button" class="participant-preset"
+                  :class="{ chosen: Number(desiredParticipants) === count }"
+                  :aria-pressed="Number(desiredParticipants) === count"
+                  :disabled="count > supportedMaximum"
+                  @click="chooseParticipants(count)">
+                  {{ count }}
+                </button>
+              </div>
+              <label class="participant-manual" for="participant-target">
+                Otra cantidad
+                <input id="participant-target" v-model.number="desiredParticipants" type="number"
+                  min="2" :max="supportedMaximum" step="1"
+                  inputmode="numeric" aria-describedby="participant-detail" @change="adjustRequestedParticipants">
+              </label>
+              <div id="participant-detail" class="participant-explanation" aria-live="polite">
+                <span>Del expediente: <strong>{{ detectedParticipants }}</strong> perfiles preparados.</span>
+                <span>Usados del expediente: <strong>{{ Math.min(detectedParticipants, Math.max(0, Number(desiredParticipants) || 0)) }}</strong>.</span>
+                <span>Agregados como roles ficticios: <strong>{{ Math.max(0, (Number(desiredParticipants) || 0) - detectedParticipants) }}</strong>.</span>
+              </div>
+              <p v-if="engineMode==='oasis'" class="population-warning">
+                En el motor completo solo podés usar los {{ maxParticipants }} perfiles detectados que admite
+                esta máquina (hasta 12). Si necesitás más, elegí <strong>Modo eficiente</strong>;
+                los perfiles nuevos serán ficticios.
+                <button v-if="capacityInfo?.lightweight_engine_available !== false"
+                  type="button" class="inline-mode-action" @click="selectEfficientMode">
+                  Cambiar a modo eficiente
+                </button>
+              </p>
+              <p v-else class="population-success">
+                Modo eficiente: podés configurar entre 2 y {{ maxParticipants }} perfiles.
+                Recomendación: comenzar con 5 a 10 para verificar la conversación y el consumo de IA.
+              </p>
+              <p v-if="Number(desiredParticipants)>detectedParticipants" class="population-warning">
+                Los {{ Number(desiredParticipants)-detectedParticipants }} participantes adicionales serán personajes
+                hipotéticos, no personas reales ni entidades encontradas en tus documentos.
+              </p>
+              <p v-if="capacityInfo?.lightweight_engine_available === false" class="preference-error" role="status">
+                Para agregar perfiles nuevos es necesario activar el servicio de IA del modo eficiente.
+                Actualmente no está configurado. El motor completo solo puede usar los perfiles ya detectados.
+              </p>
+              <p v-if="Number(desiredParticipants)>maxParticipants" class="preference-error" role="status">
+                La cantidad elegida supera lo que admite el motor actual.
+                {{ engineMode === 'oasis' ? 'Seleccioná «Modo eficiente» para usar personajes adicionales.' : 'Reducí la cantidad a '+ maxParticipants+'.' }}
+              </p>
+            </div>
+            <p v-if="oasisOverLimit && engineMode === 'oasis'" class="preference-error" role="status">
+              Hay más perfiles preparados que los que admite el motor completo en este servidor.
+              Podés elegir una cantidad menor o cambiar al modo eficiente.
             </p>
             <div class="engine-options" role="radiogroup" aria-label="Motor de simulación">
               <label class="engine-option" :class="{chosen:engineMode==='lightweight'}">
                 <input type="radio" value="lightweight" v-model="engineMode" name="engineMode">
-                <span><strong>Modo eficiente con GPT · recomendado para 2 GB</strong>
-                  <small>Conserva hasta 120 perfiles y crea interacciones sintéticas por lotes.
-                  Usa el servicio de IA configurado; no reproduce todas las dinámicas de OASIS.
-                  No equivale a respuestas reales de personas.</small></span>
+                <span><strong>Modo eficiente · recomendado para agregar participantes</strong>
+                  <small>Admite de 2 a 120 participantes, incluidos roles hipotéticos adicionales.
+                  Requiere servicio de IA activo. Procesa grupos pequeños para reducir el consumo de memoria
+                  y no representa opiniones de personas reales.</small></span>
               </label>
               <label class="engine-option" :class="{chosen:engineMode==='oasis'}">
                 <input type="radio" value="oasis" v-model="engineMode" name="engineMode">
                 <span><strong>Motor social completo (experimental en 2 GB)</strong>
                   <small>Carga OASIS en el servidor y puede agotar la memoria, incluso con pocos perfiles.
-                  No se recomienda para este escenario de 60 participantes.</small></span>
+                  Solo puede utilizar perfiles detectados en el expediente; no agrega personajes adicionales.</small></span>
               </label>
             </div>
             <div v-if="engineMode==='lightweight'" class="interaction-detail-options">
@@ -491,22 +545,6 @@
                   <small>Preserva el funcionamiento anterior, sin respuestas enlazadas.</small></span>
               </label>
             </div>
-            <div class="population-control">
-              <label for="participant-target"><strong>Participantes de la simulación</strong></label>
-              <input id="participant-target" v-model.number="desiredParticipants" type="number"
-                min="2" :max="maxParticipants" step="1" aria-describedby="participant-detail">
-              <p id="participant-detail">Perfiles detectados: <strong>{{ detectedParticipants }}</strong>.
-                Seleccionados: <strong>{{ desiredParticipants }}</strong>.
-                Límite de este motor: <strong>{{ maxParticipants }}</strong>.</p>
-              <p v-if="desiredParticipants > detectedParticipants" class="population-warning">
-                Se agregarán {{ desiredParticipants - detectedParticipants }} roles hipotéticos sintéticos.
-                No son personas reales ni entidades extraídas del grafo.
-              </p>
-              <p v-if="engineMode==='oasis'" class="population-warning">
-                Motor completo en 2 GB: máximo conservador de 12 perfiles detectados; incluso dentro de ese límite puede fallar por memoria.
-                Usá el modo eficiente para agregar personajes sintéticos.
-              </p>
-            </div>
             <p v-if="isLocked" class="locked-banner" role="status">
               Esta simulación ya se inició y sus resultados están protegidos.
               Podés elegir motor, participantes y rondas para una <strong>nueva versión independiente</strong>.
@@ -514,8 +552,8 @@
             </p>
             <p v-if="engineMode==='lightweight' && interactionMode==='dialogue' && customMaxRounds < 2"
               class="preference-error" role="alert">
-              Una simulación conversacional válida requiere al menos 2 perfiles preparados y 2 rondas.
-              Perfiles detectados: {{ configuredProfileCount }} · Rondas: {{ customMaxRounds }}.
+              Para conversar se requieren al menos 2 participantes seleccionados y 2 rondas.
+              Seleccionados: {{ desiredParticipants }} · Rondas: {{ customMaxRounds }}.
             </p>
             <div class="preference-control">
               <label for="safe-rounds">{{ $t('step2.roundsCountLabel') }}</label>
@@ -724,7 +762,38 @@ const desiredParticipants = ref(2)
 const userCountInitialized = ref(false)
 const isLocked = ref(false)
 const maxParticipants = computed(() => engineMode.value === 'lightweight'
-  ? 120 : Math.min(12, detectedParticipants.value))
+  ? Math.min(120, Number(capacityInfo.value?.lightweight_max_profiles) || 120)
+  : Math.min(12, detectedParticipants.value))
+const supportedMaximum = computed(() =>
+  capacityInfo.value?.lightweight_engine_available === false
+    ? Math.max(2, maxParticipants.value)
+    : Math.min(120, Number(capacityInfo.value?.lightweight_max_profiles) || 120))
+const participantOptions = [2, 3, 5, 10, 20, 50, 100]
+const selectEfficientMode = () => {
+  if (capacityInfo.value?.lightweight_engine_available === false) {
+    settingError.value = 'El servicio de IA todavía no está habilitado. No es posible ampliar perfiles por ahora.'
+    return false
+  }
+  engineMode.value = 'lightweight'
+  interactionMode.value = 'dialogue'
+  autoFinalize.value = true
+  settingError.value = ''
+  return true
+}
+const chooseParticipants = (count) => {
+  if (count > maxParticipants.value && engineMode.value === 'oasis') {
+    if (!selectEfficientMode()) return
+  }
+  desiredParticipants.value = count
+  settingError.value = ''
+}
+const adjustRequestedParticipants = () => {
+  const count = Number(desiredParticipants.value)
+  if (Number.isInteger(count) && count > maxParticipants.value && engineMode.value === 'oasis') {
+    selectEfficientMode()
+  }
+}
+
 watch(configuredProfileCount, count => {
   // Do not lock the default to 2 while the first profile is still streaming.
   if (count > 0 && phase.value >= 4 && !userCountInitialized.value) {
@@ -820,8 +889,10 @@ const handleStartSimulation = async () => {
   }
   const participants = Number(desiredParticipants.value)
   if (!Number.isInteger(participants) || participants < 2 || participants > maxParticipants.value) {
-    settingError.value = 'Seleccioná entre 2 y ' + maxParticipants.value
-      + ' participantes para el motor seleccionado. En modo eficiente se admiten hasta 120.'
+    settingError.value = engineMode.value === 'oasis'
+      ? 'El motor completo admite hasta '+maxParticipants.value+
+        ' perfiles detectados. Seleccioná modo eficiente para incorporar participantes nuevos.'
+      : 'Seleccioná entre 2 y '+maxParticipants.value+' participantes para el modo eficiente.'
     return
   }
   if (engineMode.value === 'lightweight' && interactionMode.value === 'dialogue') {
@@ -1233,6 +1304,13 @@ onMounted(async () => {
       autoFinalize.value = result.data.auto_finalize !== false
       customMaxRounds.value = result.data.max_rounds || 10
       isLocked.value = result.data.locked === true
+      // Only NEW simulations without explicit saved preferences can choose
+      // the recommended lightweight mode automatically. Historical settings
+      // remain untouched, even when their execution has finished.
+      if (!isLocked.value && !result.data.has_saved_settings &&
+          capacityInfo.value?.lightweight_engine_available === true) {
+        selectEfficientMode()
+      }
     }
   } catch (error) {
     settingError.value = error.message
@@ -2815,6 +2893,21 @@ onUnmounted(() => {
 
 <style scoped>
 .population-control{background:#f3f9ff;border:1px solid #bfd9ed;border-radius:12px;padding:14px;display:grid;gap:8px;font-size:13px}
+.population-control{margin:16px 0;border-color:#bddce9;background:linear-gradient(135deg,#f3faff,#fff)}
+.participant-heading{display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:wrap}
+.participant-heading strong{font-size:15px;line-height:1.4;color:#174867}
+.participant-heading p{font-size:12px;color:#55758a;margin-top:4px}
+.participant-current{border-radius:999px;padding:6px 11px;background:#dff3f8;color:#115b76;font-size:11px;font-weight:800}
+.participant-presets{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.participant-preset{min-height:42px;border:1px solid #cddfe8;background:white;color:#1f5979;border-radius:10px;cursor:pointer;font-size:13px;font-weight:800}
+.participant-preset.chosen{background:#14678c;border-color:#14678c;color:white}
+.participant-preset:disabled{cursor:not-allowed;color:#9aa8b3;background:#f2f4f6}
+.participant-manual{display:flex!important;align-items:center;gap:14px;font-size:12px;font-weight:700}
+.participant-explanation{display:flex;flex-wrap:wrap;gap:7px 17px;color:#456778;font-size:11px;line-height:1.5}
+.participant-explanation span{flex:1;min-width:150px}
+.population-success{background:#eaf8f2;border:1px solid #bce1d2;border-radius:9px;padding:9px 11px;color:#236952}
+.inline-mode-action{display:inline-block;border:1px solid #c5d7e4;border-radius:7px;background:#fff;color:#125f85;padding:8px;margin:5px 0 0;font-size:11px;font-weight:800;cursor:pointer}
+@media(max-width:700px){.participant-presets{grid-template-columns:repeat(4,minmax(0,1fr))}.participant-preset{min-height:46px}.participant-heading strong{font-size:14px}}
 .population-control label{display:block;color:#173c5d}
 .population-control input{width:130px;max-width:100%;padding:9px;border:1px solid #c4d4e0;border-radius:8px;background:#fff;color:#132f45}
 .population-control p{margin:2px 0;font-size:12px;line-height:1.5}
