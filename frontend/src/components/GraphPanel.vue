@@ -1512,7 +1512,6 @@ input:checked + .slider:before {
     background-color: #f7fafc;
     background-image: radial-gradient(#d5e3ed 1.05px, transparent 1.05px);
     background-size: 26px 26px;
-    isolation: isolate;
   }
   .graph-panel .panel-header {
     padding: 12px 13px;
