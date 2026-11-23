@@ -31,6 +31,7 @@ def summarize(events, *, source, truncated=False, available=True):
     participants = {}
     edges = Counter()
     candidate_edges = Counter()
+    platform_participants = defaultdict(set)
     messages = []
     first, last, conversations = None, None, 0
     types_for_talk = {"CREATE_POST","CREATE_COMMENT","REPLY","REPLY_POST","COMMENT","POST"}
@@ -47,7 +48,9 @@ def summarize(events, *, source, truncated=False, available=True):
             rec["messages"] += 1
             conversations += 1
         by_type[kind or "OTHER"] += 1
-        by_platform[_safe_text(event.get("platform") or source, 25)] += 1
+        platform_name = _safe_text(event.get("platform") or source, 25)
+        by_platform[platform_name] += 1
+        platform_participants[platform_name].add(key)
         rnd = event.get("round_num",event.get("round",event.get("phase",0)))
         try:
             rnd = int(rnd)
@@ -67,14 +70,15 @@ def summarize(events, *, source, truncated=False, available=True):
         # Count only explicitly directed replies to another participant.
         # Mentions, self-replies and arbitrary missing IDs are not proof of dialogue.
         if kind in {"CREATE_COMMENT", "REPLY", "REPLY_POST", "COMMENT"} and target is not None and str(target) != key:
-            candidate_edges[(key,str(target)[:100])] += 1
+            candidate_edges[(platform_name,key,str(target)[:100])] += 1
         if kind in types_for_talk and len(messages) < 50:
             message = args.get("content") or event.get("action_text")
             if isinstance(message,str) and message.strip():
                 messages.append({"participant":name,"round":rnd if isinstance(rnd,int) else None,
                                  "excerpt":_safe_text(message,240),"timestamp":stamp})
-    edges.update({pair: count for pair, count in candidate_edges.items()
-                  if pair[0] in participants and pair[1] in participants})
+    for (platform_name, sender_id, target_id), count in candidate_edges.items():
+        if sender_id in platform_participants[platform_name] and target_id in platform_participants[platform_name]:
+            edges[(sender_id, target_id)] += count
     cross_messages = sum(edges.values())
     active = len(participants)
     max_share = round(max((p["actions"] for p in participants.values()), default=0)
