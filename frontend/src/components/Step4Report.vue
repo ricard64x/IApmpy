@@ -25,7 +25,7 @@
             <div class="header-divider"></div>
           </div>
 
-          <SimulationMetrics :report-id="reportId" />
+          <SimulationMetrics :report-id="reportId" @quality-updated="handleQualityUpdated" />
 
           <!-- Sections List -->
           <div class="sections-list">
@@ -112,7 +112,7 @@
               <span class="metric-value mono">{{ totalToolCalls }}</span>
             </div>
             <div class="metric metric-right">
-              <span class="metric-pill" :class="`pill--${statusClass}`">{{ statusText }}</span>
+              <span class="metric-pill" :class="qualitySummary && !qualitySummary.valid_multiagent_interaction ? 'pill--warning' : `pill--${statusClass}`">{{ isComplete && qualitySummary && !qualitySummary.valid_multiagent_interaction ? qualitySummary.label : statusText }}</span>
             </div>
           </div>
 
@@ -420,7 +420,12 @@ const props = defineProps({
   systemLogs: Array
 })
 
-const emit = defineEmits(['add-log', 'update-status'])
+const emit = defineEmits(['add-log', 'update-status', 'quality-updated'])
+const qualitySummary = ref(null)
+const handleQualityUpdated = (value) => {
+  qualitySummary.value = value
+  emit('quality-updated', value)
+}
 
 const translationBusy = ref(false)
 const translationStatus = ref('')
@@ -5252,4 +5257,8 @@ html[lang="en"] .report-header-block .main-title {
 .translation-error{color:#a23b4a;background:#fff3f3;padding:9px 12px;font-size:12px;border-radius:9px}
 .translation-retry{background:#096d92;color:#fff;border:0;border-radius:8px;padding:9px;font-size:12px;cursor:pointer}
 .report-export-toolbar button:disabled{opacity:.45;cursor:not-allowed}
+</style>
+
+<style scoped>
+.pill--warning{background:#fff1e5!important;color:#8c3f22!important;border:1px solid #d37d58!important;white-space:normal;text-align:center}
 </style>
