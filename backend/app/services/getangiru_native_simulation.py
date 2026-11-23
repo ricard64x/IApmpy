@@ -365,6 +365,8 @@ class NativeSimStore:
     def public(self, ident: str, *, include_actions=True):
         row=self.get(ident)
         if not row:return None
+        reviews=self.quality(ident)
+        reviewed_count=sum(reviews.values())
         return {
             "simulation_id":row["id"],"project_id":row["project_id"],
             "graph_id":row["graph_id"],"input_hash":row["input_hash"],
@@ -376,7 +378,13 @@ class NativeSimStore:
             "plan":json.loads(row["plan_json"]) if row["plan_json"] else None,
             "report":json.loads(row["report_json"]) if row["report_json"] else None,
             "actions":self.actions(ident) if include_actions else [],
-            "feedback":self.quality(ident),
+            "feedback":reviews,
+            "human_validation":{
+                "reviewed":reviewed_count,
+                "acceptance_rate_pct":round(100*reviews.get("accept",0)/reviewed_count,1)
+                                      if reviewed_count else None,
+                "interpretation":"Tasa de aceptación de revisores, no exactitud predictiva",
+            },
             "error_code":row["error_code"],
         }
 
