@@ -194,6 +194,14 @@ export const getSimulationHistory = (limit = 20) => {
   return service.get('/api/simulation/history', { params: { limit } })
 }
 
-/** Clone a ready simulation into a new configuration version, retaining history. */
-export const forkSimulationVersion = simulationId =>
-  service.post('/api/simulation/'+encodeURIComponent(simulationId)+'/fork',{})
+/** Profiles detected in the graph and operator-defined population sizes. */
+export const getSimulationPopulation = simulationId =>
+  service.get('/api/simulation/'+encodeURIComponent(simulationId)+'/population')
+
+/** Only permitted for a prepared simulation with no started run. */
+export const saveSimulationPopulation = (simulationId, settings) =>
+  service.post('/api/simulation/'+encodeURIComponent(simulationId)+'/population', settings)
+
+/** Create a new independent simulation version, never rewriting the source. */
+export const forkSimulationVersion = (simulationId, options = {}) =>
+  service.post('/api/simulation/'+encodeURIComponent(simulationId)+'/fork', options)
