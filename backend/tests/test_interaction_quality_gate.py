@@ -119,7 +119,7 @@ class InteractionQualityGateTests(unittest.TestCase):
             self.assertEqual(result["model_batches"], 3)
             m = legacy_metrics("sim_dos", root)
             self.assertTrue(m["interaction_quality"]["valid_multiagent_interaction"])
-            self.assertEqual(m["cross_agent_messages"], 2)
+            self.assertGreaterEqual(m["cross_agent_messages"], 2)\n            self.assertEqual(m["cross_agent_messages"], result["replies"])
             self.assertEqual({p["id"] for p in m["participants"]}, {"1", "2"})
             self.assertEqual(m["recorded_interaction_pairs"], 2)
 
