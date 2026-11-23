@@ -1823,11 +1823,16 @@ input:checked + .slider:before {
 
 /* Keep document entities and fictional conversations unmistakably separate. */
 .graph-type-switch{display:flex;gap:4px;padding:4px;border:1px solid #dce7ef;background:#f0f6fa;border-radius:12px;margin-left:auto;margin-right:10px}
+/* The header intentionally ignores canvas pointer events, but tabs must not. */
+.graph-type-switch, .graph-type-switch button{pointer-events:auto}
+
 .graph-type-switch button{background:transparent;color:#536f82;border:0;border-radius:8px;min-height:34px;padding:7px 12px;font:750 12px/1.25 system-ui,sans-serif;cursor:pointer}
 .graph-type-switch button.active{background:#fff;color:#145e80;box-shadow:0 1px 7px #214d7218}
 .graph-type-switch button:focus-visible{outline:2px solid #11a1c1;outline-offset:2px}
 @media(max-width:767px){
-  .graph-panel .panel-header{flex-wrap:wrap;gap:5px}
+  .graph-panel .panel-header{flex-wrap:wrap;gap:5px;z-index:25}
+  /* Keep the edge-label control below both rows of mobile navigation. */
+  .graph-panel .edge-labels-toggle{top:145px;z-index:13}
   .graph-type-switch{order:3;width:100%;margin:4px 0 0}
   .graph-type-switch button{flex:1;min-height:42px}
   .graph-panel .panel-title{max-width:none}
