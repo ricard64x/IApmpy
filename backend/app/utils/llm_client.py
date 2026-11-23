@@ -104,10 +104,20 @@ class LLMClient:
         if not self.api_key:
             raise ValueError("LLM_API_KEY 未配置")
         
-        self.client = OpenAI(
-            api_key=self.api_key,
-            base_url=self.base_url
-        )
+        if self.base_url.rstrip("/") == "http://127.0.0.1:18080/v1":
+            # One bounded CPU inference; never retry a costly offline task
+            # automatically. The caller controls response validation.
+            self.client = OpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url,
+                timeout=300.0,
+                max_retries=0,
+            )
+        else:
+            self.client = OpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url,
+            )
 
     def _create_completion(
         self,
