@@ -42,6 +42,19 @@ class InteractionQualityGateTests(unittest.TestCase):
         self.assertEqual(m["interaction_quality"]["status"], "acceptable")
         self.assertEqual(m["interactions"][0]["count"], 1)
 
+    def test_cross_platform_reference_is_not_an_interaction(self):
+        rows = [
+            {"agent_id": 1, "platform": "twitter", "action_type": "CREATE_POST"},
+            {"agent_id": 2, "platform": "reddit", "action_type": "CREATE_COMMENT",
+             "action_args": {"target_agent_id": 1}},
+            {"agent_id": 2, "platform": "reddit", "action_type": "CREATE_COMMENT",
+             "action_args": {"target_agent_id": 1}},
+        ]
+        m = summarize(rows, source="oasis")
+        self.assertEqual(m["recorded_interaction_pairs"], 0)
+        self.assertEqual(m["cross_agent_messages"], 0)
+        self.assertEqual(m["interaction_quality"]["status"], "insufficient")
+
     def test_dialogue_preflight_rejects_one_round(self):
         with self.assertRaisesRegex(ValueError, "2 rondas"):
             validate_execution_settings({
