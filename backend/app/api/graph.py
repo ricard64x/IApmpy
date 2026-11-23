@@ -357,6 +357,7 @@ def get_processing_capabilities():
             "graph_backend": "getangiru_local" if _local_graph_enabled() else ("zep" if Config.ZEP_API_KEY else "none"),
             "simulation_enabled": bool(Config.ZEP_API_KEY) and not _local_graph_enabled(),
             "native_simulation_enabled": _local_graph_enabled(),
+            "native_simulation_enabled": _local_graph_enabled(),
             "memory_local_enabled": os.environ.get("GETANGIRU_MIRROR_ENABLED", "false").lower() == "true",
         }
     })
