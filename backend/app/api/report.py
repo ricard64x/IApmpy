@@ -53,16 +53,23 @@ def _synthetic_gpt_evidence(simulation_id: str) -> str:
                 event = json.loads(line)
             except ValueError:
                 continue
-            if event.get("source_mode") != "sintetico_gpt_liviano":
+            if event.get("source_mode") not in ("sintetico_gpt_liviano", "sintetico_gpt_dialogo"):
                 continue
-            if event.get("action_type") != "CREATE_POST":
+            if event.get("action_type") not in ("CREATE_POST", "CREATE_COMMENT"):
                 continue
-            message = event.get("action_args", {}).get("content", "")
+            args = event.get("action_args")
+            if not isinstance(args, dict):
+                continue
+            message = args.get("content", "")
             if not isinstance(message, str) or not message.strip():
                 continue
             evidence.append(
                 f"- Ronda {int(event.get('round') or 0)}, {name}, "
-                f"participante ficticio {event.get('agent_id')}: {message[:320]}"
+                f"participante ficticio {event.get('agent_id')}" +
+                (f" responde explícitamente a {args.get('target_agent_id')}" if
+                 event.get("action_type") == "CREATE_COMMENT" and
+                 args.get("target_agent_id") is not None else " publica") +
+                f": {message[:320]}"
             )
     if not evidence:
         raise ValueError("No hay acciones sintéticas válidas; no corresponde generar informe.")
@@ -399,18 +406,30 @@ def generate_report():
                         progress_callback=progress_callback,
                         report_id=report_id
                     )
-                    if is_lite and report.status == ReportStatus.COMPLETED:
-                        warning = (
-                            "**NOTA METODOLÓGICA:** Informe de simulación "
-                            "SINTÉTICA mediante GPT. No representa personas reales, "
-                            "encuestas ni la dinámica social completa de OASIS. "
-                            "Las interacciones generadas deben interpretarse "
-                            "como hipótesis y no como evidencia comprobada.\n\n"
-                        )
-                        report.markdown_content = warning + (report.markdown_content or "")
-                        markdown_path = ReportManager._get_report_markdown_path(report_id)
-                        with open(markdown_path, "w", encoding="utf-8") as handle:
-                            handle.write(report.markdown_content)
+                    if report.status == ReportStatus.COMPLETED:
+                        from ..services.simulation_metrics import legacy_metrics
+                        measured = legacy_metrics(simulation_id,
+                            os.path.join(SimulationRunner.RUN_STATE_DIR,simulation_id))
+                        quality = measured["interaction_quality"]
+                        warnings = []
+                        if quality["status"] not in ("acceptable", "good"):
+                            warnings.append(
+                                "**ADVERTENCIA — CALIDAD DE INTERACCIÓN NO VALIDADA:** "
+                                + quality["label"] + ". " +
+                                " ".join(quality["issues"]) +
+                                " No corresponde tratarlo como un diálogo multiagente válido."
+                            )
+                        if is_lite:
+                            warnings.append(
+                                "**NOTA METODOLÓGICA:** Informe de simulación "
+                                "SINTÉTICA mediante GPT. No representa personas reales, "
+                                "encuestas ni la dinámica social completa de OASIS."
+                            )
+                        if warnings:
+                            report.markdown_content = "\n\n".join(warnings) + "\n\n" + (report.markdown_content or "")
+                            markdown_path = ReportManager._get_report_markdown_path(report_id)
+                            with open(markdown_path, "w", encoding="utf-8") as handle:
+                                handle.write(report.markdown_content)
                     ReportManager.save_report(report)
 
                     if report.status == ReportStatus.COMPLETED:
@@ -926,6 +945,15 @@ def export_persisted_report(report_id: str):
         metrics["followups"]=followup_metrics(
             os.path.join(ReportManager.REPORTS_DIR,report_id,"interacciones.jsonl"),
             report.simulation_id)
+        quality = metrics["interaction_quality"]
+        quality_warning = (quality["status"] not in ("acceptable","good"))
+        if quality_warning:
+            markdown = (
+                "**ADVERTENCIA — INTERACCIÓN INSUFICIENTE O NO VERIFICABLE:** "
+                + quality["label"] + ". " + " ".join(quality["issues"])
+                + " Este informe no acredita una conversación multiagente válida.\n\n"
+                + markdown
+            )
         metrics_lines = [
             "", "## Estadísticas de interacciones y actividad simulada", "",
             "**Alcance:** eventos sintéticos guardados; fechas de ejecución, no fechas del escenario.",
@@ -933,6 +961,9 @@ def export_persisted_report(report_id: str):
             f"- Acciones: {metrics['total_actions']}",
             f"- Publicaciones/comentarios registrados: {metrics['message_actions']}",
             f"- Relaciones con destinatario explícito: {metrics['recorded_interaction_pairs']}",
+            f"- Respuestas entre participantes: {metrics['cross_agent_messages']}",
+            f"- Calidad de interacción: {quality['label']}",
+            f"- Concentración máxima en un participante: {quality['maximum_action_share_percent']}%",
             f"- Primer evento: {metrics['first_event'] or 'No registrado'}",
             f"- Último evento: {metrics['last_event'] or 'No registrado'}", "",
             "### Actividad por día",
@@ -992,7 +1023,12 @@ def export_persisted_report(report_id: str):
                 '@media print{body{margin:0;padding:0}}</style></head><body>'
                 '<h1>Tenonderã · Informe guardado</h1>'
                 '<small>Resultados de un escenario sintético, no de una encuesta real.</small>'
-                '<pre>' + html.escape(markdown) + '</pre></body></html>'
+                + ('<aside role="alert" style="padding:14px;margin:15px 0;'
+                   'border:2px solid #b24b32;background:#fff1e8">'
+                   '<strong>CALIDAD DE INTERACCIÓN INSUFICIENTE O NO VERIFICABLE</strong><p>'
+                   + html.escape(" ".join(quality["issues"]) or quality["label"])
+                   + '</p></aside>' if quality_warning else '')
+                + '<pre>' + html.escape(markdown) + '</pre></body></html>'
             )
             payload = page.encode("utf-8")
             mime, ext = "text/html", "html"
