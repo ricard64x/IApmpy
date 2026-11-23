@@ -282,10 +282,11 @@ def execute(config_path: Path, platform: str, max_rounds: int, request_fn=None):
                                   else ["plaza"] if platform == "twitter" else ["foro"])
     if any(SPACE_TYPES[name][0] not in enabled for name in spaces):
         raise ValueError("Los espacios sociales no coinciden con la plataforma elegida.")
-    # Assign pairs of participants to a shared discussion room. Even a
-    # two-person simulation can genuinely reply, instead of splitting voices.
+    # Groups of four share a conversation room; at 120 participants
+    # this preserves 4 identities per model call and remains within budget.
+    # Two-person simulations also stay together to form a real reply.
     spaces_for_agent = {
-        p["agent_id"]: spaces[(i // 2) % len(spaces)]
+        p["agent_id"]: spaces[(i // MAX_GROUP) % len(spaces)]
         for i, p in enumerate(profiles)
     }
     log_paths = {name: directory / name / "actions.jsonl" for name in enabled}
