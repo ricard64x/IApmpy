@@ -546,7 +546,12 @@ def report_simulation_metrics(report_id: str):
     if SimulationManager().get_simulation(simulation_id) is None:
         return jsonify({"success":False,"error":"Simulación no disponible"}),404
     base = os.path.join(SimulationRunner.RUN_STATE_DIR,simulation_id)
-    return jsonify({"success":True,"data":legacy_metrics(simulation_id,base)})
+    from ..services.simulation_metrics import followup_metrics
+    data=legacy_metrics(simulation_id,base)
+    data["followups"]=followup_metrics(
+        os.path.join(ReportManager.REPORTS_DIR,report_id,"interacciones.jsonl"),
+        simulation_id)
+    return jsonify({"success":True,"data":data})
 
 
 @report_bp.route('/<report_id>', methods=['GET'])
@@ -915,9 +920,12 @@ def export_persisted_report(report_id: str):
                     }), 409
                 markdown = localized
         # Enrich exports on demand; never mutate the original saved report.
-        from ..services.simulation_metrics import legacy_metrics
+        from ..services.simulation_metrics import legacy_metrics, followup_metrics
         metrics = legacy_metrics(report.simulation_id,
             os.path.join(SimulationRunner.RUN_STATE_DIR,report.simulation_id))
+        metrics["followups"]=followup_metrics(
+            os.path.join(ReportManager.REPORTS_DIR,report_id,"interacciones.jsonl"),
+            report.simulation_id)
         metrics_lines = [
             "", "## Estadísticas de interacciones y actividad simulada", "",
             "**Alcance:** eventos sintéticos guardados; fechas de ejecución, no fechas del escenario.",
@@ -945,6 +953,15 @@ def export_persisted_report(report_id: str):
         ] + [f"| {r['from']} | {r['to']} | {r['count']} |" for r in metrics["interactions"]]
         if metrics["partial"]:
             metrics_lines += ["", "**Advertencia:** conteo parcial por límite de lectura segura."]
+        follow=metrics["followups"]
+        metrics_lines += [
+            "", "## Conversaciones y encuestas posteriores al informe (separadas)", "",
+            f"- Turnos de chat posteriores: {follow['chat_turns']}",
+            f"- Encuestas posteriores: {follow['surveys']}",
+            f"- Respuestas sintéticas a encuestas: {follow['survey_answers']}",
+            f"- Respuestas dirigidas a participantes: {follow['participant_turns']}",
+            "| Fecha | Interacciones posteriores |", "|---|---:|",
+        ] + [f"| {item['date']} | {item['count']} |" for item in follow['by_day']]
         markdown += "\\n" + "\\n".join(metrics_lines) + "\\n"
         if fmt == 'md':
             payload = markdown.encode('utf-8')
