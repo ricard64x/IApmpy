@@ -491,6 +491,15 @@
                   <small>Preserva el funcionamiento anterior, sin respuestas enlazadas.</small></span>
               </label>
             </div>
+            <p v-if="configuredProfileCount < 2" class="preference-error" role="alert">
+              Tenonderã requiere al menos 2 participantes preparados tanto en el motor completo como en el eficiente.
+              Perfiles detectados: {{ configuredProfileCount }}.
+            </p>
+            <p v-if="engineMode==='lightweight' && interactionMode==='dialogue' && customMaxRounds < 2"
+              class="preference-error" role="alert">
+              Una simulación conversacional válida requiere al menos 2 perfiles preparados y 2 rondas.
+              Perfiles detectados: {{ configuredProfileCount }} · Rondas: {{ customMaxRounds }}.
+            </p>
             <div class="preference-control">
               <label for="safe-rounds">{{ $t('step2.roundsCountLabel') }}</label>
               <input id="safe-rounds" v-model.number="customMaxRounds" type="number" min="1" max="10" step="1">
@@ -772,6 +781,16 @@ const handleStartSimulation = async () => {
   if (!Number.isInteger(rounds) || rounds < 1 || rounds > 10) {
     settingError.value = t('step2.roundsValidation')
     return
+  }
+  if (configuredProfileCount.value < 2) {
+    settingError.value = 'La simulación requiere al menos 2 participantes activos para generar interacción válida.'
+    return
+  }
+  if (engineMode.value === 'lightweight' && interactionMode.value === 'dialogue') {
+    if (rounds < 2) {
+      settingError.value = 'La conversación requiere al menos 2 rondas.'
+      return
+    }
   }
   if (engineMode.value === 'oasis' && oasisOverLimit.value) {
     settingError.value = 'No se puede iniciar OASIS con ' + configuredProfileCount.value

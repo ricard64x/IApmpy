@@ -101,6 +101,12 @@ def get_simulation_efficiency(simulation_id: str):
             repeated += 1
         if clean:
             seen_text.add(clean)
+    directed_pairs = {(a,b) for (a,b) in directed_pairs if b in unique_ids}
+    valid_responses = [item for item in responses
+                       if item["action_args"]["target_agent_id"] in unique_ids]
+    conversational_valid = (
+        len(unique_ids) >= 2 and len(directed_pairs) >= 1 and len(valid_responses) >= 2
+    )
     profile_count = None
     known_profile_ids = None
     profiles = root / "reddit_profiles.json"
@@ -184,6 +190,9 @@ def get_simulation_efficiency(simulation_id: str):
             "synthetic_actions": len(observations),
             "synthetic_conversation_replies": len(responses),
             "recorded_interaction_pairs": len(directed_pairs),
+            "cross_agent_messages": len(valid_responses),
+            "interaction_quality_status": ("acceptable" if conversational_valid else "insufficient"),
+            "valid_multiagent_interaction": conversational_valid,
             "discussion_mode": "dialogue" if any(x.get("source_mode") == "sintetico_gpt_dialogo"
                                            for x in observations) else "posts",
 

@@ -30,12 +30,16 @@ def summarize(events, *, source, truncated=False, available=True):
     by_day, by_hour, by_round, by_type, by_platform = map(Counter, [{}]*5)
     participants = {}
     edges = Counter()
+    candidate_edges = Counter()
+    platform_participants = defaultdict(set)
     messages = []
     first, last, conversations = None, None, 0
     types_for_talk = {"CREATE_POST","CREATE_COMMENT","REPLY","REPLY_POST","COMMENT","POST"}
     for event in events:
         kind = _safe_text(event.get("action_type"), 48).upper()
-        sender = event.get("agent_id") or event.get("actor_uuid")
+        sender = event.get("agent_id")
+        if sender is None:
+            sender = event.get("actor_uuid")
         if sender is None:
             continue
         key = str(sender)[:100]
@@ -46,7 +50,9 @@ def summarize(events, *, source, truncated=False, available=True):
             rec["messages"] += 1
             conversations += 1
         by_type[kind or "OTHER"] += 1
-        by_platform[_safe_text(event.get("platform") or source, 25)] += 1
+        platform_name = _safe_text(event.get("platform") or source, 25)
+        by_platform[platform_name] += 1
+        platform_participants[platform_name].add(key)
         rnd = event.get("round_num",event.get("round",event.get("phase",0)))
         try:
             rnd = int(rnd)
@@ -62,14 +68,63 @@ def summarize(events, *, source, truncated=False, available=True):
             last = max(last, stamp) if last else stamp
         args = event.get("action_args")
         if not isinstance(args,dict): args = {}
-        target = args.get("target_agent_id") or event.get("target_agent_id")
-        if target is not None and str(target) != key:
-            edges[(key,str(target)[:100])] += 1
+        target = args.get("target_agent_id")
+        if target is None:
+            target = event.get("target_agent_id")
+        # Count only explicitly directed replies to another participant.
+        # Mentions, self-replies and arbitrary missing IDs are not proof of dialogue.
+        if kind in {"CREATE_COMMENT", "REPLY", "REPLY_POST", "COMMENT"} and target is not None and str(target) != key:
+            candidate_edges[(platform_name,key,str(target)[:100])] += 1
         if kind in types_for_talk and len(messages) < 50:
             message = args.get("content") or event.get("action_text")
             if isinstance(message,str) and message.strip():
                 messages.append({"participant":name,"round":rnd if isinstance(rnd,int) else None,
                                  "excerpt":_safe_text(message,240),"timestamp":stamp})
+    for (platform_name, sender_id, target_id), count in candidate_edges.items():
+        if sender_id in platform_participants[platform_name] and target_id in platform_participants[platform_name]:
+            edges[(sender_id, target_id)] += count
+    cross_messages = sum(edges.values())
+    active = len(participants)
+    max_share = round(max((p["actions"] for p in participants.values()), default=0)
+                      * 100 / max(1, sum(p["actions"] for p in participants.values())), 1)
+    missing = []
+    if active < 2:
+        missing.append("Se requieren al menos 2 participantes activos.")
+    if not edges:
+        missing.append("Se requiere al menos 1 par de interacción explícito.")
+    if cross_messages < 2:
+        missing.append("Se requieren al menos 2 respuestas dirigidas entre perfiles.")
+    if source == "getangiru":
+        status = "not_applicable"
+    elif not available:
+        status = "unavailable"
+    elif truncated:
+        status = "unverified"
+    elif missing:
+        status = "insufficient"
+    elif active >= 3 and len(edges) >= 2 and max_share <= 60:
+        status = "good"
+    else:
+        status = "acceptable"
+    quality = {
+        "status": status,
+        "label": {"good":"Interacción diversa", "acceptable":"Interacción aceptable",
+                  "insufficient":"Completado con calidad insuficiente",
+                  "unverified":"Calidad no verificable (datos parciales)",
+                  "unavailable":"Calidad no verificable (sin eventos)",
+                  "not_applicable":"No aplica: decisiones sin conversación"}[status],
+        "active_participants": active,
+        "interaction_pairs": len(edges),
+        "cross_agent_messages": cross_messages,
+        "maximum_action_share_percent": max_share,
+        "diversity": ("baja" if active < 2 or max_share > 80 else
+                      "media" if active < 3 or max_share > 60 else "alta"),
+        "valid_multiagent_interaction": status in ("acceptable", "good"),
+        "issues": missing if status == "insufficient" else (
+            ["El registro es parcial; no se puede certificar la interacción."] if truncated
+            else ["No hay eventos para evaluar."] if not available else []),
+        "synthetic_only": True
+    }
     return {
         "source":source,
         "metric_basis":"eventos sintéticos persistidos; no son personas ni conversaciones reales",
@@ -80,6 +135,8 @@ def summarize(events, *, source, truncated=False, available=True):
         "message_actions":conversations,
         "active_participants":len(participants),
         "recorded_interaction_pairs":len(edges),
+        "cross_agent_messages":cross_messages,
+        "interaction_quality":quality,
         "first_event":first,"last_event":last,
         "by_day":[{"date":k,"count":v} for k,v in sorted(by_day.items())],
         "by_hour":[{"hour":f"{i:02d}","count":by_hour.get(f"{i:02d}",0)} for i in range(24)],
