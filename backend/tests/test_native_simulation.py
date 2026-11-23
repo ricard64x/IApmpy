@@ -90,6 +90,11 @@ class LocalSimulationTests(unittest.TestCase):
         plan=self.s.public(second["id"])["report"]["plan"]
         self.assertEqual("ampliar evidencia",plan["review_priority"])
         self.assertEqual({"reject":1},plan["past_human_feedback"])
+        second_actions=self.s.public(second["id"])["actions"]
+        followup=[a for a in second_actions if a["actor_uuid"]==actor["uuid"]
+                  and a["phase"]==4]
+        self.assertEqual(1,len(followup))
+        self.assertIn("validación reforzada",followup[0]["action_text"])
         with self.assertRaises(ValueError):
             self.s.feedback(second["id"],actor_uuid=actor["uuid"],phase=2,
                             verdict="invented",note="x")
