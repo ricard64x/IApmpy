@@ -967,6 +967,7 @@ def export_persisted_report(report_id: str):
         conversation_archive = character_graph(
             report.simulation_id, Path(SimulationRunner.RUN_STATE_DIR) / report.simulation_id)
         metrics["conversation_archive"] = conversation_archive
+        aliases = {str(n["id"]): n for n in conversation_archive.get("nodes", [])}
         quality = metrics["interaction_quality"]
         quality_warning = (quality["status"] not in ("acceptable","good"))
         if quality_warning:
@@ -997,7 +998,9 @@ def export_persisted_report(report_id: str):
         ] + [f"| {r['round']} | {r['count']} |" for r in metrics["by_round"]] + [
             "", "### Participantes de la escena", "| Participante | ID | Acciones | Mensajes |",
             "|---|---|---:|---:|",
-        ] + [f"| {r['name'].replace('|','/')} | {r['id']} | {r['actions']} | {r['messages']} |"
+        ] + [f"| {(aliases.get(str(r['id']),{}).get('name') or r['name']).replace('|','/')} "
+             f"({aliases.get(str(r['id']),{}).get('profession') or 'Profesión no indicada'}) "
+             f"| {r['id']} | {r['actions']} | {r['messages']} |"
              for r in metrics["participants"]] + [
             "", "### Tipos de acción", "| Acción | Conteo |", "|---|---:|",
         ] + [f"| {r['type']} | {r['count']} |" for r in metrics["by_type"]] + [
