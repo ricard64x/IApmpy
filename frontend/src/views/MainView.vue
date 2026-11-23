@@ -45,6 +45,24 @@
       @focus-workbench="viewMode = 'workbench'"
     />
 
+    <section v-if="ontologyJob && ['queued','running'].includes(ontologyJob.state)" class="workflow-attention" role="status">
+      <div>
+        <strong>📁 Documentos guardados · {{ ontologyJob.phase }}</strong>
+        <p>El análisis continúa en el servidor. Podés cambiar de red, cerrar el celular y volver a este proyecto sin perder la carga.</p>
+        <p>Referencia: {{ ontologyJob.project_id }}</p>
+      </div>
+      <div class="workflow-attention-actions">
+        <button @click="refreshOntologyJob(currentProjectId)">Actualizar estado</button>
+        <button class="secondary" @click="router.push({ name:'Dashboard' })">Mis proyectos</button>
+      </div>
+    </section>
+    <section v-else-if="ontologyJob?.state === 'failed'" class="workflow-attention workflow-error" role="alert">
+      <div><strong>⚠️ El análisis no terminó</strong><p>Los documentos se conservaron. Podés reintentar sin subirlos nuevamente.</p></div>
+      <div class="workflow-attention-actions">
+        <button :disabled="retryOntologyBusy" @click="retrySavedOntology">Reintentar análisis guardado</button>
+        <button class="secondary" @click="router.push({ name:'Dashboard' })">Mis proyectos</button>
+      </div>
+    </section>
     <section v-if="projectNeedsAttention" class="workflow-attention" role="status">
       <div>
         <strong>Este proyecto no está procesando</strong>
@@ -145,7 +163,7 @@ import GraphPanel from '../components/GraphPanel.vue'
 import BuildProgressBanner from '../components/BuildProgressBanner.vue'
 import Step1GraphBuild from '../components/Step1GraphBuild.vue'
 import Step2EnvSetup from '../components/Step2EnvSetup.vue'
-import { generateOntology, getProject, buildGraph, getTaskStatus, getProjectBuildStatus, getGraphData, getProcessingCapabilities } from '../api/graph'
+import { submitOntology, getOntologyStatus, retryOntology, getProject, buildGraph, getTaskStatus, getProjectBuildStatus, getGraphData, getProcessingCapabilities } from '../api/graph'
 import { projectRequiresAction, projectActionMessage } from '../utils/projectWorkflow'
 import { getPendingUpload, clearPendingUpload } from '../store/pendingUpload'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
@@ -172,6 +190,9 @@ const stepNames = computed(() => tm('main.stepNames'))
 const currentProjectId = ref(route.params.projectId)
 const loading = ref(false)
 const graphLoading = ref(false)
+const ontologyJob = ref(null)
+const retryOntologyBusy = ref(false)
+let ontologyPollTimer = null
 const error = ref('')
 const projectData = ref(null)
 const capabilities = ref(null)
@@ -311,56 +332,104 @@ const initProject = async () => {
   }
 }
 
+const stopOntologyJobPolling = () => {
+  if (ontologyPollTimer) {
+    clearInterval(ontologyPollTimer)
+    ontologyPollTimer = null
+  }
+}
+const refreshOntologyJob = async (projectId) => {
+  if (!projectId || currentProjectId.value !== projectId) return
+  try {
+    const res = await getOntologyStatus(projectId)
+    if (!res.success || !res.data) return
+    ontologyJob.value = res.data
+    if (res.data.state === 'completed') {
+      stopOntologyJobPolling()
+      stopOntologyElapsedTimer()
+      const saved = await getProject(projectId)
+      if (!saved.success || !saved.data) return
+      projectData.value = saved.data
+      error.value = ''
+      if (saved.data.status === 'ontology_generated') {
+        addLog('Ontología guardada y recuperada correctamente.')
+        if (capabilities.value?.graph_enabled === false) {
+          currentPhase.value = 3
+        } else if (!saved.data.graph_id) {
+          await startBuildGraph()
+        }
+      }
+    } else if (res.data.state === 'failed') {
+      stopOntologyJobPolling()
+      stopOntologyElapsedTimer()
+      currentPhase.value = -1
+      error.value = res.data.error || 'No se completó el análisis. Los documentos permanecen guardados.'
+      addLog('Ontología pendiente de reintento en proyecto ' + projectId)
+    } else {
+      currentPhase.value = 0
+      error.value = ''
+      ontologyProgress.value = { message: res.data.phase + ' · Proyecto guardado. Podés cerrar esta pestaña y retomar desde Mis proyectos.' }
+    }
+  } catch (err) {
+    // A transient offline interval must never mark the server-side job as failed.
+    ontologyProgress.value = { message:'Sin conexión temporal. El proyecto sigue guardado; se verificará al recuperar la red.' }
+  }
+}
+const startOntologyJobPolling = (id) => {
+  stopOntologyJobPolling()
+  currentPhase.value = 0
+  refreshOntologyJob(id)
+  ontologyPollTimer = setInterval(() => refreshOntologyJob(id), 5000)
+}
+const retrySavedOntology = async () => {
+  if (!currentProjectId.value || retryOntologyBusy.value) return
+  retryOntologyBusy.value = true
+  try {
+    await retryOntology(currentProjectId.value)
+    error.value = ''
+    startOntologyJobPolling(currentProjectId.value)
+  } catch (e) {
+    error.value = e.message || 'No fue posible reintentar.'
+  } finally {
+    retryOntologyBusy.value = false
+  }
+}
 const handleNewProject = async () => {
   const pending = getPendingUpload()
   if (!pending.isPending || pending.files.length === 0) {
-    error.value = 'No pending files found.'
-    addLog('Error: No pending files found for new project.')
+    error.value = 'No hay archivos pendientes. Volvé a la carga inicial.'
     return
   }
-  
   if (capabilities.value?.ontology_enabled === false) {
-    error.value = 'Esta instancia no tiene un modelo de IA configurado para analizar documentos. Getangiru puede recuperar memoria local, pero no generar ontologías.'
-    addLog('Generación no iniciada: falta configurar el motor de IA.')
+    error.value = 'El motor de IA no está disponible. Tus archivos todavía están en el formulario.'
     return
   }
   try {
     loading.value = true
     currentPhase.value = 0
-    startOntologyElapsedTimer()
-    addLog('Preparando documentos para analizar con el motor configurado...')
-    
+    error.value = ''
+    ontologyProgress.value = { message:'Guardando documentos y creando un proyecto recuperable…' }
     const formData = new FormData()
     pending.files.forEach(f => formData.append('files', f))
     formData.append('simulation_requirement', pending.simulationRequirement)
+    formData.append('submission_key', pending.submissionKey)
     if (pending.projectName) formData.append('project_name', pending.projectName)
-    
-    const res = await generateOntology(formData)
-    if (res.success) {
-      clearPendingUpload()
-      currentProjectId.value = res.data.project_id
-      projectData.value = res.data
-      
-      router.replace({ name: 'Process', params: { projectId: res.data.project_id } })
-      ontologyProgress.value = null
-      addLog(`Ontology generated successfully for project ${res.data.project_id}`)
-      if (capabilities.value?.graph_enabled === false) {
-        const saved = await getProject(res.data.project_id)
-        if (saved.success) projectData.value = saved.data
-        currentPhase.value = 3
-        addLog('Ontología lista; grafo pendiente de configuración.')
-      } else {
-        await startBuildGraph()
-      }
-    } else {
-      error.value = res.error || 'Ontology generation failed'
-      addLog(`Error generating ontology: ${error.value}`)
-    }
+    const res = await submitOntology(formData)
+    if (!res.success || !res.data?.project_id) throw Error('El servidor no confirmó la recepción.')
+    currentProjectId.value = res.data.project_id
+    clearPendingUpload()
+    await router.replace({ name:'Process', params:{ projectId:res.data.project_id } })
+    addLog('Proyecto persistido: ' + res.data.project_id + '. La IA continuará en segundo plano.')
+    startOntologyJobPolling(res.data.project_id)
   } catch (err) {
-    error.value = err.message
-    addLog(`Exception in handleNewProject: ${err.message}`)
+    // No client-side deletion: the server could already have saved the upload.
+    error.value = err.code === 'ERR_NETWORK' || err.message === 'Network Error'
+      ? 'Se interrumpió la conexión durante la carga. Revisá Mis proyectos; si no aparece, reintentá desde los archivos pendientes.'
+      : (err.message || 'No fue posible confirmar la carga.')
+    ontologyProgress.value = null
+    currentPhase.value = -1
+    addLog('No se pudo confirmar la entrega. No se borraron los documentos seleccionados.')
   } finally {
-    stopOntologyElapsedTimer()
     loading.value = false
   }
 }
@@ -373,6 +442,23 @@ const loadProject = async () => {
     if (res.success) {
       projectData.value = res.data
       updatePhaseByStatus(res.data.status)
+      // Recover queued/running ontology after reload or a mobile disconnect.
+      if (res.data.status === 'created' || (res.data.status === 'failed' && !res.data.ontology)) {
+        try {
+          const savedJob = await getOntologyStatus(currentProjectId.value)
+          if (savedJob.success && savedJob.data) {
+            ontologyJob.value = savedJob.data
+            if (savedJob.data.state === 'queued' || savedJob.data.state === 'running') {
+              startOntologyJobPolling(currentProjectId.value)
+              return
+            }
+            if (savedJob.data.state === 'completed') {
+              startOntologyJobPolling(currentProjectId.value)
+              return
+            }
+          }
+        } catch (_error) { /* Legacy projects may not have an ontology job. */ }
+      }
       addLog(`Project loaded. Status: ${res.data.status}`)
       if (projectRequiresAction(res.data)) {
         addLog('No existe una tarea activa de generación; el expediente queda pendiente.')
@@ -675,6 +761,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   stopOntologyElapsedTimer()
+  stopOntologyJobPolling()
   document.removeEventListener('visibilitychange', onVisibilityChange)
   stopPolling()
   stopGraphPolling()
