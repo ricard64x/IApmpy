@@ -1593,8 +1593,9 @@ def fork_simulation_version(simulation_id):
     prepared = ("simulation_config.json","reddit_profiles.json","twitter_profiles.csv")
     if not all((source/item).is_file() for item in required):
         return jsonify({"success": False,"error":"La simulación original no tiene configuración preparada."}),409
-    if not any((source/item).is_file() for item in prepared[1:]):
-        return jsonify({"success": False,"error":"La simulación original no tiene perfiles preparados."}),409
+    if not all((source/item).is_file() for item in prepared[1:]):
+        return jsonify({"success":False,
+                        "error":"La simulación original requiere ambos archivos de perfiles preparados."}),409
     # The existing authorization middleware checks the source simulation path;
     # the new run belongs to the exact same project and never inherits logs.
     newer = manager.create_simulation(
