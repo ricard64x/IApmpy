@@ -67,6 +67,23 @@ class ExecutionHTTPTests(unittest.TestCase):
             patcher.stop()
         cls.temp.cleanup()
 
+    def test_settings_explain_when_defaults_are_not_user_saved(self):
+        sample = SimulationManager().create_simulation(
+            project_id=self.project.project_id, graph_id="unit-graph")
+        url = f"/api/simulation/{sample.simulation_id}/execution-settings"
+        initial = self.client.get(url)
+        self.assertEqual(initial.status_code, 200)
+        self.assertFalse(initial.get_json()["data"]["has_saved_settings"])
+        persisted = self.client.post(url, json={
+            "platform": "reddit", "engine_mode": "lightweight",
+            "interaction_mode": "dialogue", "max_rounds": 5,
+            "auto_finalize": True,
+        }, headers={"X-CSRF-Token": self.csrf})
+        self.assertEqual(persisted.status_code, 200, persisted.get_json())
+        updated = self.client.get(url)
+        self.assertEqual(updated.status_code, 200)
+        self.assertTrue(updated.get_json()["data"]["has_saved_settings"])
+
     def test_platform_selection_is_persistent_and_not_modifiable_after_start(self):
         url = f"/api/simulation/{self.sim.simulation_id}/execution-settings"
         response = self.client.get(url)
