@@ -186,10 +186,15 @@
             @click="handleEnterEnvSetup"
           >
             <span v-if="creatingSimulation" class="spinner-sm"></span>
-            {{ !simulationEnabled ? 'Simulación integral pendiente de compatibilidad' : (creatingSimulation ? $t('step1.creating') : $t('step1.enterEnvSetup') + ' ➝') }}
+            {{ !simulationEnabled ? 'Simulación OASIS anterior no compatible con grafo local' : (creatingSimulation ? $t('step1.creating') : $t('step1.enterEnvSetup') + ' ➝') }}
           </button>
         </div>
       </div>
+      <LocalSimulationPanel
+        v-if="graphLocalMode && projectData?.graph_id"
+        :project-id="projectData.project_id"
+        :graph-ready="currentPhase === 2"
+      />
     </div>
 
     <GetangiruMemoryPanel
@@ -219,6 +224,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { createSimulation } from '../api/simulation'
 import GetangiruMemoryPanel from './GetangiruMemoryPanel.vue'
+import LocalSimulationPanel from './LocalSimulationPanel.vue'
 
 const router = useRouter()
 const { t } = useI18n()

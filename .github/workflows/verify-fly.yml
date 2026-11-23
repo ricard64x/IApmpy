@@ -80,6 +80,8 @@ jobs:
           docker exec iapmpy-smoke /app/backend/.venv/bin/python -m unittest discover -s tests -p 'test_local_*.py' -v
           python3 -m unittest discover -s tests -p 'test_getangiru_local.py' -v
           python3 -m unittest discover -s tests -p 'test_getangiru_worker.py' -v
+          docker exec iapmpy-smoke /app/backend/.venv/bin/python -m unittest discover -s tests -p 'test_native_simulation.py' -v
+          docker exec iapmpy-smoke /app/backend/.venv/bin/python -m unittest discover -s tests -p 'test_getangiru_public_research.py' -v
           docker exec iapmpy-smoke /app/backend/.venv/bin/python -m unittest discover -s tests -p 'test_efficiency_metrics.py' -v
       - name: Verify installed OASIS 0.2.5 uses lightweight Twitter
         run: |
@@ -110,6 +112,7 @@ jobs:
           test -n "$CHROME_BIN" || { echo "Chrome no está instalado en el ejecutor"; exit 1; }
           echo "Navegador de pruebas: $CHROME_BIN"
           CHROME_BIN="$CHROME_BIN" node tests/browser_visual_smoke.cjs
+          CHROME_BIN="$CHROME_BIN" node tests/browser_native_simulation_smoke.cjs
       - name: Upload visual browser evidence
         if: always()
         uses: actions/upload-artifact@v4

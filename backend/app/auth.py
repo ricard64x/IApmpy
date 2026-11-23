@@ -203,6 +203,10 @@ def resource_authorized(kind: str, ident: str) -> bool:
     if kind == "task":
         project_id = project_for_task(ident)
         return bool(project_id and can_access_project(project_id))
+    if kind == "native_run":
+        from .services.getangiru_native_simulation import default_native_sim_store
+        run = default_native_sim_store(Config.UPLOAD_FOLDER).get(ident)
+        return bool(run and can_access_project(run["project_id"]))
     return False
 
 
@@ -263,6 +267,10 @@ def install_auth(app):
             refs.append(("graph", sections[2]))
         elif path.startswith("getangiru/project/") and len(sections) > 2:
             refs.append(("project", sections[2]))
+        elif path.startswith("native-simulation/project/") and len(sections) > 2:
+            refs.append(("project", sections[2]))
+        elif path.startswith("native-simulation/lsim_") and len(sections) > 1:
+            refs.append(("native_run", sections[1]))
         elif path.startswith("simulation/entities/") and len(sections) > 2:
             refs.append(("graph", sections[2]))
         elif path.startswith("simulation/sim_"):
@@ -297,6 +305,7 @@ def install_auth(app):
         allowed_without_object = {
             "graph/ontology/generate","graph/capabilities","graph/project/list","simulation/list",
             "simulation/history","report/list","capacity/status",
+            "native-simulation/capabilities","native-simulation/public-cve",
         }
         if not refs and path not in allowed_without_object:
             # Tasks overview and script internals are administrator-only.
