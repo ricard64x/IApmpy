@@ -1,14 +1,14 @@
 <template>
-  <div class="graph-panel">
+  <div class="graph-panel" :class="{ 'mobile-detail-open': isMobileGraph && selectedItem }">
     <div class="panel-header">
       <span class="panel-title">{{ $t('graph.panelTitle') }}</span>
       <!-- 顶部工具栏 (Internal Top Right) -->
       <div class="header-tools">
-        <button class="tool-btn" @click="$emit('refresh')" :disabled="loading" :title="$t('graph.refreshGraph')">
+        <button type="button" class="tool-btn" @click="$emit('refresh')" :disabled="loading" :aria-label="$t('graph.refreshGraph')" :title="$t('graph.refreshGraph')">
           <span class="icon-refresh" :class="{ 'spinning': loading }">↻</span>
           <span class="btn-text">{{ $t('graph.refreshLabel') }}</span>
         </button>
-        <button class="tool-btn" @click="$emit('toggle-maximize')" :title="$t('graph.toggleMaximize')">
+        <button type="button" class="tool-btn maximize-tool" @click="$emit('toggle-maximize')" :title="$t('graph.toggleMaximize')">
           <span class="icon-maximize">⛶</span>
         </button>
       </div>
@@ -17,7 +17,8 @@
     <div class="graph-container" ref="graphContainer">
       <!-- 图谱可视化 -->
       <div v-if="graphData" class="graph-view">
-        <svg ref="graphSvg" class="graph-svg"></svg>
+        <svg ref="graphSvg" class="graph-svg" role="img" aria-label="Grafo de relaciones. Tocá un elemento para ver su ficha."></svg>
+        <p v-if="isMobileGraph && !selectedItem" class="mobile-graph-hint">Tocá un círculo para ver sus detalles. Separá dos dedos para acercar.</p>
         
         <!-- 构建中/模拟中提示 -->
         <div v-if="currentPhase === 1 || isSimulating" class="graph-building-hint">
@@ -49,13 +50,16 @@
         </div>
         
         <!-- 节点/边详情面板 -->
-        <div v-if="selectedItem" class="detail-panel">
+        <div v-if="selectedItem" class="detail-panel" :role="isMobileGraph ? 'dialog' : undefined" :aria-modal="isMobileGraph ? 'true' : undefined" :aria-label="selectedItem.type === 'node' ? 'Detalle de ' + selectedItem.data.name : 'Detalle de relación'">
           <div class="detail-panel-header">
-            <span class="detail-title">{{ selectedItem.type === 'node' ? $t('graph.nodeDetails') : $t('graph.relationship') }}</span>
+            <div class="detail-header-label">
+              <span class="detail-title">{{ selectedItem.type === 'node' ? $t('graph.nodeDetails') : $t('graph.relationship') }}</span>
+              <strong v-if="isMobileGraph" class="detail-mobile-name">{{ selectedItem.type === 'node' ? selectedItem.data.name : (selectedItem.data.source_name || 'Relación') }}</strong>
+            </div>
             <span v-if="selectedItem.type === 'node'" class="detail-type-badge" :style="{ background: selectedItem.color, color: '#fff' }">
               {{ friendlyGraphType(selectedItem.entityType) }}
             </span>
-            <button class="detail-close" @click="closeDetailPanel">×</button>
+            <button type="button" class="detail-close" @click="closeDetailPanel" aria-label="Cerrar detalle y volver al grafo">×</button>
           </div>
           
           <!-- 节点详情 -->
@@ -64,7 +68,7 @@
               <span class="detail-label">{{ $t('graph.detailsName') }}:</span>
               <span class="detail-value">{{ selectedItem.data.name }}</span>
             </div>
-            <div class="detail-row">
+            <div v-if="!isMobileGraph || showTechnicalDetails" class="detail-row technical-row">
               <span class="detail-label">{{ $t('graph.detailsId') }}:</span>
               <span class="detail-value uuid-text">{{ selectedItem.data.uuid }}</span>
             </div>
@@ -160,7 +164,7 @@
                 {{ selectedItem.data.source_name }} → {{ friendlyGraphType(selectedItem.data.name || 'RELATED_TO') }} → {{ selectedItem.data.target_name }}
               </div>
               
-              <div class="detail-row">
+              <div v-if="!isMobileGraph || showTechnicalDetails" class="detail-row technical-row">
                 <span class="detail-label">{{ $t('graph.detailsId') }}:</span>
                 <span class="detail-value uuid-text">{{ selectedItem.data.uuid }}</span>
               </div>
@@ -197,6 +201,12 @@
               </div>
             </template>
           </div>
+          <footer v-if="isMobileGraph" class="mobile-detail-footer">
+            <button type="button" class="mobile-back-button" @click="closeDetailPanel">← Volver al grafo</button>
+            <button type="button" class="mobile-technical-button" @click="showTechnicalDetails = !showTechnicalDetails" :aria-pressed="showTechnicalDetails">
+              {{ showTechnicalDetails ? 'Ocultar datos técnicos' : 'Datos técnicos' }}
+            </button>
+          </footer>
         </div>
       </div>
       
@@ -219,9 +229,12 @@
     </div>
 
     <!-- 底部图例 (Bottom Left) -->
-    <div v-if="graphData && entityTypes.length" class="graph-legend">
+    <div v-if="graphData && entityTypes.length" class="graph-legend" :class="{ 'legend-expanded': legendExpanded }">
+      <button type="button" class="legend-toggle" @click="legendExpanded = !legendExpanded" :aria-expanded="legendExpanded">
+        Tipos de elementos <span aria-hidden="true">{{ legendExpanded ? '⌄' : '⌃' }}</span>
+      </button>
       <span class="legend-title">{{ $t('graph.entityTypesLabel') }}</span>
-      <div class="legend-items">
+      <div v-show="!isMobileGraph || legendExpanded" class="legend-items">
         <div class="legend-item" v-for="type in entityTypes" :key="type.name">
           <span class="legend-dot" :style="{ background: type.color }"></span>
           <span class="legend-label">{{ friendlyGraphType(type.name) }}</span>
@@ -260,7 +273,19 @@ const emit = defineEmits(['refresh', 'toggle-maximize'])
 const graphContainer = ref(null)
 const graphSvg = ref(null)
 const selectedItem = ref(null)
-const showEdgeLabels = ref(true) // 默认显示边标签
+const showEdgeLabels = ref(true)
+const isMobileGraph = ref(false)
+const legendExpanded = ref(false)
+const showTechnicalDetails = ref(false)
+let mobileMediaQuery = null
+const updateMobileGraph = () => {
+  const nextMobile = Boolean(mobileMediaQuery?.matches)
+  if (nextMobile === isMobileGraph.value) return
+  isMobileGraph.value = nextMobile
+  showEdgeLabels.value = !nextMobile
+  legendExpanded.value = false
+  nextTick(renderGraph)
+}
 const expandedSelfLoops = ref(new Set()) // 展开的自环项
 const showSimulationFinishedHint = ref(false) // 模拟结束后的提示
 const wasSimulating = ref(false) // 追踪之前是否在模拟中
@@ -342,6 +367,7 @@ const formatDateTime = (dateStr) => {
 
 const closeDetailPanel = () => {
   selectedItem.value = null
+  showTechnicalDetails.value = false
   expandedSelfLoops.value = new Set() // 重置展开状态
 }
 
@@ -358,8 +384,9 @@ const renderGraph = () => {
   }
   
   const container = graphContainer.value
-  const width = container.clientWidth
-  const height = container.clientHeight
+  const width = container?.clientWidth || 0
+  const height = container?.clientHeight || 0
+  if (width < 24 || height < 24) return
   
   const svg = d3.select(graphSvg.value)
     .attr('width', width)
@@ -501,13 +528,15 @@ const renderGraph = () => {
       const edgeCount = d.pairTotal || 1
       return baseDistance + (edgeCount - 1) * 50
     }))
-    .force('charge', d3.forceManyBody().strength(-400))
+    .force('charge', d3.forceManyBody().strength(isMobileGraph.value ? -260 : -400))
     .force('center', d3.forceCenter(width / 2, height / 2))
     .force('collide', d3.forceCollide(50))
     // 添加向中心的引力，让独立的节点群聚集到中心区域
     .force('x', d3.forceX(width / 2).strength(0.04))
     .force('y', d3.forceY(height / 2).strength(0.04))
   
+  // Settle mobile layouts sooner, reducing unnecessary force ticks.
+  if (isMobileGraph.value) simulation.alphaDecay(0.065)
   currentSimulation = simulation
 
   const g = svg.append('g')
@@ -678,8 +707,11 @@ const renderGraph = () => {
   const node = nodeGroup.selectAll('circle')
     .data(nodes)
     .enter().append('circle')
-    .attr('r', 10)
+    .attr('r', isMobileGraph.value ? 18 : 10)
     .attr('fill', d => getColor(d.type))
+    .attr('tabindex', 0)
+    .attr('role', 'button')
+    .attr('aria-label', d => 'Ver detalles de ' + d.name)
     .attr('stroke', '#fff')
     .attr('stroke-width', 2.5)
     .style('cursor', 'pointer')
@@ -749,11 +781,23 @@ const renderGraph = () => {
       }
     })
 
+  if (isMobileGraph.value) node.on('.drag', null)
+
+  // Keyboard and screen reader users can select the same graph nodes.
+  node.on('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      event.currentTarget.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    }
+  })
+
   // Node Labels
   const nodeLabels = nodeGroup.selectAll('text')
     .data(nodes)
     .enter().append('text')
-    .text(d => d.name.length > 8 ? d.name.substring(0, 8) + '…' : d.name)
+    .text(d => d.name.length > (isMobileGraph.value ? 11 : 8)
+      ? d.name.substring(0, isMobileGraph.value ? 11 : 8) + '…' : d.name)
+    .style('display', isMobileGraph.value && nodes.length > 18 ? 'none' : null)
     .attr('font-size', '11px')
     .attr('fill', '#333')
     .attr('font-weight', '500')
@@ -821,16 +865,32 @@ watch(showEdgeLabels, (newVal) => {
   }
 })
 
+let resizeFrame = null
 const handleResize = () => {
-  nextTick(renderGraph)
+  if (resizeFrame !== null) return
+  resizeFrame = window.requestAnimationFrame(() => {
+    resizeFrame = null
+    nextTick(renderGraph)
+  })
 }
-
+const onGraphKeydown = (event) => {
+  if (event.key === 'Escape' && selectedItem.value) closeDetailPanel()
+}
 onMounted(() => {
+  mobileMediaQuery = window.matchMedia('(max-width: 767px)')
+  isMobileGraph.value = mobileMediaQuery.matches
+  showEdgeLabels.value = !isMobileGraph.value
+  mobileMediaQuery.addEventListener?.('change', updateMobileGraph)
   window.addEventListener('resize', handleResize)
+  window.addEventListener('keydown', onGraphKeydown)
+  nextTick(renderGraph)
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
+  window.removeEventListener('keydown', onGraphKeydown)
+  mobileMediaQuery?.removeEventListener?.('change', updateMobileGraph)
+  if (resizeFrame !== null) window.cancelAnimationFrame(resizeFrame)
   if (currentSimulation) {
     currentSimulation.stop()
   }
