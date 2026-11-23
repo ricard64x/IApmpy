@@ -5,6 +5,7 @@ Only localhost:18080 may be used when LLM_LOCAL_INFERENCE=true.
 """
 from __future__ import annotations
 
+import json
 import os
 import urllib.error
 import urllib.request
@@ -24,12 +25,26 @@ def local_inference_ready() -> bool:
     if not Config.LLM_API_KEY or Config.LLM_BASE_URL.rstrip("/") != LOCAL_LLM_BASE_URL:
         return False
     try:
-        # Model health check never sends user data and never follows
-        # non-local redirects. /health is the llama.cpp server endpoint.
-        request = urllib.request.Request("http://127.0.0.1:18080/health")
+        # Verify readiness AND the exact loaded model alias. Otherwise a
+        # healthy 1.5B server could incorrectly advertise that the 4B model
+        # configured in Tenonderã was ready for document processing.
         opener = urllib.request.build_opener(_NoRedirect)
+        with opener.open("http://127.0.0.1:18080/health", timeout=1.2) as response:
+            if response.status != 200:
+                return False
+        request = urllib.request.Request(
+            LOCAL_LLM_BASE_URL + "/models",
+            headers={"Authorization": "Bearer " + Config.LLM_API_KEY},
+        )
         with opener.open(request, timeout=1.2) as response:
-            return response.status == 200
+            if response.status != 200:
+                return False
+            data = json.loads(response.read(16384))
+        return isinstance(data, dict) and any(
+            row.get("id") == Config.LLM_MODEL_NAME
+            for row in data.get("data", [])
+            if isinstance(row, dict)
+        )
     except (OSError, urllib.error.URLError, ValueError):
         return False
 
