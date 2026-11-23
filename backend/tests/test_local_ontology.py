@@ -106,7 +106,7 @@ class LocalOntologyTests(unittest.TestCase):
                     {"tipo": "REPORTS_TO", "origen": "RiskTeam", "destino": "ExecutiveBoard"}
                 ]})
         with self.assertRaises(LLMResponseError):
-            infer_fast_local_ontology(Fake(), "texto sintético", "simulación")
+            infer_fast_local_ontology(Fake(), "El SOC y Seguridad coordinan con Infraestructura, Fraudes, Auditoría, Riesgos, Dirección y un Proveedor.", "simulación")
 
     def test_salvage_only_fully_closed_first_relation_block(self):
         import json
@@ -120,6 +120,27 @@ class LocalOntologyTests(unittest.TestCase):
         self.assertEqual(4, len(rows))
         with self.assertRaises(LLMResponseError):
             _decode('[{"relaciones":[{"tipo":"AUDITS"}', "relaciones")
+
+    def test_local_model_cannot_invent_eight_actors_for_sparse_document(self):
+        import json
+        from app.services.local_ontology_fast import infer_fast_local_ontology
+        class FabricatingModel:
+            def __init__(self):
+                self.calls = 0
+            def chat(self, **kwargs):
+                self.calls += 1
+                return json.dumps({"actores": [
+                    "SocTeam", "SecurityTeam", "InfrastructureTeam", "FraudTeam",
+                    "AuditTeam", "RiskTeam", "ExecutiveBoard", "Vendor"
+                ]})
+        model = FabricatingModel()
+        with self.assertRaisesRegex(LLMResponseError, "ocho clases"):
+            infer_fast_local_ontology(
+                model,
+                "Una persona descubrió un error en un documento de una empresa.",
+                "Identificar únicamente los actores evidenciados.",
+            )
+        self.assertEqual(1, model.calls)
 
     def test_reject_local_incomplete_schema(self):
         with patch.dict(os.environ, {"LLM_LOCAL_INFERENCE": "true", "LLM_LOCAL_FAST_MODE": "false"}):
