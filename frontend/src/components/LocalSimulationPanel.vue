@@ -106,6 +106,11 @@
             no se modifican pesos del modelo ni se aprueban decisiones automáticamente.
             Revisiones: {{ result.feedback?.accept || 0 }} aceptadas ·
             {{ result.feedback?.reject || 0 }} observadas.
+            <span v-if="result.human_validation?.reviewed">
+              Aceptación revisada: {{ result.human_validation.acceptance_rate_pct }}%
+              ({{ result.human_validation.reviewed }} decisiones evaluadas; no es precisión predictiva).
+            </span>
+            <span v-else>Exactitud predictiva: aún no evaluada con evidencia independiente.</span>
           </p>
         </template>
       </div>
