@@ -476,6 +476,21 @@
                   No se recomienda para este escenario de 60 participantes.</small></span>
               </label>
             </div>
+            <div v-if="engineMode==='lightweight'" class="interaction-detail-options">
+              <strong>💬 Dinámica de interacción sintética</strong>
+              <label class="engine-option" :class="{chosen:interactionMode==='dialogue'}">
+                <input v-model="interactionMode" type="radio" value="dialogue" name="interactionMode">
+                <span><strong>Conversaciones por lotes · recomendado</strong>
+                  <small>Los participantes responden a mensajes anteriores del mismo espacio.
+                  Se registran destinatarios y vínculos, sin cargar OASIS completo.
+                  Hasta cuatro perfiles por consulta LLM.</small></span>
+              </label>
+              <label class="engine-option" :class="{chosen:interactionMode==='posts'}">
+                <input v-model="interactionMode" type="radio" value="posts" name="interactionMode">
+                <span><strong>Publicaciones independientes</strong>
+                  <small>Preserva el funcionamiento anterior, sin respuestas enlazadas.</small></span>
+              </label>
+            </div>
             <div class="preference-control">
               <label for="safe-rounds">{{ $t('step2.roundsCountLabel') }}</label>
               <input id="safe-rounds" v-model.number="customMaxRounds" type="number" min="1" max="10" step="1">
@@ -488,8 +503,10 @@
               </span>
             </label>
             <div v-if="engineMode==='lightweight'" class="manual-close-tip">
-              El cierre es automático para ahorrar memoria. Se procesarán acciones sintéticas,
-              no las interacciones internas de OASIS. Los perfiles del expediente se conservan.
+              El cierre es automático para ahorrar memoria.
+              {{interactionMode==='dialogue' ? 'Se generan respuestas sintéticas enlazadas por lotes, sin cargar OASIS completo.'
+                : 'Se generan publicaciones independientes sin cargar OASIS completo.'}}
+              Los perfiles y los eventos se conservan por ronda.
             </div>
             <div v-if="!autoFinalize" class="manual-close-tip">{{ $t('step2.manualFinalizeDesc') }}</div>
             <p v-if="settingError" class="preference-error" role="alert">{{ settingError }}</p>
@@ -667,6 +684,7 @@ let lastLoggedConfigStage = ''
 // 模拟轮数配置
 const interactionPlatform = ref('parallel')
 const engineMode = ref('oasis')
+const interactionMode = ref('dialogue')
 const capacityInfo = ref(null)
 const configuredProfileCount = computed(() => simulationConfig.value?.agent_configs?.length || profiles.value.length || 0)
 const oasisLimit = computed(() => capacityInfo.value?.recommended_max_profiles || 45)
@@ -773,6 +791,7 @@ const handleStartSimulation = async () => {
       platform: interactionPlatform.value,
       auto_finalize: autoFinalize.value,
       engine_mode: engineMode.value,
+      interaction_mode: interactionMode.value,
       max_rounds: rounds
     }
     await saveExecutionSettings(props.simulationId, settings)
@@ -1122,6 +1141,7 @@ onMounted(async () => {
     if (result.success && result.data) {
       interactionPlatform.value = result.data.platform || 'parallel'
       engineMode.value = result.data.engine_mode || 'oasis'
+      interactionMode.value = result.data.interaction_mode || 'posts'
       autoFinalize.value = result.data.auto_finalize !== false
       customMaxRounds.value = result.data.max_rounds || 10
     }
@@ -2658,6 +2678,9 @@ onUnmounted(() => {
   transform: scale(0.95) translateY(10px);
   opacity: 0;
 }
+.interaction-detail-options{display:grid;gap:10px;background:#f3fbfc;border:1px solid #bfe4ea;border-radius:12px;padding:13px;margin-top:13px}
+.interaction-detail-options>strong{font-size:13px;color:#14516e}
+.interaction-detail-options .engine-option{margin:0}
 </style>
 
 <style scoped>
