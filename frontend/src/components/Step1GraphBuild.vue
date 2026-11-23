@@ -189,6 +189,11 @@
       </div>
     </div>
 
+    <GetangiruMemoryPanel
+      v-if="projectData?.project_id"
+      :project-id="projectData.project_id"
+    />
+
     <!-- Bottom Info / Logs -->
     <div class="system-logs">
       <div class="log-header">
@@ -210,6 +215,7 @@ import { computed, ref, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { createSimulation } from '../api/simulation'
+import GetangiruMemoryPanel from './GetangiruMemoryPanel.vue'
 
 const router = useRouter()
 const { t } = useI18n()

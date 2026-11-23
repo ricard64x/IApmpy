@@ -147,3 +147,15 @@ La API Getangiru mantiene URL privada en Sprites y base de datos independiente. 
 - Tenant `tenondera` separado y espacios idénticos a los proyectos; no enviar datos reales sin clasificación y autorización.
 - En pruebas sintéticas: 9 tests, contrato firmado 200/201/200, 40 consultas locales Getangiru p50 2,49 ms y p95 3,22 ms; 64 inserciones concurrentes en receptor aislado, todas 201, p95 148,21 ms. **No son ahorros económicos demostrados ni pruebas productivas de carga.**
 - Modo de consulta directa de esta documentación y modo push son rutas complementarias, ambas deshabilitadas hasta activación y auditoría. El adaptador `backend/scripts/getangiru_bridge.py` del motor GPT liviano continúa independiente.
+
+## Fase 3: recuperación local y entorno paralelo (piloto, 22-11-2026)
+
+**Implementación probada:** nuevo Sprite independiente \`tenondera-integrado\`, con acceso Sprite privado para la UI, un servicio de recepción firmado por HMAC, SQLite local por proyecto y Getangiru instalado en su propio Sprite. Las credenciales de ambos entornos son específicas y no se reutilizan claves de modelos externos.
+
+- \`GETANGIRU_MODE=local\` permite a las simulaciones livianas consultar **solo la copia local** \`backend/uploads/getangiru/mirror.sqlite3\`. No hace red ni llamadas a modelos para recuperar memoria.
+- \`GETANGIRU_MIRROR_ENABLED=true\` activa el motor de consultas. El lector se limita al ID de proyecto de la simulación y como máximo 256 episodios recientes, con selección lexical de cuatro referencias, sanitización básica y aviso de contenido no confiable.
+- La ejecución generativa de una simulación **sigue requiriendo un modelo**; el modo local ahorra llamadas de recuperación, no garantiza ausencia de inferencia externa.
+- El sincronizador emisor ahora usa un JOIN contra episodios ya entregados (evita starvation), backoff por fallo, HTTPS con host autorizado, evita redirecciones y registra entregas por ID de episodio.
+- Pruebas: ping firmado HTTP 200; sin firma 401; firma alterada 401; replay 409; inserción real 201; usuario propietario 200 (1 resultado), segundo analista 404; anónimo 401. Prueba sin red: 112 episodios en lotes 100+12. 40 consultas locales: p50 2,79 ms, p95 3,88 ms; 0 llamadas a modelos para la búsqueda.
+- **Transporte solo de laboratorio:** se usó un Cloudflare Quick Tunnel HTTPS con proxy local que acepta únicamente las dos rutas HMAC. Los Quick Tunnels son temporales, sin disponibilidad garantizada; la URL cambia y la conexión puede caerse. No usar para información real/sensible ni producción regulada. Para producción, aprobar un túnel Cloudflare administrado o una red privada con URL estable, autenticación adicional, monitoreo y recuperación probada.
+- La instancia Fly original \`iapmpy\` conserva volumen y datos pero su máquina estaba bloqueada en \`replacing\`; esta fase no migra ni modifica esa base de datos.

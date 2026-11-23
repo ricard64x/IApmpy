@@ -14,7 +14,11 @@ import ipaddress
 import json
 import os
 import re
+import sqlite3
+from contextlib import closing
 import time
+import unicodedata
+from pathlib import Path
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -126,6 +130,49 @@ def _normalize_response(data, project_id, namespace, limit):
     return selected
 
 
+_LOCAL_STOPWORDS = {"para", "con", "como", "desde", "sobre", "entre",
+                    "este", "esta", "estos", "estas", "solo", "sino",
+                    "the", "and", "that", "with", "from", "simulacion"}
+
+def _local_terms(value):
+    normalized = unicodedata.normalize("NFKD", str(value).casefold())
+    simple = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+    return set(re.findall(r"[a-z0-9]{3,}", simple)) - _LOCAL_STOPWORDS
+
+
+def _local_mirror_search(path, project_id, query, *, limit=4):
+    """Bounded, project-only retrieval without network/model calls."""
+    db = Path(path)
+    if not db.is_file():
+        return []
+    terms = _local_terms(redact_query(query))
+    if not terms:
+        return []
+    uri = "file:" + urllib.parse.quote(str(db.resolve())) + "?mode=ro"
+    with closing(sqlite3.connect(uri, uri=True, timeout=1.0)) as conn:
+        rows = conn.execute(
+            """SELECT episode_id, source_id, content FROM received
+               WHERE project_id=? ORDER BY inserted_at DESC,episode_id DESC LIMIT 256""",
+            (project_id,),
+        ).fetchall()
+    selected = []
+    for episode_id, source_id, content in rows:
+        if not isinstance(content, str):
+            continue
+        matches = len(terms & _local_terms(content[:4000]))
+        if matches < (2 if len(terms) > 3 else 1):
+            continue
+        score = round(min(1.0, matches / max(1, len(terms))), 3)
+        source = str(source_id or "")
+        if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,96}", source):
+            source = "getangiru:" + str(episode_id).replace("-", "")[:12]
+        snippet = redact_query(content[:650])[:280]
+        if snippet:
+            selected.append({"source_id": source, "text": snippet, "score": score})
+    selected.sort(key=lambda row: row["score"], reverse=True)
+    return selected[:max(1, min(limit, 4))]
+
+
 class GetangiruBridge:
     """Read-only connector. Off/shadow/enrich; no memory data stored locally."""
 
@@ -138,8 +185,8 @@ class GetangiruBridge:
         self.cache = OrderedDict()
         self.failures = 0
         self.open_until = 0.0
-        if self.mode not in ("off", "shadow", "enrich"):
-            raise ValueError("GETANGIRU_MODE inválido; usar off, shadow o enrich.")
+        if self.mode not in ("off", "shadow", "enrich", "local"):
+            raise ValueError("GETANGIRU_MODE inválido; usar off, shadow, enrich o local.")
 
     def _metric(self, obj):
         if self.record:
@@ -149,7 +196,33 @@ class GetangiruBridge:
                 **obj,
             })
 
+    def _search_local(self, *, project_id, simulation_id, query):
+        start = self.clock()
+        items = []
+        status = "local_unavailable"
+        try:
+            if not _PROJ.fullmatch(str(project_id)) or not _SIM.fullmatch(str(simulation_id)):
+                raise ValueError("Invalid project/simulation scope")
+            if self.env.get("GETANGIRU_MIRROR_ENABLED", "false").lower() != "true":
+                raise ValueError("Local mirror disabled")
+            db_path = self.env.get("GETANGIRU_MIRROR_DB") or str(
+                Path(__file__).resolve().parents[1] / "uploads" / "getangiru" / "mirror.sqlite3"
+            )
+            items = _local_mirror_search(db_path, project_id, query)
+            status = "local_ok" if items else "local_empty"
+        except (ValueError, OSError, sqlite3.Error):
+            status = "local_unavailable"
+        latency = round((self.clock() - start) * 1000, 2)
+        self._metric({"mode": "local", "status": status,
+                      "scope_hash": hashlib.sha256(str(project_id).encode()).hexdigest()[:12],
+                      "cache_hit": False, "selected": len(items), "latency_ms": latency,
+                      "external_model_calls": 0})
+        return {"status": status, "items": items, "cache_hit": False,
+                "latency_ms": latency, "provider_calls": 0}
+
     def search(self, *, project_id, simulation_id, query):
+        if self.mode == "local":
+            return self._search_local(project_id=project_id, simulation_id=simulation_id, query=query)
         start = self.clock()
         if self.mode == "off":
             return {"status": "disabled", "items": [], "cache_hit": False, "latency_ms": 0}
