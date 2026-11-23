@@ -22,7 +22,7 @@ class OntologyReadinessTests(unittest.TestCase):
         ):
             response = self.client.post("/api/graph/ontology/generate", data={
                 "simulation_requirement": "escenario ficticio",
-                "files": (io.BytesIO(b"evidencia sintética"), "demo.txt"),
+                "files": (io.BytesIO("evidencia sintética".encode("utf-8")), "demo.txt"),
             })
         self.assertEqual(503, response.status_code)
         self.assertEqual("ONTOLOGY_PROVIDER_NOT_CONFIGURED", response.json["code"])
