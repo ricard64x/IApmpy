@@ -27,6 +27,8 @@
           </div>
           <ul v-if="files.length" class="file-list"><li v-for="(file,index) in files" :key="index"><span>▤ {{file.name}}</span><button aria-label="Quitar archivo" @click="files.splice(index,1)">×</button></li></ul>
         </div>
+        <div class="form-group"><div class="form-label"><label for="project-title">Nombre del proyecto (opcional)</label><small>Si lo dejás vacío, se genera desde el objetivo</small></div>
+          <input id="project-title" class="area-input" v-model.trim="projectName" maxlength="100" placeholder="Ej.: Simulación de respuesta ante fraude"></div>
         <div class="form-group"><div class="form-label"><label for="sim-goal">02 · ¿Qué querés simular?</label><small>Pregunta o hipótesis</small></div>
           <textarea id="sim-goal" v-model="prompt" rows="6" placeholder="Ejemplo: ¿Cómo reaccionaría la opinión pública paraguaya al lanzamiento de un nuevo banco 100 % digital?"></textarea>
         </div>
@@ -58,7 +60,7 @@ import {setPendingUpload} from '../store/pendingUpload'
 import TenonderaShell from '../components/TenonderaShell.vue'
 import HistoryDatabase from '../components/HistoryDatabase.vue'
 const router=useRouter()
-const prompt=ref(''),interactionArea=ref('Paraguay'),files=ref([]),dragging=ref(false),error=ref(''),capacity=ref(null),fileInput=ref(null)
+const projectName=ref(''),prompt=ref(''),interactionArea=ref('Paraguay'),files=ref([]),dragging=ref(false),error=ref(''),capacity=ref(null),fileInput=ref(null)
 const canStart=computed(()=>files.value.length>0&&!!prompt.value.trim())
 const pick=()=>fileInput.value?.click()
 function addFiles(collection){
@@ -76,7 +78,7 @@ function start(){
   const requirement = scope
     ? prompt.value.trim() + '\n\nÁmbito territorial de interacción de los agentes: ' + scope + '. Considerá este contexto al crear sus perfiles y simular las conversaciones.'
     : prompt.value.trim()
-  setPendingUpload(files.value,requirement)
+  setPendingUpload(files.value,requirement,projectName.value)
   router.push({name:'Process',params:{projectId:'new'}})
 }
 onMounted(async()=>{try{capacity.value=(await service.get('/api/capacity/status')).data}catch(e){error.value='No se pudo consultar la capacidad: '+e.message}})
