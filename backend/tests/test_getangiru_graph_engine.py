@@ -80,6 +80,25 @@ class GetangiruLocalGraphTests(unittest.TestCase):
             self.build(source_text=DOC + "x" * 251000)
         self.assertFalse(self.store.path.stat().st_size == 0) # DB exists
 
+    def test_signed_memory_source_preserved_and_rebuilds_when_new(self):
+        initial = self.build()
+        memory = [{"source_id": "memory:episode001",
+                   "content": "El SOC y Auditoría reciben nuevos datos; sin evidencia causal."}]
+        updated = self.build(extra_sources=memory)
+        self.assertFalse(updated["reused"])
+        self.assertEqual(initial["graph_id"], updated["graph_id"])
+        memory_edges = [e for e in updated["edges"] if
+                        e["attributes"]["source_id"] == "memory:episode001"]
+        self.assertTrue(memory_edges)
+        self.assertTrue(all(e["attributes"]["asserted_fact"] is False for e in memory_edges))
+        repeated = self.build(extra_sources=memory)
+        self.assertTrue(repeated["reused"])
+
+    def test_invalid_memory_provenance_is_rejected(self):
+        with self.assertRaises(ValueError):
+            self.build(extra_sources=[{"source_id": "../../bad",
+                                      "content": "El SOC revisa registros"}])
+
     def test_delete_is_tenant_scoped(self):
         first = self.build()
         with self.assertRaises(GraphScopeError):
