@@ -213,7 +213,10 @@ class NativeSimStore:
         return [dict(row) for row in rows]
 
     def feedback(self, ident: str, *, actor_uuid: str, phase: int, verdict: str, note: str):
-        if verdict not in ("accept","reject") or len(note)>500 or phase not in range(1,5):
+        if (not isinstance(actor_uuid,str) or not 1<=len(actor_uuid)<=100
+                or not isinstance(note,str) or len(note)>500
+                or not isinstance(verdict,str) or verdict not in ("accept","reject")
+                or type(phase) is not int or phase not in range(1,5)):
             raise ValueError("Invalid feedback")
         with closing(self._connect()) as c:
             actor = c.execute("SELECT 1 FROM actions WHERE run_id=? AND phase=? AND actor_uuid=?",
