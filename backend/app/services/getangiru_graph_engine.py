@@ -125,7 +125,8 @@ class GetangiruGraphStore:
                 if 3 <= len(s.strip())][:MAX_SENTENCES]
 
     def build(self, *, tenant: str, project_id: str, ontology: dict,
-              source_text: str, source_id: str = "project-extracted-text"):
+              source_text: str, source_id: str = "project-extracted-text",
+              extra_sources: list[dict] | None = None):
         gid = self.graph_id(tenant, project_id)
         if not isinstance(ontology, dict) or not isinstance(source_text, str):
             raise ValueError("Ontology and extracted text are required")
@@ -136,8 +137,28 @@ class GetangiruGraphStore:
         classes = ontology.get("entity_types") or []
         if not isinstance(classes, list) or len(classes) > 100:
             raise ValueError("Invalid ontology entity schema")
-        digest = _hash(source_text + "\0" + json.dumps(ontology, sort_keys=True, ensure_ascii=False))
-        sentences = self._source_sentences(source_text)
+        if extra_sources is not None and (not isinstance(extra_sources, list) or len(extra_sources) > 64):
+            raise ValueError("Too many Getangiru memory sources")
+        entries = [(source_id, source_text)]
+        for row in (extra_sources or []):
+            if not isinstance(row, dict):
+                raise ValueError("Invalid provenance input")
+            origin = row.get("source_id", "")
+            content = row.get("content", "")
+            if not isinstance(origin, str) or not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", origin):
+                raise ValueError("Invalid source ID")
+            if not isinstance(content, str):
+                raise ValueError("Invalid source content")
+            entries.append((origin, content[:4000]))
+        if sum(len(content) for _, content in entries) > MAX_TEXT:
+            raise ValueError("Getangiru graph corpus exceeds safe limit")
+        digest = _hash(json.dumps(entries, ensure_ascii=False, separators=(",", ":"))
+                       + "\0" + json.dumps(ontology, sort_keys=True, ensure_ascii=False))
+        sentences = [
+            (sentence, origin)
+            for origin, content in entries
+            for sentence in self._source_sentences(content)
+        ][:MAX_SENTENCES]
         if not sentences:
             raise ValueError("No textual evidence available")
         nodes, edges = [], []
@@ -149,13 +170,17 @@ class GetangiruGraphStore:
             if not isinstance(name, str) or not re.fullmatch(r"[A-Z][a-zA-Z0-9]{1,63}", name):
                 continue
             for alias in _ALIASES.get(name, ()):
-                excerpt = next((sentence for sentence in sentences if _mentions(sentence, alias)), None)
+                excerpt, provenance = next(
+                    ((sentence, origin) for sentence, origin in sentences
+                     if _mentions(sentence, alias)),
+                    (None, None)
+                )
                 if excerpt:
                     uid = "n_" + _hash(gid + "\0" + name + "\0" + _normalize(alias))[:32]
                     node = {
                         "uuid": uid, "name": alias, "labels": [name, "EvidenceBackedActor"],
                         "summary": "Actor mencionado expresamente en el documento. No implica conducta confirmada.",
-                        "attributes": {"entity_type": name, "source_id": source_id,
+                        "attributes": {"entity_type": name, "source_id": provenance,
                                        "evidence": excerpt[:500], "asserted_fact": False},
                         "created_at": None,
                     }
@@ -167,21 +192,21 @@ class GetangiruGraphStore:
 
         # Each edge means *co-occurrence in an original source sentence*, NOT
         # an inferred social relationship, causal link or ontology assertion.
-        for sentence in sentences:
+        for sentence, provenance in sentences:
             present = [n for n in nodes if _mentions(sentence, n["name"])]
             if len(present) < 2:
                 continue
             for i in range(len(present)):
                 for j in range(i + 1, len(present)):
                     a, b = present[i], present[j]
-                    key = "e_" + _hash(gid + "\0" + a["uuid"] + "\0" + b["uuid"] + "\0" + sentence)[:32]
+                    key = "e_" + _hash(gid + "\0" + a["uuid"] + "\0" + b["uuid"] + "\0" + provenance + "\0" + sentence)[:32]
                     edges.append({
                         "uuid": key, "name": "CO_MENTIONED",
                         "fact": "Co-mención en una misma oración; no acredita relación ni causalidad.",
                         "fact_type": "CO_MENTIONED",
                         "source_node_uuid": a["uuid"], "target_node_uuid": b["uuid"],
                         "source_node_name": a["name"], "target_node_name": b["name"],
-                        "attributes": {"source_id": source_id, "evidence": sentence[:500],
+                        "attributes": {"source_id": provenance, "evidence": sentence[:500],
                                        "asserted_fact": False, "relation_kind": "co_occurrence"},
                         "episodes": [], "created_at": None, "valid_at": None,
                         "invalid_at": None, "expired_at": None,
@@ -218,12 +243,12 @@ class GetangiruGraphStore:
                 c.execute("""INSERT INTO nodes(uuid,graph_id,name,labels,quote,source_id,source_hash,attributes)
                              VALUES(?,?,?,?,?,?,?,?)""",
                           (n["uuid"], gid, n["name"], json.dumps(n["labels"]), n["attributes"]["evidence"],
-                           source_id, _hash(n["attributes"]["evidence"]), json.dumps(n["attributes"],ensure_ascii=False)))
+                           n["attributes"]["source_id"], _hash(n["attributes"]["evidence"]), json.dumps(n["attributes"],ensure_ascii=False)))
             for e in edges:
                 c.execute("""INSERT INTO edges(uuid,graph_id,source_uuid,target_uuid,quote,source_id,attributes)
                              VALUES(?,?,?,?,?,?,?)""",
                           (e["uuid"], gid, e["source_node_uuid"], e["target_node_uuid"],
-                           e["attributes"]["evidence"], source_id,
+                           e["attributes"]["evidence"], e["attributes"]["source_id"],
                            json.dumps(e["attributes"], ensure_ascii=False)))
             c.commit()
         return {**self.read(gid, tenant=tenant, project_id=project_id), "reused": False}
