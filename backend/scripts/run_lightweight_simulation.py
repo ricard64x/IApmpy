@@ -246,11 +246,15 @@ def execute(config_path: Path, platform: str, max_rounds: int, request_fn=None):
     interaction_mode = saved_options.get("interaction_mode", "posts")
     if interaction_mode not in ("dialogue", "posts"):
         raise ValueError("Configuración de interacción inválida.")
+    if interaction_mode == "dialogue" and len(profiles) < 2:
+        raise ValueError("La simulación requiere al menos 2 participantes activos para generar interacción válida.")
 
     settings = cfg.get("time_config") or {}
     minutes_per_round = max(1, int(settings.get("minutes_per_round") or 30))
     total_minutes = max(1, int(settings.get("total_simulation_hours") or 72)) * 60
     rounds = max(1, min(10, int(max_rounds), total_minutes // minutes_per_round))
+    if interaction_mode == "dialogue" and rounds < 2:
+        raise ValueError("La conversación requiere al menos 2 rondas efectivas.")
     enabled = ["twitter", "reddit"] if platform == "parallel" else [platform]
     log_paths = {name: directory / name / "actions.jsonl" for name in enabled}
     for file in log_paths.values():
@@ -280,6 +284,8 @@ def execute(config_path: Path, platform: str, max_rounds: int, request_fn=None):
     # Keep a tiny bounded thread to avoid OASIS memory pressure.
     threads = {name: [] for name in enabled}
     conversations = 0
+    participated = set()
+    directed_pairs = set()
 
     assignments = [
         profiles[math.floor(i * len(profiles) / rounds):math.floor((i + 1) * len(profiles) / rounds)]
@@ -378,6 +384,8 @@ def execute(config_path: Path, platform: str, max_rounds: int, request_fn=None):
                             "root_post_id":source["root_post_id"]
                         })
                         conversations += 1
+                        directed_pairs.add((item["agent_id"], source["agent_id"]))
+                    participated.add(item["agent_id"])
                     _log(log_paths[name], {
                         "round":round_no,
                         "agent_id":item["agent_id"],
@@ -411,6 +419,84 @@ def execute(config_path: Path, platform: str, max_rounds: int, request_fn=None):
               f"RSS pico {peak} KiB", flush=True)
     if count != len(profiles):
         raise RuntimeError("No todos los perfiles tuvieron participación sintética.")
+    if interaction_mode == "dialogue" and conversations < 2:
+        # Recover genuine cross-agent replies from prepared, previously active
+        # profiles. Never invent identities or link across separate spaces.
+        # At most two extra LLM calls; each repair is a recorded synthetic action.
+        for name in enabled:
+            if conversations >= 2:
+                break
+            if len({post["agent_id"] for post in threads[name]}) < 2:
+                continue
+            while conversations < 2:
+                previous = list(threads[name])
+                source = previous[-1]
+                speaker = next((profile for profile in profiles
+                                if profile["agent_id"] != source["agent_id"]
+                                and profile["agent_id"] in {p["agent_id"] for p in previous}), None)
+                if speaker is None:
+                    break
+                if model_calls >= call_budget:
+                    raise RuntimeError("Presupuesto LLM insuficiente para validar la conversación; conservá el registro parcial.")
+                model_calls += 1
+                usage = {}
+                request_started = time.monotonic()
+                try:
+                    response = _request_actions([speaker], context=context,
+                                                round_no=rounds, platform=name,
+                                                request_fn=request_fn, memory=None,
+                                                request_metrics=usage,
+                                                previous_posts=previous,
+                                                targets={speaker["agent_id"]:source})
+                except Exception:
+                    _log(directory / "llm_usage_metrics.jsonl", {
+                        "status":"failed", "round":rounds, "platform":name,
+                        "quality_repair":True, "agent_count":1,
+                        "latency_ms":round((time.monotonic()-request_started)*1000,2),
+                        "model":usage.get("model"),
+                        "provider_attempts":usage.get("provider_attempts",0)})
+                    raise
+                _log(directory / "llm_usage_metrics.jsonl", {
+                    "status":"ok", "round":rounds, "platform":name,
+                    "quality_repair":True, "agent_count":1,
+                    "latency_ms":round((time.monotonic()-request_started)*1000,2),
+                    "model":usage.get("model"),
+                    "actual_prompt_tokens":usage.get("actual_prompt_tokens"),
+                    "actual_completion_tokens":usage.get("actual_completion_tokens"),
+                    "provider_attempts":usage.get("provider_attempts",0)})
+                speaker_id = speaker["agent_id"]
+                action_id = f"{name}:r{rounds}:repair{conversations+1}:a{speaker_id}"
+                content = response[speaker_id]
+                _log(log_paths[name], {
+                    "round":rounds, "agent_id":speaker_id, "agent_name":speaker["name"],
+                    "action_type":"CREATE_COMMENT",
+                    "action_args":{
+                        "content":content, "synthetic_action_id":action_id,
+                        "target_agent_id":source["agent_id"],
+                        "post_id":source["root_post_id"],
+                        "reply_to_action_id":source["action_id"],
+                        "root_post_id":source["root_post_id"]},
+                    "success":True, "quality_repair":True,
+                    "source_mode":"sintetico_gpt_dialogo"})
+                threads[name].append({
+                    "agent_id":speaker_id,"agent_name":speaker["name"],
+                    "content":content, "action_id":action_id,
+                    "root_post_id":source["root_post_id"]})
+                threads[name] = threads[name][-3:]
+                conversations += 1
+                directed_pairs.add((speaker_id,source["agent_id"]))
+                count += 1
+                platform_counts[name] += 1
+            _log(log_paths[name], {"event_type":"quality_repair_end",
+                                   "round":rounds,"replies_total":conversations})
+    if interaction_mode == "dialogue" and (
+        len(participated) < 2 or not directed_pairs or conversations < 2
+    ):
+        raise RuntimeError(
+            "Calidad conversacional insuficiente: se requieren 2 participantes, "
+            "1 par explícito y 2 respuestas dirigidas. El registro se conserva "
+            "para diagnóstico, sin marcar la simulación como válida."
+        )
     for name in enabled:
         _log(log_paths[name], {"event_type":"simulation_end", "platform":name,
                                "total_rounds":rounds,
