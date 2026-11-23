@@ -47,6 +47,7 @@ let sequence = 0
 
 watch(() => props.projectId, () => {
   sequence += 1
+  loading.value = false
   searched.value = false
   results.value = []
   error.value = ''
