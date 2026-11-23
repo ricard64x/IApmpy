@@ -128,3 +128,56 @@ def native_metrics(actions):
         "round_num":a.get("phase"),"timestamp":a.get("created_at"),
         "platform":"getangiru"
     } for a in actions),source="getangiru")
+
+def followup_metrics(path, simulation_id):
+    """Aggregate private post-report synthetic chat/survey records separately."""
+    counts=Counter()
+    dates=Counter()
+    actors={}
+    scanned=0
+    partial=False
+    questions=[]
+    path=Path(path)
+    if not path.is_file():
+        return {"available":False,"chat_turns":0,"surveys":0,
+                "survey_answers":0,"participant_turns":0,
+                "participants":[],"by_day":[],"questions":[],"partial":False}
+    with path.open(encoding="utf-8",errors="replace") as handle:
+        for line in handle:
+            if scanned>=MAX_EVENTS:
+                partial=True
+                break
+            scanned+=1
+            if len(line)>16000:continue
+            try:record=json.loads(line)
+            except (TypeError,ValueError):continue
+            if not isinstance(record,dict) or record.get("simulation_id")!=simulation_id:
+                continue
+            day,_=_day_and_hour(record.get("created_at"))
+            if day:dates[day]+=1
+            kind=record.get("kind")
+            if kind=="survey":
+                counts["surveys"]+=1
+                results=record.get("results")
+                for r in (results if isinstance(results,list) else []):
+                    if not isinstance(r,dict) or not isinstance(r.get("answer"),str) or not r["answer"].strip():continue
+                    key=str(r.get("agent_id"))[:80]
+                    item=actors.setdefault(key,{"id":key,"name":_safe_text(r.get("agent_name") or key),"responses":0})
+                    item["responses"]+=1
+                    counts["survey_answers"]+=1
+            elif kind=="chat":
+                counts["chat_turns"]+=1
+                if record.get("target")=="participant" and record.get("agent_id") is not None:
+                    key=str(record.get("agent_id"))[:80]
+                    item=actors.setdefault(key,{"id":key,"name":"Participante "+key,"responses":0})
+                    item["responses"]+=1
+                    counts["participant_turns"]+=1
+            if isinstance(record.get("question"),str) and len(questions)<30:
+                questions.append({"date":day,"kind":str(kind or "")[:20],
+                                  "question":_safe_text(record["question"],180)})
+    return {"available":True,"chat_turns":counts["chat_turns"],
+            "surveys":counts["surveys"],"survey_answers":counts["survey_answers"],
+            "participant_turns":counts["participant_turns"],
+            "participants":sorted(actors.values(),key=lambda x:-x["responses"])[:100],
+            "by_day":[{"date":k,"count":n} for k,n in sorted(dates.items())],
+            "questions":questions,"partial":partial}
