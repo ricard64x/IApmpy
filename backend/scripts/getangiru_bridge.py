@@ -15,6 +15,7 @@ import json
 import os
 import re
 import sqlite3
+from contextlib import closing
 import time
 import unicodedata
 from pathlib import Path
@@ -148,7 +149,7 @@ def _local_mirror_search(path, project_id, query, *, limit=4):
     if not terms:
         return []
     uri = "file:" + urllib.parse.quote(str(db.resolve())) + "?mode=ro"
-    with sqlite3.connect(uri, uri=True, timeout=1.0) as conn:
+    with closing(sqlite3.connect(uri, uri=True, timeout=1.0)) as conn:
         rows = conn.execute(
             """SELECT episode_id, source_id, content FROM received
                WHERE project_id=? ORDER BY inserted_at DESC,episode_id DESC LIMIT 256""",
