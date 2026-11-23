@@ -77,8 +77,16 @@ def get_simulation_efficiency(simulation_id: str):
         (_tail_jsonl(root / p / "actions.jsonl") for p in ("twitter", "reddit")), []
     )
     observations = [x for x in actions
-                    if x.get("action_type") == "CREATE_POST"
-                    and x.get("source_mode") == "sintetico_gpt_liviano"]
+                    if x.get("action_type") in ("CREATE_POST", "CREATE_COMMENT")
+                    and x.get("source_mode") in ("sintetico_gpt_liviano", "sintetico_gpt_dialogo")]
+    responses = [x for x in observations if x.get("action_type") == "CREATE_COMMENT"
+                 and isinstance(x.get("action_args"), dict)
+                 and type(x["action_args"].get("target_agent_id")) is int]
+    directed_pairs = set()
+    for item in responses:
+        if type(item.get("agent_id")) is int and item["agent_id"] != item["action_args"]["target_agent_id"]:
+            directed_pairs.add((item["agent_id"], item["action_args"]["target_agent_id"]))
+
     unique_ids = set()
     seen_text = set()
     repeated = 0
@@ -174,6 +182,11 @@ def get_simulation_efficiency(simulation_id: str):
             "profile_coverage_percent": round(100 * valid_profiles_with_actions / profile_count, 2)
             if profile_count else None,
             "synthetic_actions": len(observations),
+            "synthetic_conversation_replies": len(responses),
+            "recorded_interaction_pairs": len(directed_pairs),
+            "discussion_mode": "dialogue" if any(x.get("source_mode") == "sintetico_gpt_dialogo"
+                                           for x in observations) else "posts",
+
             "duplicated_text_actions": repeated,
             "duplicated_text_percent": round(100 * repeated / len(observations), 2)
             if observations else None,
