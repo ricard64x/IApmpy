@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import sqlite3
 import threading
@@ -94,7 +95,8 @@ def _digest(value: str) -> str:
 class NativeSimStore:
     def __init__(self, path: str | Path):
         self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.chmod(self.path.parent,0o700)
         self._mutex = threading.RLock()
         self._setup()
 
@@ -139,6 +141,12 @@ class NativeSimStore:
                 CREATE INDEX IF NOT EXISTS idx_feedback_project ON feedback(project_id,created_at);
             """)
             c.commit()
+        # This database stores simulated decisions and original evidence quotes.
+        os.chmod(self.path,0o600)
+        for suffix in ("-wal","-shm"):
+            side=Path(str(self.path)+suffix)
+            if side.exists():
+                os.chmod(side,0o600)
 
     def create(self, *, project_id: str, graph_id: str, mode: str, source_hash: str) -> dict:
         if not GRAPH_RE.fullmatch(graph_id) or mode not in ("rules", "hybrid"):
