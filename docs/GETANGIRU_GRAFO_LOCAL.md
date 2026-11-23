@@ -43,3 +43,20 @@ Para desactivar, cambiar GETANGIRU_GRAPH_LOCAL_ENABLED=false y reiniciar la API.
 ## Limitaciones y siguiente integración
 
 Los agentes OASIS, los lectores Zep y el motor de reportes mantienen dependencias de Zep. Para simulaciones integrales se requiere adaptar sus consultas, perfilado y actualización de memoria al contrato Getangiru, y disponer de un canal privado estable entre los dos Sprites. No procesar datos regulados por Quick Tunnel efímero. La implementación actual habilita construcción, consulta y visualización de grafos, no equivalencia funcional absoluta con Zep Cloud.
+
+
+## Integración real con las memorias Getangiru (piloto validado)
+
+El backend de Tenonderã lee únicamente episodios recibidos y autenticados previamente por su webhook HMAC, desde el espejo local SQLite y filtrando project_id exacto. Limita la muestra a los 32 episodios más recientes y 4.000 caracteres por episodio; las fuentes se ordenan de manera determinística. El motor combina el texto original del proyecto con las memorias para reconstruir el grafo solo si cambia la huella del contenido. Cada nodo o arista registra su source_id exacto, incluido memory:{episode_uuid}, y mantiene asserted_fact=false. Las memorias de otros proyectos no son consultadas.
+
+Ensayo HTTP firmado, sin datos de clientes: POST ingest = 201, repetición de nonce = 409, actualización de grafo = 200, una memoria adicional incorporada (aristas 15 a 16) con fuente verificable. Al borrar únicamente el episodio de prueba y reconstruir, las aristas retornaron a 15. No quedaron episodios sintéticos nuevos ni se modificaron las memorias de otros proyectos. El usuario puede pulsar Actualizar grafo con memorias Getangiru cuando llegan nuevas fuentes.
+
+## Mediciones sintéticas (sin IA externa durante la construcción)
+
+- Primera construcción del grafo: 5,06 ms sobre un expediente sintético con 8 actores.
+- Reconstrucción sin cambios: p95 de 2,23 ms (19 mediciones).
+- Lectura HTTP autenticada: p95 de 5,62 ms (60 mediciones).
+- 9 pruebas unitarias del motor, 8 pruebas de UI y pruebas HTTP de ciclo de vida: construir, leer, resetear, reconstruir y eliminar.
+- Se usan dos almacenes SQLite separados por Sprite; compartir código no significa disponer de replicación persistente entre entornos.
+
+Estas mediciones no son extrapolables a miles de documentos ni representan una comparativa controlada contra Zep Cloud.
