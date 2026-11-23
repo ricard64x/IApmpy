@@ -317,6 +317,71 @@ def render_pdf(markdown,metrics,opts,report_id):
             page.insert_text((pw-margin-31,y),str(r.get("count",0)),fontsize=8,color=(.1,.3,.5))
             y+=19
         separator()
+    def donut(title,rows):
+        """Vector pie with legend, drawn entirely inside the PDF."""
+        nonlocal y
+        rows=[r for r in rows if int(r.get("count",0))>0][:7]
+        line(title,13,True)
+        if not rows:
+            line("Sin categorias registradas.",9);separator();return
+        ensure(205)
+        center=fitz.Point(margin+92,y+91);radius=65
+        total=sum(int(r["count"]) for r in rows)
+        angle=-math.pi/2
+        for i,row in enumerate(rows):
+            sweep=2*math.pi*int(row["count"])/total
+            p=[center]
+            parts=max(4,math.ceil(sweep/(math.pi/24)))
+            for j in range(parts+1):
+                theta=angle+sweep*j/parts
+                p.append(fitz.Point(center.x+radius*math.cos(theta),
+                                    center.y+radius*math.sin(theta)))
+            rgb=tuple(int(PALETTE[i%len(PALETTE)][k:k+2],16)/255 for k in (1,3,5))
+            page.draw_polyline(p,color=(1,1,1),fill=rgb,closePath=True,width=.7)
+            label=str(row.get("type",row.get("platform","Otro")))[:28]
+            page.draw_rect(fitz.Rect(margin+190,y+12+i*22,margin+201,y+23+i*22),
+                           color=None,fill=rgb)
+            page.insert_text((margin+211,y+22+i*22),
+                             re.sub(r"[^\x20-\x7e]"," ",label)[:27]+f" {100*int(row['count'])/total:.0f}%",
+                             fontsize=9,color=(.12,.28,.44))
+            angle+=sweep
+        # White center transforms the native pie into a donut.
+        page.draw_circle(center,radius*0.55,color=None,fill=(1,1,1))
+        page.insert_text((center.x-15,center.y+5),str(total),fontsize=18,fontname="hebo",color=(.08,.23,.39))
+        y+=195
+        separator()
+
+    def graph(edges):
+        """Draw a network only when recorded actor-to-actor edges exist."""
+        nonlocal y
+        line("Red de interacciones registradas",13,True)
+        edges=edges[:25]
+        if not edges:
+            line("No hay destinatarios explicitos: no se dibujan vinculos supuestos.",9)
+            separator()
+            return
+        nodes=sorted(set(str(e.get(k,"")) for e in edges for k in ("from","to")))[:12]
+        if not nodes:
+            separator();return
+        ensure(250)
+        cx=pw/2;cy=y+112
+        r=88
+        coords={name:fitz.Point(cx+r*math.cos(2*math.pi*i/len(nodes)),
+                                cy+r*math.sin(2*math.pi*i/len(nodes))) for i,name in enumerate(nodes)}
+        for edge in edges:
+            a,b=str(edge.get("from","")),str(edge.get("to",""))
+            if a in coords and b in coords:
+                page.draw_line(coords[a],coords[b],color=(.61,.74,.83),
+                               width=min(4,1+int(edge.get("count",1))))
+        for i,name in enumerate(nodes):
+            center=coords[name]
+            rgb=tuple(int(PALETTE[i%len(PALETTE)][k:k+2],16)/255 for k in (1,3,5))
+            page.draw_circle(center,12,color=None,fill=rgb)
+            label=re.sub(r"[^\x20-\x7e]"," ",name)[:13]
+            page.insert_text((center.x-23,center.y+23),label,fontsize=7,color=(.1,.3,.45))
+        y+=238
+        separator()
+
     line(opts["title"],19,True);line("SIMULACION SINTETICA - NO REPRESENTA PERSONAS REALES",9)
     if opts["notes"]:line("Enfoque: "+opts["notes"],10)
     separator()
@@ -331,21 +396,16 @@ def render_pdf(markdown,metrics,opts,report_id):
             ("rounds","Acciones por ronda",metrics.get("by_round",[]),"round"),
             ("days","Actividad por fecha de ejecucion",metrics.get("by_day",[]),"date"),
             ("hours","Acciones por hora de ejecucion",metrics.get("by_hour",[]),"hour"),
-            ("types","Tipo de accion (distribucion)",metrics.get("by_type",[]),"type"),
-            ("platforms","Actividad por plataforma",metrics.get("by_platform",[]),"platform"),
+
             ("followups","Actividad de chats posteriores",(metrics.get("followups") or {}).get("by_day",[]),"date"),
         ):
             if name in selected:bars(title,rows,key)
+        if "types" in selected:donut("Tipos de accion (grafico circular)",metrics.get("by_type",[]))
+        if "platforms" in selected:donut("Distribucion por plataforma",metrics.get("by_platform",[]))
         if "actors" in selected:
             rows=[{"name":r["name"],"count":r["actions"]} for r in metrics.get("participants",[])[:opts["top"]]]
             bars("Participantes mas activos",rows,"name",opts["top"])
-        if "network" in selected:
-            edges=metrics.get("interactions",[])[:15]
-            line("Red de interaccion: relaciones explicitas",13,True)
-            if edges:
-                for e in edges:line(f"{e['from']} -> {e['to']}: {e['count']}",9)
-            else:line("Sin destinatarios registrados: no se inventan relaciones",9)
-            separator()
+        if "network" in selected:graph(metrics.get("interactions",[]))
     if "participants" in opts["sections"]:
         line("Detalle de agentes registrados",13,True)
         for row in metrics.get("participants",[])[:opts["top"]]:
