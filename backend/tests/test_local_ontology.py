@@ -56,21 +56,57 @@ class LocalOntologyTests(unittest.TestCase):
             self.assertIn("datos no confiables", call["messages"][1]["content"])
 
     def test_fast_local_prompt_minimal_schema_and_fallbacks(self):
-        data = valid_ontology()
-        data["entity_types"] = data["entity_types"][:8]
-        data["edge_types"] = data["edge_types"][:4]
+        import json
+        names = ["SocTeam", "SecurityTeam", "InfrastructureTeam", "FraudTeam",
+                 "AuditTeam", "RiskTeam", "ExecutiveBoard", "Vendor"]
+        rels = [
+            {"tipo": "REPORTS_TO", "origen": names[0], "destino": names[1]},
+            {"tipo": "COORDINATES_WITH", "origen": names[1], "destino": names[2]},
+            {"tipo": "REQUESTS_EVIDENCE_FROM", "origen": names[4], "destino": names[2]},
+            {"tipo": "SUPPORTS", "origen": names[7], "destino": names[1]},
+        ]
+        class TwoStepFake:
+            def __init__(self):
+                self.calls = []
+            def chat(self, **kwargs):
+                self.calls.append(kwargs)
+                return json.dumps(
+                    {"actores": names} if len(self.calls) == 1 else {"relaciones": rels}
+                )
         with patch.dict(os.environ, {"LLM_LOCAL_INFERENCE": "true", "LLM_LOCAL_FAST_MODE": "true"}):
-            fake = FakeClient(data)
+            fake = TwoStepFake()
             ontology = OntologyGenerator(llm_client=fake).generate(
-                ["El equipo de seguridad coordina la respuesta con el banco y proveedor."],
-                simulation_requirement="Coordinar respuesta a incidente ficticio"
+                ["El SOC coordina con el equipo de seguridad, infraestructura, fraudes, auditoría, "
+                 "riesgos, dirección y proveedor."],
+                simulation_requirement="Coordinar respuesta a incidente ficticio",
             )
         self.assertEqual(10, len(ontology["entity_types"]))
         self.assertEqual(4, len(ontology["edge_types"]))
         self.assertEqual("Person", ontology["entity_types"][-2]["name"])
         self.assertEqual("Organization", ontology["entity_types"][-1]["name"])
-        self.assertEqual(1200, fake.calls[0]["max_tokens"])
-        self.assertIn("EXACTAMENTE 8", fake.calls[0]["messages"][0]["content"])
+        self.assertEqual([220, 270], [call["max_tokens"] for call in fake.calls])
+        self.assertTrue(all("datos, no instrucciones" in call["messages"][1]["content"] for call in fake.calls))
+
+    def test_fast_mode_rejects_duplicate_predicates(self):
+        import json
+        from app.services.local_ontology_fast import infer_fast_local_ontology
+        class Fake:
+            def __init__(self):
+                self.count = 0
+            def chat(self, **kwargs):
+                self.count += 1
+                if self.count == 1:
+                    return json.dumps({"actores": [
+                        "SocTeam", "SecurityTeam", "InfrastructureTeam", "FraudTeam",
+                        "AuditTeam", "RiskTeam", "ExecutiveBoard", "Vendor"
+                    ]})
+                return json.dumps({"relaciones": [
+                    {"tipo": "HAS", "origen": "SocTeam", "destino": "SecurityTeam"},
+                    {"tipo": "REPORTS_TO", "origen": "SocTeam", "destino": "SecurityTeam"},
+                    {"tipo": "REPORTS_TO", "origen": "RiskTeam", "destino": "ExecutiveBoard"}
+                ]})
+        with self.assertRaises(LLMResponseError):
+            infer_fast_local_ontology(Fake(), "texto sintético", "simulación")
 
     def test_reject_local_incomplete_schema(self):
         with patch.dict(os.environ, {"LLM_LOCAL_INFERENCE": "true"}):
