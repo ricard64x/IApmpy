@@ -1,5 +1,5 @@
 <template>
-  <section class="character-network" aria-label="Grafo de conversaciones del escenario">
+  <section class="character-network" :class="{ 'detail-open': !!selected }" aria-label="Grafo de conversaciones del escenario">
     <div class="network-bar">
       <div>
         <strong>Quién conversó con quién</strong>
@@ -207,6 +207,8 @@ onUnmounted(()=>{observer?.disconnect();simulation?.stop()})
 
 <style scoped>
 .character-network{position:absolute;inset:0;display:flex;flex-direction:column;background:#f8fbfd;overflow:hidden;font-family:system-ui,sans-serif}
+/* Lift the character detail above the parent GraphPanel header only while open. */
+.character-network.detail-open{z-index:45}
 .network-bar{z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 17px 8px;background:#fff;border-bottom:1px solid #e2ebf1}
 .network-bar strong{display:block;font-size:14px;color:#184b68}.network-bar small{display:block;margin:3px 0;color:#6b8496;font-size:10px;line-height:1.5}
 .reload{border:1px solid #d1e2eb;background:#f2f8fb;color:#125d80;border-radius:9px;font-size:18px;min-width:40px;min-height:40px}
