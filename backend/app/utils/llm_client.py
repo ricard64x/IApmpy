@@ -139,7 +139,7 @@ class LLMClient:
             from .public_context import context_for_local_qwen
             research = context_for_local_qwen(messages)
             if research:
-                messages = [*messages, {"role": "system", "content": research}]
+                messages = [{"role": "system", "content": research}, *messages]
         return create_chat_completion(
             self.client,
             model=self.model,
