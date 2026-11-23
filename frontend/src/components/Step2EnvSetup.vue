@@ -491,7 +491,11 @@
                   <small>Preserva el funcionamiento anterior, sin respuestas enlazadas.</small></span>
               </label>
             </div>
-            <p v-if="engineMode==='lightweight' && interactionMode==='dialogue' && (configuredProfileCount < 2 || customMaxRounds < 2)"
+            <p v-if="configuredProfileCount < 2" class="preference-error" role="alert">
+              Tenonderã requiere al menos 2 participantes preparados tanto en el motor completo como en el eficiente.
+              Perfiles detectados: {{ configuredProfileCount }}.
+            </p>
+            <p v-if="engineMode==='lightweight' && interactionMode==='dialogue' && customMaxRounds < 2"
               class="preference-error" role="alert">
               Una simulación conversacional válida requiere al menos 2 perfiles preparados y 2 rondas.
               Perfiles detectados: {{ configuredProfileCount }} · Rondas: {{ customMaxRounds }}.
@@ -778,11 +782,11 @@ const handleStartSimulation = async () => {
     settingError.value = t('step2.roundsValidation')
     return
   }
+  if (configuredProfileCount.value < 2) {
+    settingError.value = 'La simulación requiere al menos 2 participantes activos para generar interacción válida.'
+    return
+  }
   if (engineMode.value === 'lightweight' && interactionMode.value === 'dialogue') {
-    if (configuredProfileCount.value < 2) {
-      settingError.value = 'La simulación requiere al menos 2 participantes activos para generar interacción válida.'
-      return
-    }
     if (rounds < 2) {
       settingError.value = 'La conversación requiere al menos 2 rondas.'
       return
