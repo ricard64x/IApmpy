@@ -108,6 +108,19 @@ class LocalOntologyTests(unittest.TestCase):
         with self.assertRaises(LLMResponseError):
             infer_fast_local_ontology(Fake(), "texto sintético", "simulación")
 
+    def test_salvage_only_fully_closed_first_relation_block(self):
+        import json
+        from app.services.local_ontology_fast import _decode
+        valid = {"relaciones": [
+            {"tipo": name, "origen": "SecurityTeam", "destino": "RiskTeam"}
+            for name in ("REPORTS_TO", "COORDINATES_WITH", "SUPPORTS", "AUDITS")
+        ]}
+        partial = "[\\n" + json.dumps(valid) + ", {\\n  \\"relaciones\\": ["
+        rows = _decode(partial, "relaciones")
+        self.assertEqual(4, len(rows))
+        with self.assertRaises(LLMResponseError):
+            _decode("[{\\\"relaciones\\\":[{\\\"tipo\\\":\\\"AUDITS\\\"}", "relaciones")
+
     def test_reject_local_incomplete_schema(self):
         with patch.dict(os.environ, {"LLM_LOCAL_INFERENCE": "true"}):
             fake = FakeClient({"entity_types": [{"name": "Company"}], "edge_types": []})
