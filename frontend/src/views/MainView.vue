@@ -199,7 +199,11 @@ const loading = ref(false)
 const graphLoading = ref(false)
 const ontologyJob = ref(null)
 const retryOntologyBusy = ref(false)
-const sessionStorageReceiptAvailable = computed(() => !!sessionStorage.getItem('tenondera-pending-upload-key'))
+const storedReceiptKey = () => {
+  try { return sessionStorage.getItem('tenondera-pending-upload-key') || '' }
+  catch (_error) { return '' }
+}
+const sessionStorageReceiptAvailable = computed(() => !!storedReceiptKey())
 let ontologyPollTimer = null
 const error = ref('')
 const projectData = ref(null)
@@ -334,7 +338,7 @@ const initProject = async () => {
     // Non-critical: project status still comes from durable storage.
   }
   if (currentProjectId.value === 'new') {
-    const previousKey = sessionStorage.getItem('tenondera-pending-upload-key')
+    const previousKey = storedReceiptKey()
     if (!previousKey || !(await recoverAcceptedUpload(previousKey))) {
       await handleNewProject()
     }
@@ -423,7 +427,7 @@ const recoverAcceptedUpload = async (key) => {
   }
 }
 const checkPreviousUpload = async () => {
-  const key = sessionStorage.getItem('tenondera-pending-upload-key')
+  const key = storedReceiptKey()
   if (!key || !(await recoverAcceptedUpload(key))) {
     error.value='Todavía no se confirmó el envío. Si conservás los archivos seleccionados, podés intentar nuevamente.'
   }
