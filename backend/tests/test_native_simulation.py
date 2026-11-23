@@ -42,6 +42,11 @@ class LocalSimulationTests(unittest.TestCase):
                              graph_id=self.graph["graph_id"], mode=mode,
                              source_hash="sample")
 
+    def test_private_simulation_store_permissions(self):
+        import stat
+        self.assertEqual(0o600, stat.S_IMODE(self.s.path.stat().st_mode))
+        self.assertEqual(0o700, stat.S_IMODE(self.s.path.parent.stat().st_mode))
+
     def test_full_four_phase_workflow_is_durable_and_auditable(self):
         row=self.create()
         self.s.execute(row["id"],self.graph,"Simulación ficticia de accesos")
