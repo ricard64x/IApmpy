@@ -45,8 +45,25 @@ def _decode(value: str, field: str) -> list[Any]:
     try:
         obj = json.loads(value)
     except (TypeError, ValueError) as exc:
+        # Small CPU models sometimes produce a complete first response object
+        # followed by a truncated duplicate array. Recover *only* a complete
+        # first JSON object with the requested relation list; never infer or
+        # repair missing braces, source actors or relationship fields.
+        if field == "relaciones" and value.lstrip().startswith("["):
+            fragment = value.lstrip()[1:].lstrip()
+            try:
+                first, _ = json.JSONDecoder().raw_decode(fragment)
+                if (isinstance(first, dict)
+                        and isinstance(first.get("relaciones"), list)
+                        and 4 <= len(first["relaciones"]) <= 12):
+                    return first["relaciones"]
+            except (ValueError, TypeError):
+                pass
         raise LLMResponseError("El modelo local devolvió JSON inválido.") from exc
     if isinstance(obj, list) and field == "relaciones":
+        # Some models wrap one full relationship-object in an array.
+        if obj and isinstance(obj[0], dict) and isinstance(obj[0].get("relaciones"), list):
+            return obj[0]["relaciones"]
         return obj
     if not isinstance(obj, dict) or not isinstance(obj.get(field), list):
         raise LLMResponseError("El modelo local devolvió una estructura incompleta.")
