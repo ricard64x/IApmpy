@@ -1,0 +1,42 @@
+name: One-time mobile UX production release
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/dispatch-tenondera-mobile-once.yml
+permissions:
+  contents: read
+  actions: write
+jobs:
+  request-protected-release:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      github.event.head_commit.message == 'chore: request tested Tenondera mobile UX release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Verify only tested changes plus dispatcher
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TARGET: ${{ github.sha }}
+          MERGED: 6f96e37c7c5891c70d3112c73b5198ba21ee9c6b
+          TESTED: 31fd422326393927e584d287f450abdeffae29af
+        shell: bash
+        run: |
+          set -euo pipefail
+          only_dispatcher="$(gh api "repos/$REPO/compare/$MERGED...$TARGET" --jq '(.ahead_by == 1) and ((.files | length) == 1) and (.files[0].filename == ".github/workflows/dispatch-tenondera-mobile-once.yml")')"
+          test "$only_dispatcher" = "true"
+          ci="$(gh api "repos/$REPO/actions/runs?head_sha=$TESTED&per_page=30" --jq '.workflow_runs | map(select(.name == "Verify IApmpy Fly deployment" and .event == "pull_request")) | .[0].conclusion // "missing"')"
+          test "$ci" = "success"
+          main="$(gh api "repos/$REPO/branches/main" --jq '.commit.sha')"
+          test "$main" = "$TARGET"
+      - name: Dispatch existing environment-protected Fly.io deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api -X POST "repos/$REPO/actions/workflows/deploy-fly.yml/dispatches" -f ref=main
+          echo "Requested protected deployment, without bypassing environment policy."
