@@ -7,11 +7,29 @@ import os
 import json
 import uuid
 import shutil
+import re
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from enum import Enum
 from dataclasses import dataclass, field, asdict
 from ..config import Config
+
+
+def project_display_name(name=None, requirement=None, files=None, project_id=None):
+    """Stable display name for historical and newly created records."""
+    raw = str(name or "").strip()
+    if raw and raw.lower() not in ("unnamed project", "proyecto sin título", "untitled project"):
+        return raw[:100]
+    context = str(requirement or "").strip().splitlines()[0].strip()
+    context = re.sub(r"\\s+", " ", context).strip(" .:;-")
+    if len(context) >= 8:
+        return context[:72] + ("…" if len(context) > 72 else "")
+    for file in files or []:
+        filename = os.path.basename(str(file.get("filename", "") or file.get("original_filename", "")))
+        label = os.path.splitext(filename)[0].replace("_", " ").strip()
+        if label:
+            return label[:72]
+    return "Simulación " + (str(project_id)[-8:] if project_id else datetime.now().strftime("%Y%m%d-%H%M"))
 
 
 class ProjectStatus(str, Enum):
@@ -60,7 +78,7 @@ class Project:
         """转换为字典"""
         return {
             "project_id": self.project_id,
-            "name": self.name,
+            "name": project_display_name(self.name, self.simulation_requirement, self.files, self.project_id),
             "status": self.status.value if isinstance(self.status, ProjectStatus) else self.status,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
@@ -88,7 +106,7 @@ class Project:
         
         return cls(
             project_id=data['project_id'],
-            name=data.get('name', 'Unnamed Project'),
+            name=project_display_name(data.get('name'), data.get('simulation_requirement'), data.get('files'), data.get('project_id')),
             status=status,
             created_at=data.get('created_at', ''),
             updated_at=data.get('updated_at', ''),
@@ -140,7 +158,7 @@ class ProjectManager:
         return os.path.join(cls._get_project_dir(project_id), 'extracted_text.txt')
     
     @classmethod
-    def create_project(cls, name: str = "Unnamed Project") -> Project:
+    def create_project(cls, name: str = "") -> Project:
         """
         创建新项目
         
@@ -157,7 +175,7 @@ class ProjectManager:
         
         project = Project(
             project_id=project_id,
-            name=name,
+            name=project_display_name(name, project_id=project_id),
             status=ProjectStatus.CREATED,
             created_at=now,
             updated_at=now
