@@ -587,6 +587,8 @@ def _build_getangiru_local():
         return jsonify({"success": False, "error": "Ya existe una tarea de grafo activa"}), 409
     if project.graph_id and not project.graph_id.startswith("gtg_"):
         return jsonify({"success": False, "error": "Proyecto conectado a otro motor; migración manual requerida"}), 409
+    if project.graph_id and _active_graph_consumers(project.graph_id):
+        return jsonify({"success": False, "error": "El grafo tiene consumidores activos; no puede reconstruirse"}), 409
 
     source = ProjectManager.get_extracted_text(project_id)
     if not source:
