@@ -1,6 +1,19 @@
 <template>
   <div class="env-setup-panel">
     <div class="scroll-container">
+      <section class="setup-orientation" aria-label="Guía para preparar la simulación">
+        <div><span class="setup-eyebrow">PASO 3 DE 5 · PARTICIPANTES Y CONVERSACIONES</span>
+          <h3>{{phase>=4?'Tu escenario está preparado':'Estamos preparando los personajes y el escenario'}}</h3>
+          <p v-if="phase>=4">Ahora elegí <strong>cuántos participantes</strong>, <strong>dónde van a conversar</strong> y <strong>cuántas rondas</strong>. Después podrás iniciar la ejecución.</p>
+          <p v-else>Tenonderã analiza el contexto y organiza los personajes. La cantidad y los espacios de conversación se seleccionan al finalizar esta preparación.</p>
+          <p v-if="isLocked" class="orientation-alert">Esta versión ya fue iniciada. Para cambiar sus opciones, creá una nueva versión editable sin borrar la original.</p>
+        </div>
+        <div class="orientation-actions">
+          <button v-if="phase>=4" type="button" class="orientation-primary" @click="scrollToExecution">Ir a configurar participantes ↓</button>
+          <button v-if="phase>=4" type="button" class="orientation-secondary" :aria-expanded="showPreparationDetails" @click="showPreparationDetails=!showPreparationDetails">{{showPreparationDetails?'Ocultar':'Ver'}} preparación técnica</button>
+        </div>
+      </section>
+      <div v-if="phase < 4 || showPreparationDetails" class="preparation-trace">
       <!-- Step 01: 模拟实例 -->
       <div class="step-card" :class="{ 'active': phase === 0, 'completed': phase > 0 }">
         <div class="card-header">
@@ -15,7 +28,7 @@
         </div>
         
         <div class="card-content">
-          <p class="api-note">POST /api/simulation/create</p>
+          <p v-if="showTechnicalLogs" class="api-note">POST /api/simulation/create</p>
           <p class="description">
             {{ $t('step2.simInstanceDesc') }}
           </p>
@@ -56,7 +69,7 @@
         </div>
 
         <div class="card-content">
-          <p class="api-note">POST /api/simulation/prepare</p>
+          <p v-if="showTechnicalLogs" class="api-note">POST /api/simulation/prepare</p>
           <p class="description">
             {{ $t('step2.generateAgentPersonaDesc') }}
           </p>
@@ -128,7 +141,7 @@
         </div>
 
         <div class="card-content">
-          <p class="api-note">POST /api/simulation/prepare</p>
+          <p v-if="showTechnicalLogs" class="api-note">POST /api/simulation/prepare</p>
           <p class="description">
             {{ $t('step2.dualPlatformConfigDesc') }}
           </p>
@@ -361,7 +374,7 @@
         </div>
 
         <div class="card-content">
-          <p class="api-note">POST /api/simulation/prepare</p>
+          <p v-if="showTechnicalLogs" class="api-note">POST /api/simulation/prepare</p>
           <p class="description">
             {{ $t('step2.initialActivationDesc') }}
           </p>
@@ -418,8 +431,9 @@
         </div>
       </div>
 
-      <!-- Step 05: 准备完成 -->
-      <div class="step-card" :class="{ 'active': phase === 4 }">
+      </div>
+      <!-- Configuración que el usuario realmente necesita al terminar la preparación -->
+      <div ref="executionSection" class="step-card" :class="{ 'active': phase === 4 }">
         <div class="card-header">
           <div class="step-info">
             <span class="step-num">05</span>
@@ -432,7 +446,7 @@
         </div>
 
         <div class="card-content">
-          <p class="api-note">POST /api/simulation/start</p>
+          <p v-if="showTechnicalLogs" class="api-note">POST /api/simulation/start</p>
           <p class="description">{{ $t('step2.setupCompleteDesc') }}</p>
           
           <!-- Control the *real* OASIS interaction environments. -->
@@ -755,6 +769,9 @@ const emit = defineEmits(['go-back', 'next-step', 'add-log', 'update-status'])
 
 // State
 const showTechnicalLogs = ref(false)
+const showPreparationDetails = ref(false)
+const executionSection = ref(null)
+const scrollToExecution = () => executionSection.value?.scrollIntoView({behavior:'smooth',block:'start'})
 const phase = ref(0) // 0: 初始化, 1: 生成人设, 2: 生成配置, 3: 完成
 const taskId = ref(null)
 const prepareProgress = ref(0)
@@ -2922,6 +2939,19 @@ onUnmounted(() => {
 .depth-presets button strong{color:#1b536e;font-size:12px}
 .depth-presets button small{color:#6a8190;font-size:10px;line-height:1.5}
 @media(max-width:720px){.depth-presets{grid-template-columns:1fr}.space-choices{grid-template-columns:1fr}}
+
+.setup-orientation{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:15px;margin:0 0 19px;border:1px solid #b8e0e9;border-radius:15px;background:linear-gradient(125deg,#effafc,#fff);padding:clamp(15px,2vw,22px)}
+.setup-orientation>div:first-child{flex:1;min-width:210px}
+.setup-eyebrow{display:block;font:850 10px/1.4 system-ui,sans-serif;letter-spacing:.11em;color:#087d9c}
+.setup-orientation h3{margin:6px 0 6px;font-size:clamp(16px,2vw,20px);letter-spacing:-.025em;color:#174963}
+.setup-orientation p{margin:0;color:#58798c;font-size:12px;line-height:1.7}
+.setup-orientation .orientation-alert{color:#955922;margin-top:9px;padding:8px;border-radius:8px;background:#fff5e9}
+.orientation-actions{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+.orientation-actions button{min-height:41px;padding:8px 11px;border-radius:10px;cursor:pointer;font-weight:800;font-size:11px}
+.orientation-primary{border:1px solid #107599;background:#0e7195;color:white}
+.orientation-secondary{border:1px solid #bcd7e3;color:#19627d;background:white}
+.preparation-trace{display:grid;gap:0}
+@media(max-width:700px){.setup-orientation{display:block}.orientation-actions{display:grid;margin-top:13px}.orientation-actions button{width:100%}}
 </style>
 
 <style scoped>
