@@ -726,7 +726,8 @@ const isLocked = ref(false)
 const maxParticipants = computed(() => engineMode.value === 'lightweight'
   ? 120 : Math.min(12, detectedParticipants.value))
 watch(configuredProfileCount, count => {
-  if (count > 0 && !userCountInitialized.value) {
+  // Do not lock the default to 2 while the first profile is still streaming.
+  if (count > 0 && phase.value >= 4 && !userCountInitialized.value) {
     desiredParticipants.value = Math.max(2, Math.min(count, maxParticipants.value || 120))
     userCountInitialized.value = true
   }
