@@ -907,6 +907,14 @@ def export_persisted_report(report_id: str):
         if report.status != ReportStatus.COMPLETED:
             return jsonify({"success": False, "error": "El informe todavía no terminó."}), 409
         fmt = request.args.get('format', 'md').lower()
+        # New renderers are non-destructive. Old md/json/txt exports remain compatible.
+        visual_opts = None
+        if fmt in ("html", "pdf"):
+            from ..services.visual_report import options as visual_options
+            try:
+                visual_opts=visual_options(request.args)
+            except ValueError as error:
+                return jsonify({"success":False,"error":str(error)}),422
         markdown = report.markdown_content or ""
         if request.args.get("locale") == "es":
             from ..services.report_localization import localized_markdown
@@ -919,6 +927,8 @@ def export_persisted_report(report_id: str):
                         "error": "Para exportar en español, primero traducí todos los capítulos desde el informe.",
                     }), 409
                 markdown = localized
+        # Keep the localized original separate from the statistical appendix.
+        narrative_markdown = markdown
         # Enrich exports on demand; never mutate the original saved report.
         from ..services.simulation_metrics import legacy_metrics, followup_metrics
         metrics = legacy_metrics(report.simulation_id,
@@ -980,30 +990,30 @@ def export_persisted_report(report_id: str):
                 "source_note": "Escenario sintético; no es una encuesta real.",
             }, ensure_ascii=False, indent=2).encode('utf-8')
             mime, ext = "application/json", "json"
-        elif fmt == 'html':
-            # Escaped HTML intentionally avoids interpreting model-authored markup.
-            page = (
-                '<!doctype html><html lang="es"><head><meta charset="utf-8">'
-                '<title>Tenonderã — Informe de simulación</title>'
-                '<style>body{max-width:900px;margin:50px auto;padding:24px;'
-                'font-family:system-ui,sans-serif;color:#173658;line-height:1.6}'
-                'pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit}'
-                'h1{color:#11699f}small{color:#5d7890}'
-                '@media print{body{margin:0;padding:0}}</style></head><body>'
-                '<h1>Tenonderã · Informe guardado</h1>'
-                '<small>Resultados de un escenario sintético, no de una encuesta real.</small>'
-                '<pre>' + html.escape(markdown) + '</pre></body></html>'
-            )
-            payload = page.encode("utf-8")
-            mime, ext = "text/html", "html"
+        elif fmt in ("html", "pdf"):
+            from ..services.visual_report import render_html, render_pdf
+            if fmt=="html":
+                payload=render_html(narrative_markdown,metrics,visual_opts,report_id).encode("utf-8")
+                mime,ext="text/html","html"
+            else:
+                payload=render_pdf(narrative_markdown,metrics,visual_opts,report_id)
+                mime,ext="application/pdf","pdf"
         else:
             return jsonify({"success": False, "error": "Formato no compatible."}), 400
-        return send_file(
+        response = send_file(
             io.BytesIO(payload),
             mimetype=mime,
-            as_attachment=True,
+            as_attachment=fmt != "html",
             download_name=f"Tenondera_{report_id}.{ext}",
         )
+        if fmt == "html":
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'none'; style-src 'unsafe-inline'; img-src data:; "
+                "object-src 'none'; base-uri 'none'; form-action 'none'"
+            )
+            response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Cache-Control"] = "private, no-store"
+        return response
     except Exception as error:
         logger.exception("Error en exportación: %s", type(error).__name__)
         return jsonify({"success": False, "error": "No se pudo exportar el informe."}), 500
