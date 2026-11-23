@@ -106,14 +106,15 @@
       </div>
 
       <!-- Step 02: Graph Build -->
-      <div class="step-card" :class="{ 'active': currentPhase === 1, 'completed': currentPhase > 1 }">
+      <div class="step-card" :class="{ 'active': currentPhase === 1, 'completed': currentPhase === 2 }">
         <div class="card-header">
           <div class="step-info">
             <span class="step-num">02</span>
             <span class="step-title">{{ $t('step1.graphRagBuild') }}</span>
           </div>
           <div class="step-status">
-            <span v-if="currentPhase > 1" class="badge success">{{ $t('step1.ontologyCompleted') }}</span>
+            <span v-if="currentPhase === 2" class="badge success">{{ $t('step1.ontologyCompleted') }}</span>
+            <span v-else-if="currentPhase === 3" class="badge pending">Motor pendiente</span>
             <span v-else-if="currentPhase === 1" class="badge processing">{{ buildProgress?.progress || 0 }}%</span>
             <span v-else class="badge pending">{{ $t('step1.ontologyPending') }}</span>
           </div>
@@ -163,14 +164,14 @@
       </div>
 
       <!-- Step 03: Complete -->
-      <div class="step-card" :class="{ 'active': currentPhase === 2, 'completed': currentPhase >= 2 }">
+      <div class="step-card" :class="{ 'active': currentPhase === 2, 'completed': currentPhase === 2 }">
         <div class="card-header">
           <div class="step-info">
             <span class="step-num">03</span>
             <span class="step-title">{{ $t('step1.buildComplete') }}</span>
           </div>
           <div class="step-status">
-            <span v-if="currentPhase >= 2" class="badge accent">{{ $t('step1.inProgress') }}</span>
+            <span v-if="currentPhase === 2" class="badge accent">{{ $t('step1.inProgress') }}</span>
           </div>
         </div>
         
@@ -179,7 +180,7 @@
           <p class="description">{{ $t('step1.buildCompleteDesc') }}</p>
           <button 
             class="action-btn" 
-            :disabled="currentPhase < 2 || creatingSimulation"
+            :disabled="currentPhase !== 2 || creatingSimulation"
             @click="handleEnterEnvSetup"
           >
             <span v-if="creatingSimulation" class="spinner-sm"></span>
