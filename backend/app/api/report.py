@@ -914,6 +914,38 @@ def export_persisted_report(report_id: str):
                         "error": "Para exportar en español, primero traducí todos los capítulos desde el informe.",
                     }), 409
                 markdown = localized
+        # Enrich exports on demand; never mutate the original saved report.
+        from ..services.simulation_metrics import legacy_metrics
+        metrics = legacy_metrics(report.simulation_id,
+            os.path.join(SimulationRunner.RUN_STATE_DIR,report.simulation_id))
+        metrics_lines = [
+            "", "## Estadísticas de interacciones y actividad simulada", "",
+            "**Alcance:** eventos sintéticos guardados; fechas de ejecución, no fechas del escenario.",
+            f"- Agentes participantes: {metrics['active_participants']}",
+            f"- Acciones: {metrics['total_actions']}",
+            f"- Publicaciones/comentarios registrados: {metrics['message_actions']}",
+            f"- Relaciones con destinatario explícito: {metrics['recorded_interaction_pairs']}",
+            f"- Primer evento: {metrics['first_event'] or 'No registrado'}",
+            f"- Último evento: {metrics['last_event'] or 'No registrado'}", "",
+            "### Actividad por día",
+            "| Fecha | Acciones |", "|---|---:|",
+        ] + [f"| {r['date']} | {r['count']} |" for r in metrics["by_day"]] + [
+            "", "### Actividad por hora", "| Hora | Acciones |", "|---|---:|",
+        ] + [f"| {r['hour']}:00 | {r['count']} |" for r in metrics["by_hour"]] + [
+            "", "### Acciones por ronda", "| Ronda | Acciones |", "|---|---:|",
+        ] + [f"| {r['round']} | {r['count']} |" for r in metrics["by_round"]] + [
+            "", "### Agentes que participaron", "| Agente sintético | ID | Acciones | Mensajes |",
+            "|---|---|---:|---:|",
+        ] + [f"| {r['name'].replace('|','/')} | {r['id']} | {r['actions']} | {r['messages']} |"
+             for r in metrics["participants"]] + [
+            "", "### Tipos de acción", "| Acción | Conteo |", "|---|---:|",
+        ] + [f"| {r['type']} | {r['count']} |" for r in metrics["by_type"]] + [
+            "", "### Interacciones con destinatario registrado",
+            "| Emisor | Destinatario | Conteo |", "|---|---|---:|",
+        ] + [f"| {r['from']} | {r['to']} | {r['count']} |" for r in metrics["interactions"]]
+        if metrics["partial"]:
+            metrics_lines += ["", "**Advertencia:** conteo parcial por límite de lectura segura."]
+        markdown += "\\n" + "\\n".join(metrics_lines) + "\\n"
         if fmt == 'md':
             payload = markdown.encode('utf-8')
             mime, ext = "text/markdown", "md"
@@ -927,6 +959,7 @@ def export_persisted_report(report_id: str):
                 "created_at": report.created_at,
                 "completed_at": report.completed_at,
                 "content_markdown": markdown,
+                "simulation_metrics": metrics,
                 "source_note": "Escenario sintético; no es una encuesta real.",
             }, ensure_ascii=False, indent=2).encode('utf-8')
             mime, ext = "application/json", "json"
