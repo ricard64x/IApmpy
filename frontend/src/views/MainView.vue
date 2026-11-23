@@ -80,6 +80,11 @@
         <p>La simulación integral requiere adaptar los agentes que todavía dependen de Zep.
         No se ejecutarán contra un proveedor externo sin autorización.</p>
       </div>
+      <div class="workflow-attention-actions">
+        <button :disabled="graphRefreshBusy" @click="refreshLocalGraph">
+          {{ graphRefreshBusy ? 'Actualizando memoria y grafo…' : 'Actualizar grafo con memorias Getangiru' }}
+        </button>
+      </div>
     </section>
     <section v-else-if="error" class="workflow-attention workflow-error" role="alert">
       <div><strong>El proceso no pudo continuar</strong><p>{{ error }}</p></div>
@@ -171,8 +176,9 @@ const error = ref('')
 const projectData = ref(null)
 const capabilities = ref(null)
 const projectNeedsAttention = computed(() => projectRequiresAction(projectData.value))
+const graphRefreshBusy = ref(false)
 const localGraphAwaitingSimulation = computed(() => (
-  projectData.value?.status === 'graph_completed'
+  !error.value && projectData.value?.status === 'graph_completed'
   && capabilities.value?.graph_backend === 'getangiru_local'
 ))
 const graphPendingConfiguration = computed(() => (
@@ -450,6 +456,17 @@ const startBuildGraph = async () => {
   } catch (err) {
     error.value = err.message
     addLog(`Exception in startBuildGraph: ${err.message}`)
+  }
+}
+
+const refreshLocalGraph = async () => {
+  if (graphRefreshBusy.value || !currentProjectId.value) return
+  graphRefreshBusy.value = true
+  error.value = ''
+  try {
+    await startBuildGraph()
+  } finally {
+    graphRefreshBusy.value = false
   }
 }
 
