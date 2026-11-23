@@ -237,6 +237,24 @@ def download_report(run_id):
     ]+[f"- Ronda {a['phase']} · {a['actor_type']}: {a['action_text']} (Fuente: {a['evidence_source']})"
        for a in data["actions"]]+["","## Limitaciones",report["disclaimer"],
                                    "No equivale al entorno OASIS anterior ni a una prueba de seguridad real."]
+    from ..services.simulation_metrics import native_metrics
+    stats=native_metrics(data["actions"])
+    text += ["", "## Estadísticas de acciones y participantes sintéticos", "",
+             "Las fechas son marcas de ejecución, no fechas del escenario ficticio.",
+             "- Agentes activos: "+str(stats["active_participants"]),
+             "- Decisiones/acciones: "+str(stats["total_actions"]),
+             "- Mensajes conversacionales: "+str(stats["message_actions"]),
+             "- Primer evento: "+str(stats["first_event"] or "Sin registro"),
+             "- Último evento: "+str(stats["last_event"] or "Sin registro"),
+             "", "### Histograma por fase", "| Fase | Acciones |", "|---|---:|"]
+    text += [f"| {item['round']} | {item['count']} |" for item in stats["by_round"]]
+    text += ["", "### Histograma por fecha", "| Fecha | Acciones |", "|---|---:|"]
+    text += [f"| {item['date']} | {item['count']} |" for item in stats["by_day"]]
+    text += ["", "### Histograma por hora", "| Hora | Acciones |", "|---|---:|"]
+    text += [f"| {item['hour']}:00 | {item['count']} |" for item in stats["by_hour"]]
+    text += ["", "### Participantes", "| Agente ficticio | Acciones |", "|---|---:|"]
+    text += [f"| {item['name'].replace('|','/')} ({item['id']}) | {item['actions']} |"
+             for item in stats["participants"]]
     response=Response("\n".join(text)+"\n",mimetype="text/markdown; charset=utf-8")
     response.headers["Content-Disposition"]=f'attachment; filename="simulacion-{run_id}.md"'
     response.headers["Cache-Control"]="no-store"
