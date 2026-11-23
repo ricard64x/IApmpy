@@ -90,3 +90,8 @@ export function getOntologyStatus(projectId) {
 export function retryOntology(projectId) {
   return service.post('/api/graph/project/'+encodeURIComponent(projectId)+'/ontology-retry')
 }
+
+/** Resolve accepted upload after the HTTP response was lost; no file reupload. */
+export function lookupOntologyReceipt(key) {
+  return service.get('/api/graph/ontology/receipt/'+encodeURIComponent(key),{timeout:12000})
+}
