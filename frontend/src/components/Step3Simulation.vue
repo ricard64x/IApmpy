@@ -137,7 +137,14 @@
       <strong>Modo eficiente GPT · interacciones sintéticas</strong>
       <span>Los participantes permanecen guardados. Se procesan por pequeños lotes
       mediante el servicio de IA configurado, sin cargar OASIS en memoria.
-      Esta modalidad no reproduce la simulación social completa ni representa opiniones reales.</span>
+      Esta modalidad no reproduce OASIS completo ni representa opiniones reales de personas.</span>
+      <strong v-if="interactionMode==='dialogue'">💬 Conversaciones sintéticas: respuestas enlazadas por lote, con destinatarios verificables en el historial.</strong>
+      <div class="version-control">
+        <button type="button" :disabled="forkBusy" @click="createConfigurationVersion">
+          {{forkBusy ? 'Creando versión…' : 'Crear nueva versión con otra configuración'}}
+        </button>
+        <span>La nueva versión tendrá un ID distinto y conservará la ejecución e informes anteriores.</span>
+      </div>
     </section>
     <EfficiencyMetricsPanel
       v-if="engineMode === 'lightweight' || runStatus.engine_mode === 'lightweight'"
@@ -347,7 +354,8 @@ import {
   getRunStatus,
   getRunStatusDetail,
   getExecutionSettings,
-  closeSimulationEnv
+  closeSimulationEnv,
+  forkSimulationVersion
 } from '../api/simulation'
 import { generateReport } from '../api/report'
 import EfficiencyMetricsPanel from './EfficiencyMetricsPanel.vue'
@@ -383,6 +391,8 @@ const runStatus = ref({})
 const activePlatform = ref(props.selectedPlatform)
 const autoFinalizeEnabled = ref(props.autoFinalize)
 const engineMode = ref('oasis')
+const interactionMode = ref('posts')
+const forkBusy = ref(false)
 const selectedMaxRounds = ref(props.maxRounds || 10)
 const isClosing = ref(false)
 const closeError = ref('')
@@ -449,6 +459,22 @@ const redditElapsedTime = computed(() => {
 const addLog = (msg) => {
   emit('add-log', msg)
 }
+const createConfigurationVersion = async () => {
+  if (!props.simulationId || forkBusy.value) return
+  forkBusy.value = true
+  try {
+    const response = await forkSimulationVersion(props.simulationId)
+    if (!response.success || !response.data?.simulation_id) {
+      throw Error(response.error || 'No se pudo crear una nueva versión.')
+    }
+    await router.push({ name:'Simulation', params:{ simulationId:response.data.simulation_id } })
+  } catch (error) {
+    startError.value = error.message || 'No se pudo crear una nueva versión.'
+  } finally {
+    forkBusy.value = false
+  }
+}
+
 
 // 重置所有状态（用于重新启动模拟）
 const resetAllState = () => {
@@ -815,12 +841,22 @@ onMounted(async () => {
     const status = response.data.runner_status
     runStatus.value = response.data
     if (response.data.platform_mode) activePlatform.value = response.data.platform_mode
+    if (status !== 'idle') {
+      try {
+        const prefs = await getExecutionSettings(props.simulationId)
+        if (prefs.success && prefs.data) {
+          interactionMode.value = prefs.data.interaction_mode || 'posts'
+          engineMode.value = prefs.data.engine_mode || engineMode.value
+        }
+      } catch (_) { /* Existing run state remains authoritative. */ }
+    }
 
     if (status === 'idle') {
       const prefs = await getExecutionSettings(props.simulationId)
       if (prefs.success && prefs.data) {
         activePlatform.value = prefs.data.platform
         engineMode.value = prefs.data.engine_mode || 'oasis'
+        interactionMode.value = prefs.data.interaction_mode || 'posts'
         autoFinalizeEnabled.value = prefs.data.auto_finalize
         selectedMaxRounds.value = prefs.data.max_rounds
       }
@@ -1419,6 +1455,10 @@ onUnmounted(() => {
   animation: spin 0.8s linear infinite;
   margin-right: 6px;
 }
+.version-control{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:8px}
+.version-control button{border:1px solid #8dcdd7;border-radius:8px;background:white;color:#17617d;padding:8px 11px;font-weight:750;cursor:pointer}
+.version-control button:disabled{opacity:.6;cursor:wait}
+.version-control span{font-size:10px;color:#557687}
 </style>
 
 <style scoped>
