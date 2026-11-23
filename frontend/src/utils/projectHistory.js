@@ -2,13 +2,20 @@
  * The API already restricts both sources by account. Do not infer ownership
  * or expose cross-user projects on the client.
  */
+export function friendlyProjectName(name, requirement, id) {
+  const raw = typeof name === 'string' ? name.trim() : ''
+  if (raw && !['unnamed project','untitled project','proyecto sin título'].includes(raw.toLowerCase())) return raw
+  const goal = typeof requirement === 'string' ? requirement.trim().split('\\n')[0].trim() : ''
+  return goal.length >= 8 ? goal.slice(0,72) : 'Simulación ' + String(id || 'sin fecha').slice(-8)
+}
+
 export function mergeProjectHistory(savedProjects = [], simulations = []) {
   const entries = new Map()
   for (const project of savedProjects || []) {
     if (!project || !project.project_id) continue
     entries.set('project:' + project.project_id, {
       ...project,
-      project_name: project.name || project.project_name || 'Proyecto sin título',
+      project_name: friendlyProjectName(project.name || project.project_name, project.simulation_requirement, project.project_id),
       project_status: project.status || null,
       status: undefined,
       simulation_id: null,
@@ -26,7 +33,7 @@ export function mergeProjectHistory(savedProjects = [], simulations = []) {
     entries.set(key, {
       ...(project || {}),
       ...simulation,
-      project_name: simulation.project_name || project?.project_name || 'Proyecto sin título',
+      project_name: friendlyProjectName(simulation.project_name || project?.project_name, simulation.simulation_requirement || project?.simulation_requirement, simulation.project_id),
       project_status: project?.project_status || simulation.project_status || null,
       owner_id: simulation.owner_id || project?.owner_id || null,
       files: project?.files?.length ? project.files : simulation.files || [],
