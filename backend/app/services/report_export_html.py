@@ -92,9 +92,14 @@ def render_executive_html(markdown: str, metrics: dict, report_id: str):
         "No se acredita una conversación multiagente suficiente para considerarla una simulación conversacional válida."
     )
     people = metrics.get("participants") or []
+    archive = metrics.get("conversation_archive") or {}
+    aliases = {str(p.get("id")): p.get("name") for p in archive.get("nodes", [])}
+    occupations = {str(p.get("id")): p.get("profession") for p in archive.get("nodes", [])}
     total = max(1, int(metrics.get("total_actions") or 0))
     rows = "".join(
-        '<tr><td>' + _e(p.get("name")) + '</td><td>' + _n(p.get("actions")) +
+        '<tr><td>' + _e(aliases.get(str(p.get("id"))) or p.get("name")) +
+        '<span class="occupation"> · ' + _e(occupations.get(str(p.get("id")),"Profesión no indicada")) +
+        '</span></td><td>' + _n(p.get("actions")) +
         '</td><td>' + _n(p.get("messages")) + '</td><td>' +
         f"{100*float(p.get('actions') or 0)/total:.1f}%" + '</td></tr>'
         for p in people[:120]
@@ -102,10 +107,31 @@ def render_executive_html(markdown: str, metrics: dict, report_id: str):
     interactions = metrics.get("interactions") or []
     names = {str(p.get("id")): str(p.get("name")) for p in people}
     edges = "".join(
-        '<tr><td>' + _e(names.get(str(item.get("from")), item.get("from"))) +
-        '</td><td>' + _e(names.get(str(item.get("to")), item.get("to"))) +
+        '<tr><td>' + _e(aliases.get(str(item.get("from")),names.get(str(item.get("from")), item.get("from")))) +
+        '</td><td>' + _e(aliases.get(str(item.get("to")),names.get(str(item.get("to")), item.get("to")))) +
         '</td><td>' + _n(item.get("count")) + '</td></tr>'
         for item in interactions[:50]
+    )
+    social_names = {
+        "plaza":"Plaza","foro":"Foro abierto","profesional":"Comunidad profesional",
+        "grupos":"Grupo social","videos":"Comentarios a videos",
+        "twitter":"Plaza","reddit":"Comunidad",
+    }
+    rooms = metrics.get("by_social_space") or []
+    location_rows = "".join(
+        "<tr><td>" + _e(social_names.get(row.get("space"), row.get("space")))
+        + "</td><td>" + _n(row.get("count")) + "</td></tr>"
+        for row in rooms
+    )
+    transcript = "".join(
+        '<article class="dialog-record"><div class="dialog-meta"><b>'
+        + _e(m.get("author")) + "</b> <span>" + _e(m.get("profession") or "Profesión no indicada")
+        + "</span> <span>" + _e(social_names.get(m.get("channel"), m.get("channel")))
+        + "</span> <span>Ronda " + _e(m.get("round") or "—") + "</span></div>"
+        + ('<div class="reply-record">Respondió a ' + _e(m.get("recipient")) + '</div>'
+           if m.get("recipient") else '<div class="reply-record">Publicación inicial</div>')
+        + "<p>" + _e(m.get("content")) + "</p></article>"
+        for m in (archive.get("messages") or [])[:250]
     )
     disclaimer = (
         "Datos sintéticos conservados de la ejecución. Los personajes no representan "
@@ -144,6 +170,13 @@ def render_executive_html(markdown: str, metrics: dict, report_id: str):
       .report-content .bullet{padding-left:15px}
       .report-content .table-line{font:11px/1.45 ui-monospace,monospace;white-space:pre-wrap}
       pre.code{padding:11px;overflow:auto;border:1px solid #dbe5ea;background:#f5f8fa;white-space:pre-wrap}
+      .occupation{font-size:10px;color:#6c8394;white-space:normal}
+      .dialog-record{border:1px solid #e0eaf0;border-radius:10px;padding:13px;margin:11px 0;break-inside:avoid}
+      .dialog-meta{display:flex;gap:6px 13px;align-items:center;flex-wrap:wrap}
+      .dialog-meta b{color:#174e6c;font-size:13px}
+      .dialog-meta span{font-size:11px;color:#59788f}
+      .reply-record{margin:6px 0;color:#137c9c;font-size:11px}
+      .dialog-record p{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;margin:7px 0}
       footer{border-top:1px solid #e5ebef;margin-top:40px;padding-top:13px;color:#74899a;font-size:10px}
       @media(max-width:700px){.sheet{margin:0;padding:18px}.cards{grid-template-columns:repeat(2,1fr)}.two{grid-template-columns:1fr}}
       @page{size:A4;margin:13mm}
@@ -173,12 +206,20 @@ def render_executive_html(markdown: str, metrics: dict, report_id: str):
         + _bar_rows(metrics.get("by_type") or [],name_key="type",unit="acción")+'</div></section>'
         '<section><h2>Participación por perfil</h2><p class="note">'
         'La distribución no refleja opiniones públicas, solo el volumen de acciones simuladas.</p>'
-        '<table><thead><tr><th>Perfil sintético</th><th>Acciones</th><th>Mensajes</th><th>Participación</th>'
+        '<table><thead><tr><th>Personaje del escenario</th><th>Acciones</th><th>Mensajes</th><th>Participación</th>'
         '</tr></thead><tbody>'+rows+'</tbody></table></section>'
         '<section><h2>Respuestas con destinatario registrado</h2>'
         + ('<table><thead><tr><th>Emisor</th><th>Destinatario</th><th>Respuestas</th></tr></thead><tbody>'+edges+'</tbody></table>'
            if edges else '<p class="note">No se encontraron pares dirigidos verificables.</p>')+
-        '</section><section class="report-content"><h2>Interpretación y capítulos del informe</h2>'
+        '</section><section><h2>Dónde se desarrollaron las conversaciones</h2>'
+        '<p class="note">Los espacios son escenarios de simulación, no redes sociales reales.</p>'
+        '<table><thead><tr><th>Espacio</th><th>Intervenciones</th></tr></thead><tbody>'
+        + location_rows + '</tbody></table>'
+        '<h3>Registro de lo que se dijeron</h3>'
+        + (transcript if transcript else '<p class="note">No se registraron mensajes para mostrar.</p>')
+        + ('<p class="note">Se presenta una muestra del historial; las acciones originales se conservan.</p>'
+           if archive.get("total_actions", 0) > len(archive.get("messages") or []) else '')
+        + '</section><section class="report-content"><h2>Interpretación y capítulos del informe</h2>'
         +_safe_markdown(markdown)+'</section>'
         '<footer>Tenonderã · Informe sintético · Los indicadores son descriptivos y reproducibles desde el historial guardado.</footer>'
         '</main></body></html>'
