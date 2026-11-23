@@ -1553,10 +1553,15 @@ def execution_settings(simulation_id: str):
     from ..services.simulation_execution import get_execution_settings, save_execution_settings
     if SimulationManager().get_simulation(simulation_id) is None:
         return jsonify({"success": False, "error": "Simulación no encontrada."}), 404
-    if request.method == 'GET':
-        return jsonify({"success": True, "data": get_execution_settings(simulation_id)})
     run = SimulationRunner.get_run_state(simulation_id)
-    if run is not None and run.runner_status != RunnerStatus.IDLE:
+    locked = run is not None and run.runner_status != RunnerStatus.IDLE
+    if request.method == 'GET':
+        return jsonify({"success": True, "data": {
+            **get_execution_settings(simulation_id),
+            "locked": locked,
+            "requires_new_version": locked,
+        }})
+    if locked:
         return jsonify({
             "success": False,
             "error": "La configuración no puede cambiarse después de iniciar la simulación.",
@@ -1573,6 +1578,49 @@ def execution_settings(simulation_id: str):
     return jsonify({"success": True, "data": settings})
 
 
+@simulation_bp.route('/<simulation_id>/population', methods=['GET', 'POST'])
+def simulation_population(simulation_id: str):
+    """Preview or resize prepared hypothetical participants before first start.
+
+    Original runs cannot be edited. Expanding beyond observed graph profiles is
+    supported only by the lightweight synthetic engine, with an explicit label.
+    """
+    from pathlib import Path
+    from ..services.participant_population import population_status, resize_population
+    from ..services.simulation_execution import get_execution_settings
+    manager = SimulationManager()
+    state = manager.get_simulation(simulation_id)
+    if state is None:
+        return jsonify({"success": False, "error": "Simulación no encontrada."}), 404
+    directory = Path(Config.UPLOAD_FOLDER) / "simulations" / simulation_id
+    try:
+        settings = get_execution_settings(simulation_id)
+        if request.method == 'GET':
+            result = population_status(directory, settings.get("engine_mode", "oasis"))
+            run = SimulationRunner.get_run_state(simulation_id)
+            result["locked"] = bool(run is not None and run.runner_status != RunnerStatus.IDLE)
+            return jsonify({"success": True, "data": result})
+        run = SimulationRunner.get_run_state(simulation_id)
+        if run is not None and run.runner_status != RunnerStatus.IDLE:
+            return jsonify({"success": False,
+                            "error": "Esta ejecución conserva su historial. Creá una nueva versión editable.",
+                            "requires_new_version": True}), 409
+        if state.status != SimulationStatus.READY:
+            return jsonify({"success": False,
+                            "error": "Los participantes solo pueden configurarse al terminar la preparación."}), 409
+        body = request.get_json(silent=True) or {}
+        if not isinstance(body, dict):
+            return jsonify({"success": False, "error": "Solicitud inválida."}), 400
+        selected = body.get("participants_count")
+        mode = body.get("engine_mode", settings.get("engine_mode", "oasis"))
+        result = resize_population(directory, selected, mode)
+        state.profiles_count = result["selected_participants"]
+        manager._save_simulation_state(state)
+        return jsonify({"success": True, "data": result})
+    except (OSError, ValueError, TypeError) as error:
+        return jsonify({"success": False, "error": str(error)}), 422
+
+
 # ============== 模拟运行控制接口 ==============
 
 @simulation_bp.post('/<simulation_id>/fork')
@@ -1583,7 +1631,22 @@ def fork_simulation_version(simulation_id):
     from datetime import datetime
     from pathlib import Path
     from ..config import Config
-    from ..services.simulation_execution import get_execution_settings, save_execution_settings
+    from ..services.simulation_execution import get_execution_settings, save_execution_settings, validate_execution_settings
+    from ..services.participant_population import resize_population, population_status
+    body = request.get_json(silent=True) or {}
+    if not isinstance(body, dict):
+        return jsonify({"success": False, "error": "Solicitud inválida."}), 400
+    requested = body.get("participants_count")
+    settings_input = body.get("settings")
+    try:
+        if settings_input is not None:
+            new_settings = validate_execution_settings(settings_input)
+        else:
+            new_settings = get_execution_settings(simulation_id)
+            new_settings = {key: new_settings[key] for key in (
+                "platform", "auto_finalize", "max_rounds", "engine_mode", "interaction_mode")}
+    except (ValueError, TypeError) as error:
+        return jsonify({"success": False, "error": str(error)}), 422
     manager = SimulationManager()
     original = manager.get_simulation(simulation_id)
     if original is None:
@@ -1593,9 +1656,20 @@ def fork_simulation_version(simulation_id):
     prepared = ("simulation_config.json","reddit_profiles.json","twitter_profiles.csv")
     if not all((source/item).is_file() for item in required):
         return jsonify({"success": False,"error":"La simulación original no tiene configuración preparada."}),409
-    if not all((source/item).is_file() for item in prepared[1:]):
+    if not any((source/item).is_file() for item in prepared[1:]):
         return jsonify({"success":False,
-                        "error":"La simulación original requiere ambos archivos de perfiles preparados."}),409
+                        "error":"La simulación original requiere perfiles preparados."}),409
+    if requested is not None:
+        if type(requested) is not int:
+            return jsonify({"success":False,
+                            "error":"La cantidad de participantes debe ser un entero."}),422
+        try:
+            original_population = population_status(source, new_settings["engine_mode"])
+            max_allowed = original_population["maximum_for_engine"]
+            if not 2 <= requested <= max_allowed:
+                raise ValueError(f"Elegí entre 2 y {max_allowed} participantes para este motor.")
+        except (ValueError, TypeError, OSError) as error:
+            return jsonify({"success":False,"error":str(error)}),422
     # The existing authorization middleware checks the source simulation path;
     # the new run belongs to the exact same project and never inherits logs.
     newer = manager.create_simulation(
@@ -1603,13 +1677,21 @@ def fork_simulation_version(simulation_id):
         enable_twitter=original.enable_twitter, enable_reddit=original.enable_reddit)
     destination = Path(Config.UPLOAD_FOLDER)/"simulations"/newer.simulation_id
     try:
-        for filename in prepared:
+        for filename in (*prepared, "population_base.json", "population_manifest.json"):
             path=source/filename
             if path.is_file():
                 shutil.copyfile(path,destination/filename)
-        new_settings = get_execution_settings(simulation_id)
-        # The newest version defaults to the richer mode but is still editable.
-        new_settings["interaction_mode"]="dialogue"
+        if requested is not None:
+            result = resize_population(destination, requested, new_settings["engine_mode"])
+        else:
+            # Backward-compatible fork used by Step 3; update config binding only.
+            cfg_path = destination / "simulation_config.json"
+            cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+            cfg["simulation_id"] = newer.simulation_id
+            cfg_path.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+            result = {"selected_participants":original.profiles_count,
+                      "synthetic_additions":0}
+        # Existing executions keep their immutable settings and logs.
         save_execution_settings(newer.simulation_id,new_settings)
         (destination/"version_origin.json").write_text(json.dumps({
             "parent_simulation_id":simulation_id,
@@ -1619,7 +1701,7 @@ def fork_simulation_version(simulation_id):
         newer.status=SimulationStatus.READY
         newer.profiles_generated=True
         newer.config_generated=True
-        newer.profiles_count=original.profiles_count
+        newer.profiles_count=result["selected_participants"]
         newer.entities_count=original.entities_count
         manager._save_simulation_state(newer)
     except (OSError,ValueError,TypeError):
@@ -1634,6 +1716,8 @@ def fork_simulation_version(simulation_id):
         "project_id":newer.project_id,
         "status":"ready",
         "source_preserved":True,
+        "selected_participants":newer.profiles_count,
+        "synthetic_additions":result["synthetic_additions"],
     }}),201
 
 
