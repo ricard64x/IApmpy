@@ -52,6 +52,33 @@ class LocalModelReadinessTests(unittest.TestCase):
             self.assertNotIn("response_format", kwargs)
             self.assertEqual("qwen3-4b-local", kwargs["model"])
 
+    def test_model_alias_mismatch_reports_not_ready(self):
+        import io
+        from types import SimpleNamespace
+        def reply(url, timeout=None):
+            if isinstance(url, str):
+                return SimpleNamespace(status=200, __enter__=None)
+            return None
+
+        class FakeResponse:
+            status = 200
+            def __init__(self, content): self.content = content
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+            def read(self, n=16384): return self.content
+
+        fake_open = [
+            FakeResponse(b'{"status":"ok"}'),
+            FakeResponse(b'{"data":[{"id":"qwen25-1.5b-local"}]}'),
+        ]
+        with patch.dict('os.environ', {'LLM_LOCAL_INFERENCE':'true'}), \
+             patch.object(Config, 'LLM_API_KEY', 'pilot-token'), \
+             patch.object(Config, 'LLM_BASE_URL', 'http://127.0.0.1:18080/v1'), \
+             patch.object(Config, 'LLM_MODEL_NAME', 'qwen3-4b-local'), \
+             patch('app.utils.local_model.urllib.request.build_opener') as opener:
+            opener.return_value.open.side_effect = fake_open
+            self.assertFalse(local_inference_ready())
+
     def test_no_nonloopback_inference_in_local_mode(self):
         with patch.dict('os.environ', {'LLM_LOCAL_INFERENCE': 'true'}), \
              patch.object(Config, 'LLM_API_KEY', 'key'), \
