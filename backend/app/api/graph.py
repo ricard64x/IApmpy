@@ -421,6 +421,21 @@ def submit_ontology_job():
           "error":"No se pudo confirmar la recepción. Revisá Mis proyectos antes de reenviar."}),503
 
 
+
+@graph_bp.get('/ontology/receipt/<submission_key>')
+def lookup_ontology_receipt(submission_key):
+    """Recover a project id if a successful upload response was lost on mobile."""
+    from ..auth import current_user
+    from ..services.ontology_queue import find_submission
+    if not re.fullmatch(r"[a-zA-Z0-9_-]{16,80}",submission_key):
+        return jsonify({"success":False,"error":"Referencia inválida"}),422
+    user=current_user()
+    record=find_submission(user["id"],submission_key) if user else None
+    if not record:
+        return jsonify({"success":False,"error":"Envío no registrado"}),404
+    return jsonify({"success":True,"data":record})
+
+
 @graph_bp.get('/project/<project_id>/ontology-status')
 def ontology_job_status(project_id):
     """Ownership enforced by the existing project authorization middleware."""
