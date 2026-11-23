@@ -15,7 +15,15 @@ from ..config import Config
 
 _VALID_ID = re.compile(r"^sim_[A-Za-z0-9_-]{1,90}$")
 _PLATFORMS = ("twitter", "reddit", "parallel")
-_DEFAULTS = {"platform": "parallel", "auto_finalize": True, "max_rounds": 10, "engine_mode": "oasis", "interaction_mode": "dialogue"}
+_DEFAULTS = {"platform": "parallel", "auto_finalize": True, "max_rounds": 10, "engine_mode": "oasis", "interaction_mode": "dialogue", "social_spaces": [], "dialogue_depth": 2}
+# These are simulated social formats, not live platform integrations.
+SPACE_PLATFORMS = {
+    "plaza": "twitter",        # Micropublicaciones, estilo X
+    "foro": "reddit",          # Foros, estilo Reddit
+    "profesional": "reddit",   # Red profesional, estilo LinkedIn
+    "grupos": "reddit",        # Grupos, estilo Facebook
+    "videos": "reddit",        # Comentarios a videos, estilo TikTok
+}
 
 
 def settings_path(simulation_id: str) -> Path:
@@ -60,9 +68,25 @@ def validate_execution_settings(body: dict) -> dict:
         raise ValueError("El modo GPT liviano necesita cierre automático.")
     if engine_mode == "lightweight" and interaction_mode == "dialogue" and rounds < 2:
         raise ValueError("La simulación conversacional requiere al menos 2 rondas.")
+    spaces = body.get("social_spaces", [])
+    if not isinstance(spaces, list) or len(spaces) > 5 or len(spaces) != len(set(map(str, spaces))):
+        raise ValueError("Elegí hasta cinco espacios sociales distintos.")
+    if any(not isinstance(name,str) or name not in SPACE_PLATFORMS for name in spaces):
+        raise ValueError("Uno de los espacios de conversación no está disponible.")
+    depth = body.get("dialogue_depth", 2)
+    if type(depth) is not int or not 1 <= depth <= 3:
+        raise ValueError("Elegí entre 1 y 3 momentos de conversación.")
+    if engine_mode == "oasis" and spaces:
+        raise ValueError("Los espacios adicionales se habilitan con el modo eficiente.")
+    if engine_mode == "lightweight":
+        enabled = {"twitter","reddit"} if platform == "parallel" else {platform}
+        if any(SPACE_PLATFORMS[space] not in enabled for space in spaces):
+            raise ValueError("Los espacios elegidos no coinciden con Plaza o Comunidad seleccionadas.")
     return {"platform": platform, "auto_finalize": auto_finalize,
             "max_rounds": rounds, "engine_mode": engine_mode,
-            "interaction_mode": interaction_mode}
+            "interaction_mode": interaction_mode,
+            "social_spaces": spaces if engine_mode == "lightweight" else [],
+            "dialogue_depth": depth if engine_mode == "lightweight" and interaction_mode == "dialogue" else 1}
 
 
 def save_execution_settings(simulation_id: str, body: dict) -> dict:

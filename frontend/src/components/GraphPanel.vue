@@ -1,7 +1,13 @@
 <template>
   <div class="graph-panel" :class="{ 'mobile-detail-open': isMobileGraph && selectedItem }">
     <div class="panel-header">
-      <span class="panel-title">{{ $t('graph.panelTitle') }}</span>
+      <span class="panel-title">{{ displayMode==='dialogue' ? 'Red de conversaciones' : $t('graph.panelTitle') }}</span>
+      <div v-if="simulationId" class="graph-type-switch" aria-label="Tipo de grafo">
+        <button type="button" :class="{active:displayMode==='entities'}" :aria-pressed="displayMode==='entities'"
+                @click="displayMode='entities'">Entidades</button>
+        <button type="button" :class="{active:displayMode==='dialogue'}" :aria-pressed="displayMode==='dialogue'"
+                @click="displayMode='dialogue'">Conversaciones</button>
+      </div>
       <!-- 顶部工具栏 (Internal Top Right) -->
       <div class="header-tools">
         <button type="button" class="tool-btn" @click="$emit('refresh')" :disabled="loading" :aria-label="$t('graph.refreshGraph')" :title="$t('graph.refreshGraph')">
@@ -16,7 +22,9 @@
     
     <div class="graph-container" ref="graphContainer">
       <!-- 图谱可视化 -->
-      <div v-if="graphData" class="graph-view">
+      <CharacterConversationGraph v-if="displayMode==='dialogue' && simulationId"
+                                 :simulation-id="simulationId" />
+      <div v-if="displayMode==='entities' && graphData" class="graph-view">
         <svg ref="graphSvg" class="graph-svg" role="img" aria-label="Grafo de relaciones. Tocá un elemento para ver su ficha."></svg>
         <p v-if="isMobileGraph && !selectedItem" class="mobile-graph-hint">Tocá un círculo para ver sus detalles. Separá dos dedos para acercar.</p>
         
@@ -211,25 +219,25 @@
       </div>
       
       <!-- 加载状态 -->
-      <div v-else-if="loading" class="graph-state">
+      <div v-else-if="displayMode==='entities' && loading" class="graph-state">
         <div class="loading-spinner"></div>
         <p>{{ $t('graph.graphDataLoading') }}</p>
       </div>
       
       <!-- 等待/空状态 -->
-      <div v-else-if="idle" class="graph-state" role="status">
+      <div v-else-if="displayMode==='entities' && idle" class="graph-state" role="status">
         <div class="empty-icon">❖</div>
         <p class="empty-text">{{ idleMessage || 'Sin procesamiento activo. Cargá documentos para preparar el grafo.' }}</p>
       </div>
 
-      <div v-else class="graph-state">
+      <div v-else-if="displayMode==='entities'" class="graph-state">
         <div class="empty-icon">❖</div>
         <p class="empty-text">{{ $t('graph.waitingOntology') }}</p>
       </div>
     </div>
 
     <!-- 底部图例 (Bottom Left) -->
-    <div v-if="graphData && entityTypes.length" class="graph-legend" :class="{ 'legend-expanded': legendExpanded }">
+    <div v-if="displayMode==='entities' && graphData && entityTypes.length" class="graph-legend" :class="{ 'legend-expanded': legendExpanded }">
       <button type="button" class="legend-toggle" @click="legendExpanded = !legendExpanded" :aria-expanded="legendExpanded">
         Tipos de elementos <span aria-hidden="true">{{ legendExpanded ? '⌄' : '⌃' }}</span>
       </button>
@@ -243,7 +251,7 @@
     </div>
     
     <!-- 显示边标签开关 -->
-    <div v-if="graphData" class="edge-labels-toggle">
+    <div v-if="displayMode==='entities' && graphData" class="edge-labels-toggle">
       <label class="toggle-switch">
         <input type="checkbox" v-model="showEdgeLabels" />
         <span class="slider"></span>
@@ -256,11 +264,13 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
 import * as d3 from 'd3'
+import CharacterConversationGraph from './CharacterConversationGraph.vue'
 import { useI18n } from 'vue-i18n'
 const { locale } = useI18n()
 
 const props = defineProps({
   graphData: Object,
+  simulationId: {type:String,default:''},
   loading: Boolean,
   currentPhase: Number,
   idle: Boolean,
@@ -274,6 +284,12 @@ const graphContainer = ref(null)
 const graphSvg = ref(null)
 const selectedItem = ref(null)
 const showEdgeLabels = ref(true)
+const displayMode = ref('entities')
+watch(displayMode, mode => {
+  if(mode==='dialogue' && currentSimulation) currentSimulation.stop()
+  if(mode==='entities') nextTick(renderGraph)
+  selectedItem.value=null
+})
 const isMobileGraph = ref(false)
 const legendExpanded = ref(false)
 const showTechnicalDetails = ref(false)
@@ -376,7 +392,7 @@ let linkLabelsRef = null
 let linkLabelBgRef = null
 
 const renderGraph = () => {
-  if (!graphSvg.value || !props.graphData) return
+  if (displayMode.value !== 'entities' || !graphSvg.value || !props.graphData) return
   
   // 停止之前的仿真
   if (currentSimulation) {
@@ -1803,5 +1819,22 @@ input:checked + .slider:before {
 }
 @media (prefers-reduced-motion: reduce) {
   .graph-panel * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+/* Keep document entities and fictional conversations unmistakably separate. */
+.graph-type-switch{display:flex;gap:4px;padding:4px;border:1px solid #dce7ef;background:#f0f6fa;border-radius:12px;margin-left:auto;margin-right:10px}
+/* The header intentionally ignores canvas pointer events, but tabs must not. */
+.graph-type-switch, .graph-type-switch button{pointer-events:auto}
+
+.graph-type-switch button{background:transparent;color:#536f82;border:0;border-radius:8px;min-height:34px;padding:7px 12px;font:750 12px/1.25 system-ui,sans-serif;cursor:pointer}
+.graph-type-switch button.active{background:#fff;color:#145e80;box-shadow:0 1px 7px #214d7218}
+.graph-type-switch button:focus-visible{outline:2px solid #11a1c1;outline-offset:2px}
+@media(max-width:767px){
+  .graph-panel .panel-header{flex-wrap:wrap;gap:5px;z-index:25}
+  /* Keep the edge-label control below both rows of mobile navigation. */
+  .graph-panel .edge-labels-toggle{top:145px;z-index:13}
+  .graph-type-switch{order:3;width:100%;margin:4px 0 0}
+  .graph-type-switch button{flex:1;min-height:42px}
+  .graph-panel .panel-title{max-width:none}
 }
 </style>

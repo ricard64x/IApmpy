@@ -119,6 +119,28 @@
         </div>
       </div>
 
+      <div v-else-if="tab==='spaces'" class="hub-content">
+        <div class="panel-heading"><h3>¿Dónde conversaron los participantes?</h3>
+          <small>Espacios virtuales del escenario. Estos comentarios no se publicaron en redes reales.</small>
+        </div>
+        <div v-if="roomActivity.length" class="room-list">
+          <article v-for="room in roomActivity" :key="room.space" class="panel room-card">
+            <header><strong>{{ spaceLabel(room.space) }}</strong><span>{{ room.count }} intervenciones</span></header>
+            <div v-for="(m,i) in roomMessages(room.space).slice(0,20)" :key="i" class="conversation-card">
+              <header><span class="avatar small">{{ displayName(m.participant_id,m.participant).charAt(0) }}</span>
+                <strong>{{ displayName(m.participant_id,m.participant) }}</strong>
+                <span class="pill">{{ professionFor(m.participant_id) }}</span>
+                <span class="pill">{{ roundLabel(m.round) }}</span></header>
+              <p v-if="m.target_id!=null" class="reply-label">↳ Le respondió a {{ agentName(m.target_id) }}</p>
+              <p class="excerpt">{{ m.excerpt }}</p>
+            </div>
+            <p v-if="!roomMessages(room.space).length" class="empty">Sin conversaciones disponibles en la muestra.</p>
+            <button v-if="roomMessages(room.space).length>20" type="button" class="more"
+              @click="tab='talk';selectedPlatform=room.space">Explorar más mensajes</button>
+          </article>
+        </div>
+        <p v-else class="empty">Todavía no se registraron conversaciones en espacios virtuales.</p>
+      </div>
       <div v-else-if="tab==='people'" class="hub-content">
         <div class="panel-heading"><h3>Participantes y niveles de actividad</h3>
           <small>Compará cuánto intervino cada perfil. Seleccioná un nombre para explorar sus mensajes.</small>
@@ -127,7 +149,7 @@
         <div v-else class="people-list">
           <button type="button" v-for="p in people" :key="p.id" @click="showParticipant(p.id)">
             <span class="avatar">{{ p.name?.charAt(0) || 'P' }}</span>
-            <span class="person-text"><strong>{{ p.name }}</strong><small>Perfil {{ p.id }} · {{ p.messages }} mensajes · {{ p.actions }} acciones</small></span>
+            <span class="person-text"><strong>{{ displayName(p.id,p.name) }}</strong><small>{{ professionFor(p.id) }} · {{ p.messages }} mensajes · {{ p.actions }} acciones</small></span>
             <span class="person-bar"><i :style="{width:share(p)+'%',background:personColor(p.id)}"></i></span>
             <b>{{ percent(share(p)) }}</b>
           </button>
@@ -149,7 +171,7 @@
             <select v-model="selectedRound"><option value="all">Todas</option><option v-for="r in rounds" :key="r.round" :value="String(r.round)">{{ roundLabel(r.round) }}</option></select>
           </label>
           <label>Espacio
-            <select v-model="selectedPlatform"><option value="all">Todos</option><option v-for="p in platforms" :key="p.platform" :value="p.platform">{{ platformLabel(p.platform) }}</option></select>
+            <select v-model="selectedPlatform"><option value="all">Todos</option><option v-for="p in roomActivity" :key="p.space" :value="p.space">{{ spaceLabel(p.space) }}</option></select>
           </label>
         </div>
         <div class="filter-summary">
@@ -162,8 +184,9 @@
         <div v-if="filteredMessages.length" class="conversation-list">
           <article v-for="(m,i) in filteredMessages.slice(0,displayLimit)" :key="i" class="conversation-card">
             <header><span class="avatar small">{{ m.participant?.charAt(0) || 'P' }}</span>
-              <strong>{{ m.participant }}</strong>
-              <span class="pill">{{ platformLabel(m.platform) }}</span>
+              <strong>{{ displayName(m.participant_id,m.participant) }}</strong>
+              <span class="pill">{{ professionFor(m.participant_id) }}</span>
+              <span class="pill">{{ spaceLabel(m.space || m.platform) }}</span>
               <span class="pill">{{ roundLabel(m.round) }}</span></header>
             <p v-if="m.target_id!=null" class="reply-label">↳ Responde a <strong>{{ agentName(m.target_id) }}</strong></p>
             <p class="excerpt">{{ m.excerpt }}</p>
@@ -253,12 +276,23 @@ const tabs=[
   {id:'overview',label:'Resumen',icon:'◈'},
   {id:'people',label:'Participantes',icon:'♙'},
   {id:'talk',label:'Conversaciones',icon:'▤'},
+  {id:'spaces',label:'Dónde hablaron',icon:'⌖'},
   {id:'activity',label:'Actividad',icon:'▥'}
 ]
 const roundLabel=value=>(value==null||Number(value)===0) ? 'Sin ronda definida' : 'Ronda '+value
 const number=value=>Number(value||0).toLocaleString('es-PY')
 const percent=value=>Number(value||0).toLocaleString('es-PY',{maximumFractionDigits:1})+' %'
 const people=computed(()=>data.value?.participants||[])
+const roomActivity=computed(()=>data.value?.by_social_space||[])
+const characterArchive=computed(()=>data.value?.conversation_archive||{})
+const characterById=computed(()=>new Map((characterArchive.value.nodes||[]).map(p=>[String(p.id),p])))
+const displayName=(id,fallback='Participante')=>characterById.value.get(String(id))?.name || fallback
+const professionFor=id=>characterById.value.get(String(id))?.profession || 'Profesión no indicada'
+const roomMessages=room=>(data.value?.messages||[]).filter(m=>(m.space||m.platform)===room)
+const spaceLabel=space=>({
+  plaza:'Plaza · micropublicaciones',foro:'Foro abierto',profesional:'Comunidad profesional',
+  grupos:'Grupo social',videos:'Comentarios a videos',twitter:'Plaza',reddit:'Comunidad',
+})[space]||space||'Espacio'
 const rounds=computed(()=>data.value?.by_round||[])
 const platforms=computed(()=>data.value?.by_platform||[])
 const quality=computed(()=>data.value?.interaction_quality||{})
@@ -300,12 +334,12 @@ const executiveSummary=computed(()=>{
   if(quality.value.valid_multiagent_interaction)return intro+` Hubo ${number(n.cross_agent_messages)} respuestas dirigidas y ${number(n.recorded_interaction_pairs)} relaciones explícitas. Esto acredita interacción estructural, no representatividad de opiniones.`
   return intro+' No hay suficientes vínculos entre perfiles para considerarlo un diálogo multiagente válido. Las conclusiones deben leerse con esa advertencia.'
 })
-const agentName=id=>people.value.find(p=>String(p.id)===String(id))?.name||'Perfil '+String(id)
+const agentName=id=>displayName(id,people.value.find(p=>String(p.id)===String(id))?.name||'Participante')
 const messageType=t=>({
   CREATE_POST:'Publicación',POST:'Publicación',CREATE_COMMENT:'Respuesta',COMMENT:'Comentario',
   REPLY:'Respuesta',REPLY_POST:'Respuesta',LIKE_POST:'Me gusta',DECISION:'Decisión simulada'
 })[t]||String(t||'Acción').replaceAll('_',' ').toLowerCase()
-const platformLabel=t=>({twitter:'Plaza',reddit:'Comunidad',oasis:'Simulación',getangiru:'Decisiones simuladas'})[t]||t||'Espacio'
+const platformLabel=t=>spaceLabel(t)
 const formatDate=value=>{
   if(!value)return 'Sin fecha'
   const date=new Date(value)
@@ -314,10 +348,10 @@ const formatDate=value=>{
 const filteredMessages=computed(()=>(data.value?.messages||[]).filter(m=>{
   if(selectedPerson.value!=='all'&&String(m.participant_id)!==String(selectedPerson.value))return false
   if(selectedRound.value!=='all'&&String(m.round)!==String(selectedRound.value))return false
-  if(selectedPlatform.value!=='all'&&m.platform!==selectedPlatform.value)return false
+  if(selectedPlatform.value!=='all'&&(m.space||m.platform)!==selectedPlatform.value)return false
   if(search.value.trim()){
     const q=search.value.toLocaleLowerCase().trim()
-    return (m.excerpt+' '+m.participant+' '+agentName(m.target_id)).toLocaleLowerCase().includes(q)
+    return (m.excerpt+' '+displayName(m.participant_id,m.participant)+' '+agentName(m.target_id)).toLocaleLowerCase().includes(q)
   }
   return true
 }))
@@ -408,6 +442,10 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .edges button{display:flex;align-items:center;justify-content:space-between;gap:8px;border:0;background:#f5f9fc;border-radius:7px;padding:8px;color:#274861;font-size:11px;text-align:left}
 .edges strong{white-space:nowrap}.edges b{color:#0f92aa}
 .glossary{display:grid;gap:7px;margin:4px 0}.glossary dt{font-size:11px;font-weight:800}.glossary dd{font-size:11px;color:#63788d;margin:0;line-height:1.5}
+.room-list{display:grid;gap:13px}
+.room-card>header{display:flex;justify-content:space-between;gap:10px;margin-bottom:12px;align-items:center;flex-wrap:wrap}
+.room-card>header strong{font-size:14px;color:#155475}
+.room-card>header span{font-size:11px;color:#668296}
 .people-list{display:grid;gap:6px}.people-list>button{border:1px solid #e1ebf2;background:#fff;border-radius:9px;padding:10px;display:flex;align-items:center;gap:10px;text-align:left;color:#1e3e5d}
 .people-list>button:hover{border-color:#8dbbd3;background:#f8fbfd}
 .avatar{width:35px;height:35px;background:#d8ecf5;color:#15506c;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:800;flex-shrink:0}

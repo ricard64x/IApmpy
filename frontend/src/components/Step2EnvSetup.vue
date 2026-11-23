@@ -545,6 +545,28 @@
                   <small>Preserva el funcionamiento anterior, sin respuestas enlazadas.</small></span>
               </label>
             </div>
+            <div v-if="engineMode==='lightweight' && interactionMode==='dialogue'" class="social-scene-settings">
+              <h4>¿Dónde van a conversar?</h4>
+              <p>Elegí espacios del mundo simulado. No se publica nada en redes sociales reales.</p>
+              <div class="space-choices" role="group" aria-label="Espacios de conversación">
+                <label v-for="space in allowedSocialSpaces" :key="space.id" class="social-scene-choice"
+                  :class="{picked:socialSpaces.includes(space.id)}">
+                  <input type="checkbox" :value="space.id" v-model="socialSpaces">
+                  <span><strong>{{space.name}}</strong><small>{{space.description}}</small></span>
+                </label>
+              </div>
+              <h4>¿Cuánta conversación querés generar?</h4>
+              <div class="depth-presets" role="group" aria-label="Profundidad del diálogo">
+                <button v-for="option in dialogueDepthOptions" :key="option.value"
+                  type="button" :aria-pressed="dialogueDepth===option.value"
+                  :class="{chosen:dialogueDepth===option.value}"
+                  @click="dialogueDepth=option.value">
+                  <strong>{{option.title}}</strong><small>{{option.text}}</small>
+                </button>
+              </div>
+              <p class="space-footnote">Los personajes podrán preguntar, discrepar, aportar propuestas y responderse.
+                Todo quedará en un historial consultable. Más intervenciones implican más uso del modelo.</p>
+            </div>
             <p v-if="isLocked" class="locked-banner" role="status">
               Esta simulación ya se inició y sus resultados están protegidos.
               Podés elegir motor, participantes y rondas para una <strong>nueva versión independiente</strong>.
@@ -754,6 +776,28 @@ let lastLoggedConfigStage = ''
 const interactionPlatform = ref('parallel')
 const engineMode = ref('oasis')
 const interactionMode = ref('dialogue')
+const socialSpaces = ref(['plaza', 'foro'])
+const dialogueDepth = ref(2)
+const socialSpaceOptions = [
+  {id:'plaza',name:'Plaza',description:'Micropublicaciones y respuestas breves',platform:'twitter'},
+  {id:'foro',name:'Foro abierto',description:'Debates y argumentos extendidos',platform:'reddit'},
+  {id:'profesional',name:'Comunidad profesional',description:'Experiencias y decisiones de especialistas',platform:'reddit'},
+  {id:'grupos',name:'Grupo social',description:'Conversaciones entre conocidos y comunidades',platform:'reddit'},
+  {id:'videos',name:'Comentarios a videos',description:'Reacciones y discusiones sobre contenido',platform:'reddit'}
+]
+const allowedSocialSpaces = computed(() => socialSpaceOptions.filter(item =>
+  interactionPlatform.value==='parallel' || item.platform===interactionPlatform.value))
+const dialogueDepthOptions=[
+  {value:1,title:'Breve',text:'Una intervención y respuestas mínimas'},
+  {value:2,title:'Conversación',text:'Ida y vuelta entre participantes · recomendado'},
+  {value:3,title:'Debate',text:'Más réplicas y argumentos, mayor uso de IA'}
+]
+watch(interactionPlatform,()=>{
+  const allowed = new Set(allowedSocialSpaces.value.map(x=>x.id))
+  socialSpaces.value = socialSpaces.value.filter(x=>allowed.has(x))
+  if(!socialSpaces.value.length)
+    socialSpaces.value=[allowedSocialSpaces.value[0]?.id].filter(Boolean)
+})
 const capacityInfo = ref(null)
 const configuredProfileCount = computed(() => simulationConfig.value?.agent_configs?.length || profiles.value.length || 0)
 const detectedBase = ref(null)
@@ -917,6 +961,10 @@ const handleStartSimulation = async () => {
       auto_finalize: autoFinalize.value,
       engine_mode: engineMode.value,
       interaction_mode: interactionMode.value,
+      social_spaces: engineMode.value==='lightweight' && interactionMode.value==='dialogue'
+        ? [...socialSpaces.value] : [],
+      dialogue_depth: engineMode.value==='lightweight' && interactionMode.value==='dialogue'
+        ? dialogueDepth.value : 1,
       max_rounds: rounds
     }
     if (isLocked.value) {
@@ -1301,6 +1349,12 @@ onMounted(async () => {
       interactionPlatform.value = result.data.platform || 'parallel'
       engineMode.value = result.data.engine_mode || 'oasis'
       interactionMode.value = result.data.interaction_mode || 'posts'
+      dialogueDepth.value = Number(result.data.dialogue_depth) || 2
+      socialSpaces.value = Array.isArray(result.data.social_spaces) &&
+        result.data.social_spaces.length
+        ? result.data.social_spaces.filter(x=>socialSpaceOptions.some(s=>s.id===x))
+        : (interactionPlatform.value === 'twitter' ? ['plaza']
+          : interactionPlatform.value === 'reddit' ? ['foro'] : ['plaza','foro'])
       autoFinalize.value = result.data.auto_finalize !== false
       customMaxRounds.value = result.data.max_rounds || 10
       isLocked.value = result.data.locked === true
@@ -2852,6 +2906,22 @@ onUnmounted(() => {
 .interaction-detail-options{display:grid;gap:10px;background:#f3fbfc;border:1px solid #bfe4ea;border-radius:12px;padding:13px;margin-top:13px}
 .interaction-detail-options>strong{font-size:13px;color:#14516e}
 .interaction-detail-options .engine-option{margin:0}
+
+.social-scene-settings{background:#f7fbfd;border:1px solid #d5e7ef;border-radius:12px;padding:15px;margin:15px 0}
+.social-scene-settings h4{font-size:14px;color:#1d5674;margin:4px 0 8px}
+.social-scene-settings>p{font-size:12px;color:#5e798b;line-height:1.6;margin:3px 0 12px}
+.space-choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:20px}
+.social-scene-choice{display:flex;align-items:start;gap:9px;border:1px solid #d5e4eb;border-radius:10px;padding:10px 11px;cursor:pointer;background:#fff}
+.social-scene-choice.picked{border-color:#118aa9;background:#e9f8fb}
+.social-scene-choice input{accent-color:#117b9e;margin-top:3px;flex:none}
+.social-scene-choice strong{font-size:12px;display:block;color:#23516b}
+.social-scene-choice small{font-size:10px;line-height:1.5;color:#637d8e;display:block;margin-top:3px}
+.depth-presets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.depth-presets button{border:1px solid #d4e3eb;border-radius:10px;padding:11px 8px;background:#fff;cursor:pointer;text-align:left;display:grid;gap:4px}
+.depth-presets button.chosen{border-color:#147da0;background:#eaf7fb}
+.depth-presets button strong{color:#1b536e;font-size:12px}
+.depth-presets button small{color:#6a8190;font-size:10px;line-height:1.5}
+@media(max-width:720px){.depth-presets{grid-template-columns:1fr}.space-choices{grid-template-columns:1fr}}
 </style>
 
 <style scoped>

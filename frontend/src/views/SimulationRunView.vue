@@ -46,6 +46,7 @@
         <GraphPanel
           v-if="viewMode !== 'workbench' && (!isMobile || viewMode === 'graph')"
           :graphData="graphData"
+          :simulation-id="currentSimulationId"
           :loading="graphLoading"
           :currentPhase="3"
           :isSimulating="isSimulating"

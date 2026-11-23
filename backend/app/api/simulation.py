@@ -1622,6 +1622,21 @@ def simulation_population(simulation_id: str):
         return jsonify({"success": False, "error": str(error)}), 422
 
 
+@simulation_bp.route('/<simulation_id>/conversation-graph', methods=['GET'])
+def simulation_conversation_graph(simulation_id: str):
+    """Read-only graph of recorded fictional conversations in this run."""
+    from pathlib import Path
+    from ..services.character_interaction_graph import character_graph
+    if SimulationManager().get_simulation(simulation_id) is None:
+        return jsonify({"success":False,"error":"Simulación no encontrada."}),404
+    try:
+        directory = Path(Config.UPLOAD_FOLDER) / "simulations" / simulation_id
+        return jsonify({"success":True,"data":character_graph(simulation_id,directory)})
+    except (ValueError, OSError) as error:
+        logger.warning("Conversation graph unavailable: %s", type(error).__name__)
+        return jsonify({"success":False,"error":"No fue posible consultar las conversaciones guardadas."}),422
+
+
 # ============== 模拟运行控制接口 ==============
 
 @simulation_bp.post('/<simulation_id>/fork')
@@ -1645,7 +1660,8 @@ def fork_simulation_version(simulation_id):
         else:
             new_settings = get_execution_settings(simulation_id)
             new_settings = {key: new_settings[key] for key in (
-                "platform", "auto_finalize", "max_rounds", "engine_mode", "interaction_mode")}
+                "platform", "auto_finalize", "max_rounds", "engine_mode",
+                "interaction_mode", "social_spaces", "dialogue_depth")}
     except (ValueError, TypeError) as error:
         return jsonify({"success": False, "error": str(error)}), 422
     manager = SimulationManager()

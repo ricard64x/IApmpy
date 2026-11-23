@@ -12,6 +12,7 @@ import json
 import os
 import re
 from pathlib import Path
+from .character_interaction_graph import character_alias
 
 MAX_LITE = 120  # Same bound as scripts.run_lightweight_simulation.MAX_PEOPLE
 MAX_OASIS_2GB = 12  # Conservative operator cap; not a RAM guarantee
@@ -137,9 +138,10 @@ def resize_population(directory: Path, requested: int, engine_mode: str) -> dict
             name = str(p.get("name") or p.get("username") or f"Perfil {index + 1}")[:110]
         else:
             role, viewpoint, stance = _ROLES[(index - detected) % len(_ROLES)]
-            name = f"Perfil sintético {index + 1} — {role}"
+            name = character_alias(index)
             p = {
                 "name": name,
+                "profession": role,
                 "username": f"simulado_{index + 1}",
                 "bio": "Rol hipotético adicional; no es persona ni entidad del grafo.",
                 "persona": ("Rol de prueba generado por solicitud del usuario. " + viewpoint +
@@ -160,6 +162,8 @@ def resize_population(directory: Path, requested: int, engine_mode: str) -> dict
         # Preserve genuine profile details while guaranteeing a clear identity.
         p["name"] = name
         p["username"] = str(p.get("username") or f"perfil_{index + 1}")[:70]
+        p["profession"] = str(p.get("profession") or p.get("occupation") or
+                              p.get("job_title") or (role if index >= detected else "Profesión no indicada"))[:90]
         p["persona"] = str(p.get("persona") or p.get("user_char") or p.get("bio") or name)[:4000]
         p["bio"] = str(p.get("bio") or p.get("description") or name)[:150]
         active.append(p)

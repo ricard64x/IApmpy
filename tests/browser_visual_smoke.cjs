@@ -248,6 +248,21 @@ async function run() {
       followups:{available:false},messages_sample_limit:250,messages_sample_truncated:false
     })))
     // Validate mobile graph *and* full-width node details at realistic phone width.
+    await page.route('**/api/simulation/sim_visualqa/conversation-graph', route => json(route, success({
+      nodes:[
+        {id:'0',name:'Valeria Benítez',profession:'Arquitecta',stage_name:true},
+        {id:'1',name:'Mateo Cabrera',profession:'Analista financiero',stage_name:true}
+      ],
+      edges:[{source:'1',target:'0',channel:'foro',count:2,
+        examples:['La propuesta requiere mayor claridad.']}],
+      messages:[
+        {from:'1',to:'0',author:'Mateo Cabrera',recipient:'Valeria Benítez',
+          channel:'foro',content:'El presupuesto debe ser transparente y comparable.',
+          profession:'Analista financiero',round:2}
+      ],
+      total_actions:3,directed_responses:2,rooms:['foro'],
+      partial:false,stage_names:true,simulated_only:true
+    })))
     await page.setViewportSize({width:390,height:844})
     await page.goto(BASE + '/report/' + reportId, {waitUntil:'domcontentloaded'})
     await page.locator('.view-switcher .switch-btn[data-mode="graph"]').click()
@@ -279,6 +294,23 @@ async function run() {
     screenshots.push('03c-detalle-grafo-movil.png')
     await page.locator('.detail-panel .mobile-back-button').click()
     assert.equal(await page.locator('.detail-panel').count(),0,'Returning to graph must close details')
+    // The dialogue graph must keep character identities separate from factual entities.
+    await page.getByRole('button',{name:'Conversaciones',exact:true}).click()
+    await page.getByText('Quién conversó con quién').waitFor({timeout:12000})
+    assert.equal(await page.locator('.graph-panel .graph-state').count(),0,
+      'An empty document-graph state must never overlay the character conversation graph')
+    await page.locator('.character-network .character-node').first().waitFor({timeout:12000})
+    const networkText=await page.locator('.character-network').innerText()
+    assert(networkText.includes('personajes') || networkText.includes('participantes'))
+    // Tap the actual visible circle, not the empty bounding box of an SVG <g>.
+    await page.locator('.character-network .character-node circle').first().click()
+    const characterDetail=page.getByRole('dialog',{name:'Participante de la escena'})
+    await characterDetail.waitFor({timeout:12000})
+    assert((await characterDetail.innerText()).includes('Analista financiero') ||
+      (await characterDetail.innerText()).includes('Arquitecta'))
+    await page.screenshot({path:path.join(DIR,'03e-grafo-conversaciones-movil.png'),fullPage:true})
+    screenshots.push('03e-grafo-conversaciones-movil.png')
+    await characterDetail.getByRole('button',{name:'Cerrar detalle'}).click()
     await page.locator('.view-switcher .switch-btn[data-mode="workbench"]').click()
     assert.equal(await page.locator('.panel-wrapper.left').evaluate(e=>getComputedStyle(e).display),'none',
       'Mobile results must not share a column with the graph')

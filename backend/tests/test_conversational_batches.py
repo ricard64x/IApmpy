@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 from scripts.run_lightweight_simulation import execute
+from test_character_conversation_graph import ConversationGraphTests  # regression suite included in CI discover
 
 class ConversationalBatchTests(unittest.TestCase):
     def setUp(self):
@@ -39,18 +40,18 @@ class ConversationalBatchTests(unittest.TestCase):
         rows=self.events("reddit")
         posts=[r for r in rows if r.get("action_type")=="CREATE_POST"]
         replies=[r for r in rows if r.get("action_type")=="CREATE_COMMENT"]
-        self.assertEqual(result["actions"],6)
-        self.assertEqual(result["replies"],4)
-        self.assertEqual(result["model_batches"],3)
+        self.assertEqual(result["actions"],12)
+        self.assertEqual(result["replies"],10)
+        self.assertEqual(result["model_batches"],5)
         self.assertEqual(len(posts),2)
-        self.assertEqual(len(replies),4)
+        self.assertEqual(len(replies),10)
         self.assertFalse("conversacion_sintetica_previa_no_confiable" in self.observed[0])
         self.assertTrue("conversacion_sintetica_previa_no_confiable" in self.observed[1])
         for row in replies:
             args=row["action_args"]
             self.assertIn(args["target_agent_id"],[1,2,3,4,5,6])
             self.assertNotEqual(args["target_agent_id"],row["agent_id"])
-            self.assertTrue(args["reply_to_action_id"].startswith("reddit:r"))
+            self.assertTrue(args["reply_to_action_id"].startswith("reddit:"))
             self.assertTrue(args["root_post_id"].startswith("reddit:r"))
         for row in rows:
             if row.get("event_type")=="round_end":
@@ -74,8 +75,8 @@ class ConversationalBatchTests(unittest.TestCase):
             bridge.return_value.mode="off"
             bridge.return_value.search.return_value={"items":[],"status":"off"}
             result=execute(self.cfg,"parallel",3,request_fn=self.model)
-        self.assertEqual(result["actions"],6)
-        self.assertEqual(result["replies"],4)
+        self.assertEqual(result["actions"],12)
+        self.assertEqual(result["replies"],8)
         for platform in ("twitter","reddit"):
             entries=self.events(platform)
             for row in entries:

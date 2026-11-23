@@ -63,12 +63,20 @@ def _synthetic_gpt_evidence(simulation_id: str) -> str:
             message = args.get("content", "")
             if not isinstance(message, str) or not message.strip():
                 continue
+            from ..services.character_interaction_graph import character_alias
+            room_labels = {
+                "plaza":"Plaza","foro":"Foro abierto",
+                "profesional":"Comunidad profesional",
+                "grupos":"Grupo social","videos":"Comentarios a videos"
+            }
+            room = room_labels.get(event.get("social_space"), name)
+            author = character_alias(event.get("agent_id"))
+            directed = event.get("action_type") == "CREATE_COMMENT" and args.get("target_agent_id") is not None
+            recipient = character_alias(args.get("target_agent_id")) if directed else None
             evidence.append(
-                f"- Ronda {int(event.get('round') or 0)}, {name}, "
-                f"participante ficticio {event.get('agent_id')}" +
-                (f" responde explícitamente a {args.get('target_agent_id')}" if
-                 event.get("action_type") == "CREATE_COMMENT" and
-                 args.get("target_agent_id") is not None else " publica") +
+                f"- Ronda {int(event.get('round') or 0)}, {room}, "
+                f"{author}" +
+                (f" responde a {recipient}" if recipient else " publica") +
                 f": {message[:320]}"
             )
     if not evidence:
@@ -567,6 +575,9 @@ def report_simulation_metrics(report_id: str):
     base = os.path.join(SimulationRunner.RUN_STATE_DIR,simulation_id)
     from ..services.simulation_metrics import followup_metrics
     data=legacy_metrics(simulation_id,base)
+    from ..services.character_interaction_graph import character_graph
+    from pathlib import Path
+    data["conversation_archive"] = character_graph(simulation_id, Path(base))
     try:
         from pathlib import Path
         from ..services.participant_population import population_status
@@ -951,6 +962,12 @@ def export_persisted_report(report_id: str):
         metrics["followups"]=followup_metrics(
             os.path.join(ReportManager.REPORTS_DIR,report_id,"interacciones.jsonl"),
             report.simulation_id)
+        from ..services.character_interaction_graph import character_graph
+        from pathlib import Path
+        conversation_archive = character_graph(
+            report.simulation_id, Path(SimulationRunner.RUN_STATE_DIR) / report.simulation_id)
+        metrics["conversation_archive"] = conversation_archive
+        aliases = {str(n["id"]): n for n in conversation_archive.get("nodes", [])}
         quality = metrics["interaction_quality"]
         quality_warning = (quality["status"] not in ("acceptable","good"))
         if quality_warning:
@@ -979,15 +996,50 @@ def export_persisted_report(report_id: str):
         ] + [f"| {r['hour']}:00 | {r['count']} |" for r in metrics["by_hour"]] + [
             "", "### Acciones por ronda", "| Ronda | Acciones |", "|---|---:|",
         ] + [f"| {r['round']} | {r['count']} |" for r in metrics["by_round"]] + [
-            "", "### Agentes que participaron", "| Agente sintético | ID | Acciones | Mensajes |",
+            "", "### Participantes de la escena", "| Participante | ID | Acciones | Mensajes |",
             "|---|---|---:|---:|",
-        ] + [f"| {r['name'].replace('|','/')} | {r['id']} | {r['actions']} | {r['messages']} |"
+        ] + [f"| {(aliases.get(str(r['id']),{}).get('name') or r['name']).replace('|','/')} "
+             f"({aliases.get(str(r['id']),{}).get('profession') or 'Profesión no indicada'}) "
+             f"| {r['id']} | {r['actions']} | {r['messages']} |"
              for r in metrics["participants"]] + [
             "", "### Tipos de acción", "| Acción | Conteo |", "|---|---:|",
         ] + [f"| {r['type']} | {r['count']} |" for r in metrics["by_type"]] + [
             "", "### Interacciones con destinatario registrado",
             "| Emisor | Destinatario | Conteo |", "|---|---|---:|",
         ] + [f"| {r['from']} | {r['to']} | {r['count']} |" for r in metrics["interactions"]]
+        # Include where each discussion took place, with exact saved texts.
+        # Labels are stage names, never source-document identities.
+        metrics_lines += ["", "## Dónde conversaron y qué dijeron", "",
+            "Estos espacios y personajes forman parte de una simulación privada; "
+            "no son publicaciones en redes reales.",
+            "| Espacio | Intervenciones |", "|---|---:|"]
+        space_names = {
+            "plaza":"Plaza · micropublicaciones","foro":"Foro abierto",
+            "profesional":"Comunidad profesional","grupos":"Grupo social",
+            "videos":"Comentarios a videos","twitter":"Plaza","reddit":"Comunidad",
+        }
+        metrics_lines.extend(
+            f"| {space_names.get(item['space'],item['space'])} | {item['count']} |"
+            for item in metrics.get("by_social_space", []))
+        metrics_lines += ["", "### Conversaciones registradas", ""]
+        archive_messages = conversation_archive.get("messages", [])
+        if not archive_messages:
+            metrics_lines.append("No existen intervenciones registradas.")
+        else:
+            for message in archive_messages:
+                who = message["author"]
+                profession = message.get("profession") or "Profesión no indicada"
+                target = message.get("recipient")
+                direction = f" → {target}" if target else " · publicación inicial"
+                room = space_names.get(message["channel"], message["channel"])
+                message_text = message["content"].replace("\n"," ").strip()
+                metrics_lines.append(
+                    f"- **{who} ({profession}){direction}** "
+                    f"· {room} · ronda {message.get('round') or '—'} "
+                    f"· {message.get('timestamp') or 'sin fecha'}: {message_text}")
+        if conversation_archive.get("partial") or conversation_archive.get("total_actions",0) > len(archive_messages):
+            metrics_lines += ["", "**Nota de alcance:** se muestra una selección de conversaciones "
+                              "del historial persistido. El registro original permanece en la simulación."]
         if metrics["partial"]:
             metrics_lines += ["", "**Advertencia:** conteo parcial por límite de lectura segura."]
         follow=metrics["followups"]
