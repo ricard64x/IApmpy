@@ -120,6 +120,42 @@ def _reference_platform(manager, simulation_id: str, platform: str | None):
 
 
 def _base_prompt(report) -> str:
+    # Give the model reproducible structured counts, not only the narrative.
+    # Keep this bounded: a follow-up must not grow into a new full report.
+    from .simulation_metrics import legacy_metrics
+    metrics_context = ""
+    try:
+        metrics = legacy_metrics(report.simulation_id,
+            Path(Config.UPLOAD_FOLDER) / "simulations" / report.simulation_id)
+        structured = {
+            "metodologia": "eventos sintéticos persistidos; no representan personas reales",
+            "participantes_activos": metrics.get("active_participants"),
+            "acciones_registradas": metrics.get("total_actions"),
+            "mensajes_registrados": metrics.get("message_actions"),
+            "respuestas_dirigidas": metrics.get("cross_agent_messages"),
+            "pares_explicitos": metrics.get("recorded_interaction_pairs"),
+            "estado_calidad": (metrics.get("interaction_quality") or {}).get("label"),
+            "advertencias_calidad": (metrics.get("interaction_quality") or {}).get("issues",[]),
+            "datos_parciales": metrics.get("partial"),
+            "participacion": [
+                {"id":p.get("id"),"nombre":p.get("name"),
+                 "acciones":p.get("actions"),"mensajes":p.get("messages")}
+                for p in (metrics.get("participants") or [])[:25]
+            ],
+            "interacciones": (metrics.get("interactions") or [])[:20],
+            "rondas": (metrics.get("by_round") or [])[:10],
+            "muestra_de_mensajes": [
+                {"autor":m.get("participant"),"destinatario":m.get("target_id"),
+                 "texto":m.get("excerpt","")[:150]}
+                for m in (metrics.get("messages") or [])[:12]
+            ],
+        }
+        metrics_context = (
+            "\nCONTADORES VERIFICABLES DEL HISTORIAL (priorizá estos números al responder):\n"
+            + json.dumps(structured,ensure_ascii=False)[:6500] + "\n"
+        )
+    except (OSError,ValueError,TypeError):
+        metrics_context = "\nLos contadores del historial no están disponibles; no inventes estadísticas.\n"
     return (
         "Eres un asistente de investigación que trabaja con una simulación "
         "de personas ficticias. Las respuestas son escenarios sintéticos y "
@@ -131,7 +167,11 @@ def _base_prompt(report) -> str:
         + "\nContexto del escenario:\n"
         + (report.simulation_requirement or "")[:1100]
         + "\nExtracto del informe guardado:\n"
-        + (report.markdown_content or "")[:8500]
+        + (report.markdown_content or "")[:7000]
+        + metrics_context
+        + "\nCuando cites cifras, identificá que vienen de los registros de ejecución. "
+          "Si las respuestas son insuficientes o los datos son parciales, indicalo. "
+          "No atribuyas sentimientos colectivos, precisión estadística ni representatividad a actores sintéticos."
     )
 
 
