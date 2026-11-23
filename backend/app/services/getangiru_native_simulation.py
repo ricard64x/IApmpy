@@ -159,6 +159,10 @@ class NativeSimStore:
             if active:
                 c.rollback()
                 raise RuntimeError("Existe otra simulación local activa")
+            count=c.execute("SELECT COUNT(*) FROM runs WHERE project_id=?",(project_id,)).fetchone()[0]
+            if count>=100:
+                c.rollback()
+                raise ValueError("Límite de 100 simulaciones por proyecto; exportar y archivar antes de crear más")
             c.execute("""INSERT INTO runs(id,project_id,graph_id,input_hash,mode_requested,state,
                          started_at,updated_at) VALUES(?,?,?,?,?,?,?,?)""",
                       (ident,project_id,graph_id,source_hash,mode,"queued",now,now))
