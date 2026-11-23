@@ -79,6 +79,64 @@ def _canonical(value: Any) -> str:
     return "".join(w[:1].upper() + w[1:] for w in words)[:64]
 
 
+
+# Model output is untrusted. Qwen 1.5B may repeat the example actor list in
+# the system prompt even for a document that names only one or two actors.
+# Require lexical support in the actual source before accepting any specific
+# actor class. The gate intentionally favors a false negative to invented roles.
+_ACTOR_EVIDENCE_ALIASES = {
+    "socteam": ("soc", "security operations center", "centro de operaciones"),
+    "securityteam": ("equipo de seguridad", "seguridad", "ciberseguridad", "security team"),
+    "infrastructureteam": ("infraestructura", "infrastructure"),
+    "fraudteam": ("fraude", "fraudes", "antifraude", "fraud team"),
+    "auditteam": ("auditoria", "auditor", "auditores", "audit"),
+    "riskteam": ("riesgos", "equipo de riesgo", "area de riesgo", "risk team"),
+    "executiveboard": ("direccion", "directorio", "gerencia", "executive board", "junta directiva"),
+    "vendor": ("proveedor", "proveedores", "contratista", "vendor"),
+    "bank": ("banco", "entidad bancaria", "bank"),
+    "company": ("empresa", "compania", "company"),
+    "customer": ("cliente", "clientes", "customer"),
+    "regulator": ("regulador", "reguladora", "reguladores", "supervisor", "regulator"),
+    "hospital": ("hospital", "clinica", "hospital"),
+    "doctor": ("medico", "medica", "doctor", "doctora"),
+    "patient": ("paciente", "pacientes", "patient"),
+    "professor": ("profesor", "profesora", "docente", "professor"),
+    "university": ("universidad", "university"),
+    "lawyer": ("abogado", "abogada", "lawyer"),
+}
+_GENERIC_ACTOR_WORDS = {
+    "team", "group", "department", "office", "person", "organization",
+    "actor", "entity", "unit", "service", "committee",
+}
+
+
+def _evidence_text(value: str) -> str:
+    norm = unicodedata.normalize("NFKD", value.casefold())
+    return " ".join(re.findall(r"[a-z0-9]+", "".join(
+        ch for ch in norm if not unicodedata.combining(ch)
+    )))
+
+
+def _actor_is_supported(actor: str, document: str) -> bool:
+    """Require actor-specific source terminology; never trust prompt examples."""
+    source = _evidence_text(document)
+    if not source:
+        return False
+    norm_name = _evidence_text(actor).replace(" ", "")
+    aliases = _ACTOR_EVIDENCE_ALIASES.get(norm_name, ())
+    # For novel English PascalCase types, test content-bearing type tokens.
+    parts = re.findall(r"[A-Z]+(?=[A-Z][a-z]|\b)|[A-Z]?[a-z]+|\d+", actor)
+    candidates = list(aliases) + [
+        word.lower() for word in parts
+        if len(word) >= 4 and word.lower() not in _GENERIC_ACTOR_WORDS
+    ]
+    for candidate in candidates:
+        term = _evidence_text(candidate)
+        if term and re.search(r"(?:^|\s)" + re.escape(term) + r"(?:\s|$)", source):
+            return True
+    return False
+
+
 def infer_fast_local_ontology(llm_client, document: str, requirement: str) -> dict:
     """Build schema from extracted actors and proposed relationships, not facts."""
     context = document[:3400]
@@ -94,7 +152,9 @@ def infer_fast_local_ontology(llm_client, document: str, requirement: str) -> di
     names = []
     for value in candidates:
         name = _canonical(value)
-        if name and name not in _NON_ACTORS and name not in names and name not in ("Person", "Organization"):
+        if (name and name not in _NON_ACTORS and name not in names
+                and name not in ("Person", "Organization")
+                and _actor_is_supported(name, context)):
             names.append(name)
     if len(names) < 8:
         raise LLMResponseError(
